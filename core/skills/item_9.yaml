@@ -1,0 +1,38 @@
+item_id: item_9
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: The strengths and limitations of the body of evidence are clearly described.
+title_zh: 证据体的优势和局限性被清晰描述。
+description: "Description of how to determine bias in the body of evidence and \n\
+  overall framework description.\n"
+description_zh: '描述如何确定证据体的偏倚以及总体框架描述。
+
+  '
+locating_info: 'Methodology (Risk of bias), Evidence tables, Interpretation.
+
+  '
+locating_info_zh: '查看方法学（偏倚风险）、证据表、解读章节。
+
+  '
+criteria:
+- Description of how to determine bias (如何确定偏倚的描述)
+- Study design assessment (研究设计评估)
+- Methodological defects (blinding/sample size) (方法学缺陷：盲法/样本量)
+- Consistency of results (结果一致性)
+- Direction of results (结果方向)
+- Benefit/harm balance (利弊平衡)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Only study design mentioned
+  condition_zh: 仅提及研究设计
+- range: 3-4
+  condition: Design + bias tool mentioned
+  condition_zh: 设计 + 提及偏倚评估工具
+- range: 5-7
+  condition: Comprehensive framework with multiple criteria met
+  condition_zh: 全面的框架，满足多个标准

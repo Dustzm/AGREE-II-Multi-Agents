@@ -1,0 +1,35 @@
+item_id: item_22
+enabled: true
+domain: 6
+domain_name: Editorial Independence
+domain_name_zh: 编辑独立性
+title: The views of the funding body have not influenced the content of the guideline.
+title_zh: 资助机构的意见未影响指南内容。
+description: "Statement on sponsorship and whether the funding body \ninfluenced the\
+  \ content of the guideline.\n"
+description_zh: '关于赞助的声明以及资助机构是否影响了指南内容。
+
+  '
+locating_info: 'Declarations, Sponsorship Sources.
+
+  '
+locating_info_zh: '查看声明、赞助来源章节。
+
+  '
+criteria:
+- Name of sponsor (or statement of no sponsorship) (赞助商名称（或无赞助声明））
+- Statement that sponsor did not influence content (赞助商未影响内容的声明)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Provision of sponsorship source only
+  condition_zh: 仅提供赞助来源
+- range: '3'
+  condition: Provision of source + Indication of influence
+  condition_zh: 提供来源 + 说明影响
+- range: '7'
+  condition: Statement of NO sponsorship OR Provision of source + Statement of NO
+    influence
+  condition_zh: 声明无赞助 或 提供来源 + 声明无影响

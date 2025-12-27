@@ -1,0 +1,38 @@
+item_id: item_5
+enabled: true
+domain: 2
+domain_name: Stakeholder Involvement
+domain_name_zh: 利益相关者参与
+title: The views and preferences of the target population (patients, public, etc.)
+  have been sought.
+title_zh: 已征求目标人群（患者、公众等）的意见和偏好。
+description: 'Consideration of patient experiences and views.
+
+  '
+description_zh: '考虑患者的体验和意见。
+
+  '
+locating_info: 'Methods, External Review, Target Population Views.
+
+  '
+locating_info_zh: '查看方法、外部审查、目标人群意见章节。
+
+  '
+criteria:
+- Methods used to obtain views (获取意见的方法)
+- How views were collected (surveys, focus groups) (如何收集意见：问卷、焦点小组)
+- Outcomes obtained (获得的结果)
+- How information influenced the guideline (信息如何影响指南)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Considered patient preferences only (no method)
+  condition_zh: 仅考虑了患者偏好（无方法说明）
+- range: 3-4
+  condition: Provided methods for collecting preferences
+  condition_zh: 提供了收集偏好的方法
+- range: 5-7
+  condition: Provided methods + Summarized outcomes + Used for recommendations
+  condition_zh: 提供方法 + 总结结果 + 用于形成推荐意见

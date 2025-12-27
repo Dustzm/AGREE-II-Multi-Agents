@@ -1,0 +1,36 @@
+item_id: item_21
+enabled: true
+domain: 5
+domain_name: Applicability
+domain_name_zh: 适用性
+title: The guideline presents monitoring and/or auditing criteria.
+title_zh: 指南呈现了监测和/或审计标准。
+description: "Identification of standards for implementation/compliance, \nimpact\
+  \ evaluation, frequency/intervals, and measurement methods.\n"
+description_zh: '识别实施/合规标准、影响评估、频率/间隔和测量方法。
+
+  '
+locating_info: 'Recommendations, Quality Indicators, Auditing Standards.
+
+  '
+locating_info_zh: '查看推荐意见、质量指标、审计标准章节。
+
+  '
+criteria:
+- Identification of standards for implementation/compliance (实施/合规标准的识别)
+- Standards for impact evaluation (影响评估标准)
+- Frequency/intervals (频率/间隔)
+- Description of how to measure (如何测量的描述)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 2-4
+  condition: Provision of indicators/standards
+  condition_zh: 提供指标/标准
+- range: 5-6
+  condition: Provision of indicators + Frequency/Intervals
+  condition_zh: 提供指标 + 频率/间隔
+- range: '7'
+  condition: Provision of indicators + Frequency + Measurement description
+  condition_zh: 提供指标 + 频率 + 测量描述

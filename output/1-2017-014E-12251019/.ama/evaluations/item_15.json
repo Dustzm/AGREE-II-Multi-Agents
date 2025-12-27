@@ -1,0 +1,17 @@
+{
+  "item_id": "item_15",
+  "domain": 4,
+  "title": "The recommendations are specific and unambiguous.",
+  "chain_of_thought": {
+    "step1_locate": "Recommendations section under 'Glycemic control targets and monitoring'",
+    "step2_evidence": [
+      "A target HbA1c range of 6.0% -7.0% (if it can be safely achieved) is recommended for patients with a life expectancy greater than 10-15 y and no or mild microvascular complications."
+    ],
+    "step3_reasoning": "The evidence explicitly uses 'is recommended' (statement on formation), states the purpose (target HbA1c range of 6.0% -7.0%), and identifies the relevant population (patients with life expectancy >10-15 y and no/mild microvascular complications). This meets all required elements for score range 5-7. Since both purpose and population are explicitly stated, the highest score in the range (7) is assigned.",
+    "score": 7
+  },
+  "metadata": {
+    "skill_config": "skills/item_15.yaml",
+    "evaluated_at": "2025-12-25T10:29:57.628770"
+  }
+}

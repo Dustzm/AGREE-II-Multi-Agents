@@ -1,0 +1,17 @@
+{
+  "item_id": "item_8",
+  "domain": 3,
+  "title": "The criteria for selecting the evidence are clearly described.",
+  "chain_of_thought": {
+    "step1_locate": "The guideline is a clinical consensus document, not a systematic review or guideline development document. No 'Methodology', 'Literature Search', or 'Inclusion/Exclusion Criteria' sections were found that describe evidence selection criteria.",
+    "step2_evidence": [
+      "No relevant information found"
+    ],
+    "step3_reasoning": "The guideline is a clinical consensus document on metformin use, not a systematic review or guideline development document. Clinical consensus documents typically do not include detailed methodology sections describing evidence selection criteria. The document cites numerous references but does not describe the criteria used to select these studies. The document contains sections on clinical positions, recommendations, and references, but no description of inclusion/exclusion criteria for evidence selection. Therefore, the criteria for selecting evidence are not mentioned in the guideline.",
+    "score": 1
+  },
+  "metadata": {
+    "skill_config": "skills/item_8.yaml",
+    "evaluated_at": "2025-12-25T10:43:28.019013"
+  }
+}

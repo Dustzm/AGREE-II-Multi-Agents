@@ -1,0 +1,40 @@
+item_id: item_23
+enabled: true
+domain: 6
+domain_name: Editorial Independence
+domain_name_zh: 编辑独立性
+title: Competing interests of guideline development group members have been recorded
+  and addressed.
+title_zh: 指南制定小组成员的利益冲突已被记录和处理。
+description: "Description of types of interests considered, methodology for collection,\
+  \ \ndescription of interests, and description of influence on process.\n"
+description_zh: '描述考虑的利益类型、收集方法、利益描述以及对过程的影响描述。
+
+  '
+locating_info: 'Methodology, Competing Interests, Guideline Group.
+
+  '
+locating_info_zh: '查看方法学、利益冲突、指南小组章节。
+
+  '
+criteria:
+- Types of interests considered (考虑的利益类型)
+- Methodology for collection (收集方法)
+- Description of interests (利益描述)
+- Description of influence on process (对过程影响的描述)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 3-4
+  condition: Mention of collection method OR interests (but no conflict indication)
+  condition_zh: 提及收集方法或利益（但无冲突说明）
+- range: '5'
+  condition: Statement of no competing interests without collection method
+  condition_zh: 声明无利益冲突但无收集方法
+- range: '6'
+  condition: Collection method + Report + Description of potential influence
+  condition_zh: 收集方法 + 报告 + 潜在影响描述
+- range: '7'
+  condition: Collection method + Report + Description of NO influence
+  condition_zh: 收集方法 + 报告 + 无影响描述

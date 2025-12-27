@@ -1,0 +1,17 @@
+{
+  "item_id": "item_23",
+  "domain": 6,
+  "title": "Competing interests of guideline development group members have been recorded and addressed.",
+  "chain_of_thought": {
+    "step1_locate": "Competing Interests section",
+    "step2_evidence": [
+      "利益冲突 所有作者均声明不存在利益冲突"
+    ],
+    "step3_reasoning": "The guideline states 'All authors declare no competing interests' in the Competing Interests section. However, it does not specify types of interests considered (e.g., financial, personal), methodology for collection (e.g., declaration forms), or description of influence on process. The statement of no competing interests is provided without mentioning how conflicts were collected (no collection method described). This matches the scoring principle for score 5: 'Statement of no competing interests without collection method'.",
+    "score": 5
+  },
+  "metadata": {
+    "skill_config": "skills/item_23.yaml",
+    "evaluated_at": "2025-12-25T10:53:53.475833"
+  }
+}

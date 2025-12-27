@@ -1,0 +1,1947 @@
+[
+    {
+        "type": "text",
+        "text": "Synopsis of the 2017 U.S. Department of Veterans Affairs/ U.S. Department of Defense Clinical Practice Guideline: Management of Type 2 Diabetes Mellitus",
+        "text_level": 1,
+        "bbox": [
+            70,
+            78,
+            767,
+            165
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Paul R. Conlin, MD; Jeffrey Colburn, MD; David Aron, MD, MS; Rose Mary Pries, DrPH; Mark P. Tschanz, DO; and Leonard Pogach, MD, MBA",
+        "bbox": [
+            67,
+            168,
+            806,
+            196
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Description: In April 2017, the U.S. Department of Veterans Affairs (VA) and the U.S. Department of Defense (DoD) approved a joint clinical practice guideline for the management of type 2 diabetes mellitus.",
+        "bbox": [
+            67,
+            210,
+            479,
+            264
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Methods: The VA/DoD Evidence-Based Practice Work Group convened a joint VA/DoD guideline development effort that included a multidisciplinary panel of practicing clinician stakeholders and conformed to the Institute of Medicine's tenets for trustworthy clinical practice guidelines. The guideline panel developed key questions in collaboration with the ECRI Institute, which systematically searched and evaluated the literature through June 2016, developed an algorithm, and rated recom",
+        "bbox": [
+            67,
+            269,
+            479,
+            379
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "mendations by using the GRADE (Grading of Recommendations Assessment, Development and Evaluation) system.",
+        "bbox": [
+            511,
+            210,
+            924,
+            239
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Recommendations: This synopsis summarizes key features of the guideline in 7 areas: patient-centered care and shared decision making, glycemic biomarkers, hemoglobin  $\\mathsf{A}_{1\\mathrm{c}}$  target ranges, individualized treatment plans, outpatient pharmacologic treatment, glucose targets for critically ill patients, and treatment of hospitalized patients.",
+        "bbox": [
+            511,
+            242,
+            925,
+            325
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Ann Intern Med. 2017;167:655-663. doi:10.7326/M17-1362",
+        "bbox": [
+            513,
+            339,
+            829,
+            353
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Annals.org",
+        "bbox": [
+            861,
+            341,
+            924,
+            353
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "For author affiliations, see end of text.",
+        "bbox": [
+            515,
+            354,
+            718,
+            363
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "This article was published at Annals.org on 24 October 2017.",
+        "bbox": [
+            515,
+            366,
+            855,
+            377
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Diabetes is the leading cause of major complications, such as end-stage renal disease and lower extremity amputations, and is a significant contributor to ischemic heart disease, stroke, peripheral vascular disease, and vision loss (1). There has been increasing acceptance of the importance of individualizing glycemic management and assessment of risk for adverse events, especially hypoglycemia (2-6). This is of great importance for all patients, especially older adults (aged  $\\geq 65$  years) with comorbid conditions. In 2013, 12.0 million older adults in the United States had diabetes, comprising  $40\\%$  of the 30.2 million persons with the disease (7). Older adults account for an estimated  $60\\%$  to  $70\\%$  of the U.S. Department of Veterans Affairs (VA) and U.S. Department of Defense (DoD) diabetic population (largely retirees) (VA/DoD. Unpublished data). These considerations make safe and effective diabetes management a policy priority for health care providers (physicians, nurses, dietitians, and pharmacists) and policymakers in both the VA and the DoD.",
+        "bbox": [
+            67,
+            421,
+            479,
+            704
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "The 2017 VA/DoD Clinical Practice Guideline (CPG) for the Management of Type 2 Diabetes Mellitus in Primary Care offers health care providers an evidence-based framework to evaluate, treat, and manage persons with type 2 diabetes mellitus in the context of their individual needs and preferences (8). The current article is a summary of key CPG recommendations, which was developed with multiple stakeholders to ensure representation by a broad spectrum of clinicians. It provides practice recommendations for the care of patients with diabetes, with an emphasis on shared decision making.",
+        "bbox": [
+            67,
+            705,
+            479,
+            861
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "GUIDELINE DEVELOPMENT AND REVIEW PROCESS",
+        "text_level": 1,
+        "bbox": [
+            67,
+            868,
+            417,
+            901
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "These recommendations were developed using methods established by the VA/DoD Evidence-Based Practice Work Group (EBPWG) (9), which are aligned",
+        "bbox": [
+            67,
+            904,
+            479,
+            948
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "with standards for trustworthy guidelines (10). The EBPWG and the U.S. Army Medical Command selected guideline panel cochairs (1 each from the VA and the DoD). The cochairs then selected a multidisciplinary panel of practicing clinician stakeholders, including primary care physicians (family and internal medicine), endocrinologists, medical nutritionists, pharmacists, diabetes educators, and nurse practitioners. At the start of the CPG development process and at other key points throughout, all members were required to submit disclosure statements for potential conflicts of interest in the previous 24 months. Verbal affirmations of no conflicts were used during meetings throughout the development process. The project team was also subject to random Web-based surveillance (for example, ProPublica).",
+        "bbox": [
+            511,
+            421,
+            925,
+            647
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "The VA/DoD contracted with The Lewin Group, a third party with expertise in clinical practice guideline development, to facilitate meetings. The guideline panel, in collaboration with the ECRI Institute, developed 9 key questions using the PICOTS (population, intervention, comparator, outcomes, timing of outcomes measurement, and setting) format. A systematic search of the peer-reviewed literature from January 2009 through March 2016 was conducted to find evidence relevant to the key questions that focused on randomized trials, systematic reviews, and meta-analyses of fair or better quality. One key question was",
+        "bbox": [
+            511,
+            649,
+            925,
+            818
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "See also:",
+        "text_level": 1,
+        "bbox": [
+            525,
+            847,
+            597,
+            861
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Editorial comment 677",
+        "bbox": [
+            525,
+            870,
+            898,
+            884
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Web-Only",
+        "bbox": [
+            525,
+            893,
+            601,
+            908
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "CME/MOC activity",
+        "bbox": [
+            525,
+            908,
+            659,
+            924
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Supplement",
+        "bbox": [
+            525,
+            925,
+            612,
+            939
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "Annals of Internal Medicine",
+        "bbox": [
+            70,
+            42,
+            363,
+            64
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            634,
+            37,
+            925,
+            62
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            70,
+            955,
+            134,
+            967
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            540,
+            953,
+            898,
+            967
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "page_number",
+        "text": "655",
+        "bbox": [
+            902,
+            956,
+            924,
+            966
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Table. Summary of Recommendations From the 2017 VA/DoD CPG on the Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            80,
+            87,
+            442,
+            129
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "General approach to type 2 diabetes care",
+        "text_level": 1,
+        "bbox": [
+            80,
+            140,
+            321,
+            152
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Shared decision making to enhance patient knowledge and satisfaction is recommended.",
+        "bbox": [
+            92,
+            152,
+            417,
+            173
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "All patients with diabetes should be offered ongoing, individualized diabetes self-management education via various methods tailored to their preferences, learning needs, and abilities and based on available resources.",
+        "bbox": [
+            92,
+            174,
+            476,
+            218
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Offer  $\\geq 1$  type of bidirectional telehealth intervention (typically health communication via computer, telephone, or other electronic means) involving licensed independent practitioners to patients selected by their primary care provider as an adjunct to usual patient care.",
+        "bbox": [
+            92,
+            219,
+            474,
+            263
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Glycemic control targets and monitoring",
+        "text_level": 1,
+        "bbox": [
+            80,
+            275,
+            316,
+            286
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Set an  $\\mathrm{HbA_{1c}}$  target range based on absolute reduction of risk for significant microvascular complications, life expectancy, patient preferences, and social determinants of health using shared decision making.",
+        "bbox": [
+            92,
+            287,
+            476,
+            330
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Develop an individualized glycemic management plan based on the provider's appraisal of the risk-benefit ratio and patient preferences.",
+        "bbox": [
+            92,
+            331,
+            474,
+            353
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Assess patient characteristics, such as race, ethnicity, chronic kidney disease, and nonglycemic factors (e.g., laboratory methods and assay variability), when interpreting results of  $\\mathrm{HbA_{1c}}$ , fructosamine, and other glycemic biomarker testing.",
+        "bbox": [
+            92,
+            354,
+            464,
+            397
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Individualize the target range for  $\\mathrm{HbA}_{1c}$ , taking into account individual preferences, presence or absence of microvascular complications, and presence or severity of comorbid conditions.",
+        "bbox": [
+            92,
+            398,
+            473,
+            430
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "A target  $\\mathrm{HbA}_{1c}$  range of  $6.0\\% -7.0\\%$  (if it can be safely achieved) is recommended for patients with a life expectancy greater than 10-15 y and no or mild microvascular complications.",
+        "bbox": [
+            92,
+            431,
+            473,
+            462
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In patients with type 2 diabetes, an  $\\mathrm{HbA_{1c}}$  target range of  $7.0\\% -8.5\\%$  is appropriate (if it can be safely achieved) for most persons with established microvascular or macrovascular disease, comorbid conditions, or life expectancy of 5-10 y.",
+        "bbox": [
+            92,
+            465,
+            474,
+            508
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "A target  $\\mathrm{HbA_{1c}}$  range of  $8.0\\% -9.0\\%$  is recommended for patients with type 2 diabetes with a life expectancy  $< 5y$  ; significant comorbid conditions; advanced complications; or difficulties with self-management attributable to mental status, disability, or other factors (such as food insecurity or insufficient social support).",
+        "bbox": [
+            92,
+            508,
+            469,
+            562
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Providers should be aware that  $\\mathrm{HbA_{1c}}$  variability is a risk factor for microvascular and macrovascular outcomes.",
+        "bbox": [
+            92,
+            564,
+            447,
+            584
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Nonpharmacologic treatments",
+        "text_level": 1,
+        "bbox": [
+            80,
+            598,
+            260,
+            609
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Offer therapeutic lifestyle counseling that includes nutrition, physical activity, cessation of smoking and excessive use of alcohol, and weight control to patients with diabetes (see VA/DoD CPGs for obesity, substance use disorders, and tobacco use cessation).",
+        "bbox": [
+            92,
+            610,
+            464,
+            652
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "A Mediterranean diet is recommended if it aligns with patients' values and preferences.",
+        "bbox": [
+            92,
+            654,
+            471,
+            674
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "A nutrition intervention strategy to reduce the percentage of energy from carbohydrates to  $14\\% - 45\\%$  per day and/or foods with a lower glycemic index are recommended in patients with type 2 diabetes who do not choose a Mediterranean diet.",
+        "bbox": [
+            92,
+            676,
+            466,
+            719
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Inpatient care",
+        "text_level": 1,
+        "bbox": [
+            80,
+            732,
+            164,
+            742
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "Targeting blood glucose levels to  $< 6.1$  mmol/L  $(< 110\\mathrm{mg / dL})$  for all hospitalized patients with type 2 diabetes receiving insulin is not recommended.",
+            "Adjust insulin to maintain a blood glucose level between 6.1 and 10.0 mmol/L (110 and  $180\\mathrm{mg / dL}$  only for patients with type 2 diabetes who are critically ill or have acute myocardial infarction in ICU settings.",
+            "Use of a split-mixed insulin regimen for all hospitalized patients with type 2 diabetes is not recommended.",
+            "A regimen that includes basal insulin and short-acting mealtime or basal insulin and correction insulin is recommended for non-critically ill hospitalized patients with type 2 diabetes.",
+            "Provide medication education and diabetes survival skills to patients before hospital discharge."
+        ],
+        "bbox": [
+            92,
+            742,
+            476,
+            899
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Table 1-Continued",
+        "text_level": 1,
+        "bbox": [
+            526,
+            88,
+            654,
+            100
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Consideration for combination pharmacologic therapy",
+        "text_level": 1,
+        "bbox": [
+            526,
+            111,
+            841,
+            123
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Metformin should be given as the first-line agent unless it is contraindicated.",
+        "bbox": [
+            538,
+            123,
+            858,
+            143
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "list",
+        "sub_type": "text",
+        "list_items": [
+            "When initial therapy no longer provides adequate glycemic control, addition of a second-line agent from another class rather than substitution (which should be reserved for intolerance of or adverse effects from a drug) is usually necessary.",
+            "When selecting an agent, consider efficacy, contraindications, drug interactions, comorbidities, and potential adverse effects. Discuss with patients the various treatment options, and arrive at a shared treatment plan."
+        ],
+        "bbox": [
+            538,
+            145,
+            917,
+            233
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "CPG = clinical practice guideline; DoD = U.S. Department of Defense; HbA<sub>1c</sub> = hemoglobin A<sub>1c</sub>; ICU = intensive care unit; VA = U.S. Department of Veterans Affairs.",
+        "bbox": [
+            513,
+            239,
+            924,
+            271
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "updated through 14 June 2016. The search methods and results are detailed in the full guideline (8). The guideline panel rated recommendations by using the GRADE (Grading of Recommendations Assessment, Development and Evaluation) method (11).",
+        "bbox": [
+            511,
+            290,
+            924,
+            359
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "The guideline panel focused on developing new and updated recommendations using the evidence review for the key questions. The panel also considered, without a complete review of the relevant evidence, the current applicability of recommendations that were included in the 2010 CPG.",
+        "bbox": [
+            511,
+            361,
+            924,
+            444
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "As part of the development process, a patient focus group was also convened to better understand the perspectives of patients receiving diabetes treatment in the VA and the DoD. Five patients were included, consistent with the requirements of the federal Paperwork Reduction Act. All patients had type 2 diabetes and were veterans receiving care in the VA. The focus group explored knowledge of treatment options, views on the delivery of care, patients' needs and preferences, and the effect of diabetes on their lives. Important concepts that emerged from the focus group were shared with the panel and informed guideline development. It was acknowledged that this convenience sample may not be representative of all VA and DoD patients receiving treatment for type 2 diabetes.",
+        "bbox": [
+            511,
+            446,
+            925,
+            656
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "The draft guideline was sent to more than 15 expert reviewers inside and outside the federal sector. Comments were reviewed and, where appropriate, were incorporated into the final guideline based on panel consensus. The VA/DoD EBPWG approved the final document on 3 April 2017 and released it on 17 April 2017. Recommendations are presented in the Table, and an algorithm for establishing a personalized glycemic goal and treatment plan is presented in the Figure. Key recommendations are reviewed in this article.",
+        "bbox": [
+            511,
+            656,
+            925,
+            812
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "RECOMMENDATIONS",
+        "text_level": 1,
+        "bbox": [
+            513,
+            829,
+            691,
+            843
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Provide Patient-Centered Care and Incorporate Shared Decision Making",
+        "text_level": 1,
+        "bbox": [
+            513,
+            845,
+            909,
+            876
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "The CPG strongly encourages clinicians to incorporate shared decision making and partner with their patients. Shared decision making is the process by which the patient and family, in conjunction with the care provider, reach an agreement about a plan of care and",
+        "bbox": [
+            511,
+            876,
+            924,
+            947
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            72,
+            38,
+            281,
+            56
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            390,
+            43,
+            925,
+            57
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "page_number",
+        "text": "656",
+        "bbox": [
+            72,
+            957,
+            94,
+            965
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine • Vol. 167 No. 9 • 7 November 2017",
+        "bbox": [
+            97,
+            955,
+            454,
+            966
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            860,
+            956,
+            922,
+            967
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "image",
+        "img_path": "images/42dd3480bd8d23158d8b5c1ce5228b2ef627f62d00e15de6a2e9a4f179065a75.jpg",
+        "image_caption": [
+            "Figure. Algorithmic approach to evaluating glycemic control risk factors, setting a personalized glycemic control target range, providing self-management (including lifestyle and nutrition) education, and initiating or reevaluating medication therapy."
+        ],
+        "image_footnote": [],
+        "bbox": [
+            79,
+            137,
+            917,
+            883
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            70,
+            42,
+            602,
+            57
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            713,
+            38,
+            924,
+            56
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            72,
+            956,
+            134,
+            967
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            543,
+            956,
+            897,
+            967
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "page_number",
+        "text": "657",
+        "bbox": [
+            902,
+            956,
+            922,
+            966
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "treatment. Key principles include readiness of the patient and family, tools with understandable information about the benefits and harms of all options, and strategies to identify and incorporate patient preferences. Patients cannot effectively participate in care and shared decision making unless they understand diabetes and how they can be involved in planning and carrying out the jointly developed care plan.",
+        "bbox": [
+            69,
+            82,
+            479,
+            197
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Shared decision making reinforces a trusted therapeutic relationship and increases patient satisfaction and treatment \"buy-in\" with regard to the methods used to reach a particular goal or treatment plan (12- 14). It should be used not only for patients with stable glycemic control but also to assist those who are not able or willing to make lifestyle changes and decisions that affect their diabetes at any time during the course of treatment. At a minimum, shared decision making should be included at the time of diagnosis, during difficulties with management, and at times of transition or development of complications (14).",
+        "bbox": [
+            69,
+            197,
+            479,
+            366
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Benefits include greater knowledge of medications (13) and understanding of risks (14). In addition, patient-centered care and shared decision making together may decrease patient anxiety, increase trust in clinicians (15), and improve treatment adherence (16). Family involvement should be considered if appropriate, especially in older adults (17). Patient information should be culturally appropriate; understandable and actionable by people with limited literacy skills; and accessible to those with physical, sensory, or learning needs (18).",
+        "bbox": [
+            69,
+            366,
+            479,
+            521
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "As part of the patient-centered care approach to diabetes management, clinicians should explore with the patient the outcomes of previous opportunities for shared decision making, their ability to self-manage, prior efforts to change health behaviors, past treatment experiences (including reasons for discontinuing treatment), and relevant clinical outcomes. In actively sharing decisions, they should involve the patient in prioritizing problems to be addressed and setting specific goals regardless of the setting or level of care.",
+        "bbox": [
+            69,
+            521,
+            479,
+            663
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Assess Patient Characteristics and Nonglycemic Factors When Interpreting Results of Hemoglobin  $\\mathrm{A}_{1\\mathrm{c}}$ , Fructosamine, and Other Glycemic Biomarker Testing",
+        "text_level": 1,
+        "bbox": [
+            69,
+            674,
+            468,
+            733
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Many factors affect measurement of hemoglobin  $\\mathrm{A_{1c}}$ $(\\mathrm{HbA_{1c}})$  besides the level of glycemia (19). Because  $\\mathrm{HbA_{1c}}$  level depends on the duration of erythrocyte exposure to glucose, conditions that alter erythrocyte life span affect the measured level of  $\\mathrm{HbA_{1c}}$  (20, 21). Iron deficiency anemia, which prolongs erythrocyte life span and exposes the cell to glucose for a longer period, is associated with falsely elevated  $\\mathrm{HbA_{1c}}$  levels (22). In contrast, conditions that shorten erythrocyte life span (such as hemolytic anemia) may result in falsely low  $\\mathrm{HbA_{1c}}$  levels. Various other conditions, such as chronic kidney disease, may alter  $\\mathrm{HbA_{1c}}$  measurement. Hemoglobin variants can result in falsely elevated or falsely lowered  $\\mathrm{HbA_{1c}}$  levels, depending on the assay used (23-25). In addition, oral hypoglycemic agents (met",
+        "bbox": [
+            69,
+            733,
+            479,
+            948
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "formin or sulfonylureas) may alter the relationship between blood glucose and  $\\mathrm{HbA_{1c}}$  levels, although the clinical significance is unclear (26).",
+        "bbox": [
+            511,
+            82,
+            924,
+            125
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "There are also racial/ethnic differences in  $\\mathrm{HbA_{1c}}$  levels for a given level of glycemia. A previous study found that African Americans with prediabetes (27) had  $\\mathrm{HbA_{1c}}$  values that were  $0.4\\%$  higher than among white persons; those who were within 3 years of diagnosis (28) also had higher  $\\mathrm{HbA_{1c}}$  values than white persons for any measure of glycemia. This difference cannot be explained by measured differences in glycemia, clinical factors known to affect  $\\mathrm{HbA_{1c}}$  measurement, or sociodemographic factors (27, 28). Therefore, it is recommended that a new diagnosis of diabetes be based on a confirmatory fasting blood glucose level of at least  $7.0~\\mathrm{mmol / L}$  ( $\\geq 126~\\mathrm{mg / dL}$ ) if the initial  $\\mathrm{HbA_{1c}}$  value is  $6.5\\%$  to  $6.9\\%$ .",
+        "bbox": [
+            511,
+            125,
+            925,
+            322
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "How and where the  $\\mathrm{HbA_{1c}}$  level is measured can also affect results because of intralaboratory variation (variation in test accuracy and precision) and interlaboratory variation (variation related to use of different test methods). A single  $\\mathrm{HbA_{1c}}$  measurement, even from a high-quality laboratory, has a margin of error such that the true value is within a range defined by the coefficient of variation. Sequential  $\\mathrm{HbA_{1c}}$  values that are within  $0.5\\%$  do not statistically differ from one another unless the assay coefficient of variation is less than  $3\\%$ , and ideally less than  $2\\%$  (29). Treatment decisions based solely on a single  $\\mathrm{HbA_{1c}}$  measurement without consideration of other clinical data, such as glucose monitoring results, may lead to unnecessary initiation or intensification of therapy. Comparing  $\\mathrm{HbA_{1c}}$  tests performed in different clinical laboratories introduces another source of error, as does use of point-of-care  $\\mathrm{HbA_{1c}}$  testing, which is not subject to systematic quality oversight. Assessing the effect of these patient characteristics and nonglycemic factors that affect  $\\mathrm{HbA_{1c}}$  levels allows for better individualization of management. For these reasons, the VA/DoD does not recommend the use of estimated average glucose level, which is derived from  $\\mathrm{HbA_{1c}}$  values using a formula.",
+        "bbox": [
+            511,
+            323,
+            925,
+            663
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Set  $\\mathrm{HbA_{1c}}$  Target Ranges Based on Absolute Reduction in Risk for Significant Microvascular Complications, Life Expectancy, and Patient Preferences",
+        "text_level": 1,
+        "bbox": [
+            511,
+            674,
+            910,
+            733
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "An individualized approach to treatment goals is recommended, based on the patient's absolute risk for microvascular complications balanced against comorbidities, estimated life expectancy, presence or absence of existing complications, the risk and inconvenience associated with polypharmacy, risk for hypoglycemia and other adverse events, effects on concomitant conditions (such as weight), and overall treatment burden.",
+        "bbox": [
+            511,
+            733,
+            924,
+            861
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The shared decision-making process might be affected by the framing of trial results. Clinicians should therefore consider a patient's values and preferences when discussing the magnitude of clinically important outcomes and harms from trials (11). The VA/DoD CPG recommends that clinicians discuss absolute risk reduc",
+        "bbox": [
+            511,
+            861,
+            924,
+            946
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            72,
+            38,
+            281,
+            56
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            390,
+            43,
+            925,
+            57
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "page_number",
+        "text": "658",
+        "bbox": [
+            72,
+            956,
+            94,
+            965
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            97,
+            956,
+            452,
+            966
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            861,
+            956,
+            924,
+            967
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "tion rather than relative risk reduction when conveying to patients their estimated likelihood of achieving a reduction in clinically significant complications or potential risks of therapy. The VA/DoD CPG summarizes the available evidence from major clinical trials as well as meta-analyses to inform strength of recommendations (30-44) that apply to patients with both recent-onset and longer-duration diabetes with established complications.",
+        "bbox": [
+            67,
+            82,
+            479,
+            210
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Develop Individualized Treatment Plans Based on Complications, Comorbidities, Life Expectancy, and Patient Preferences",
+        "text_level": 1,
+        "bbox": [
+            67,
+            223,
+            461,
+            267
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The CPG proposes  $\\mathrm{HbA}_{1\\mathrm{c}}$  target ranges (rather than an all-or-nothing target value) based on the presence or absence of microvascular complications, comorbidities, and life expectancy. This is rooted in the substantial body of evidence showing a direct relationship between glucose control and microvascular complications (for example, retinopathy, neuropathy, and nephropathy). The overarching goal of these recommendations is to develop individualized treatment plans and  $\\mathrm{HbA}_{1\\mathrm{c}}$  target ranges that are tailored to a patient's unique characteristics and goals of care.",
+        "bbox": [
+            67,
+            267,
+            479,
+            424
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Higher  $\\mathrm{HbA_{1c}}$  levels carry greater risk for complications, and decreasing levels prospectively reduces risk (30, 31, 33, 34). The relationship between  $\\mathrm{HbA_{1c}}$  and risk for microvascular complications is continuous and accelerates when levels exceed  $9\\%$  (35). There is no apparent  $\\mathrm{HbA_{1c}}$  threshold above which benefits are not accrued by decreasing levels, but the absolute risk reduction is less at lower levels (31). Thus, a decrease in  $\\mathrm{HbA_{1c}}$  level may have minimal clinical impact on complications in patients with limited life expectancy. Conversely, there are no data on the appropriate lower limit for achieved  $\\mathrm{HbA_{1c}}$  level, although strong data exist on the risks for hypoglycemia as  $\\mathrm{HbA_{1c}}$  is targeted to near-normal levels for patients receiving insulin (36). Lower levels of  $\\mathrm{HbA_{1c}}$  (closer to  $6\\%$ ) may be reasonable in younger patients treated with metformin alone.",
+        "bbox": [
+            67,
+            424,
+            479,
+            649
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Microvascular complications develop over an extended period. Thus, persons with long life expectancy and no or mild microvascular complications (such as early background retinopathy, microalbuminuria, or mild neuropathy) may benefit from a lower  $\\mathrm{HbA_{1c}}$  level (6.0% to 7.0%) (Supplement, available at Annals.org).",
+        "bbox": [
+            67,
+            649,
+            479,
+            735
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "For patients with comorbidities or complications that shorten life expectancy (<10 years), higher  $\\mathrm{HbA_{1c}}$  target ranges are appropriate. Systematic reviews comparing intensive and conventional glucose control showed no statistically significant differences in all-cause mortality or death from cardiovascular disease but did show statistically significant risk reduction for microvascular complications, such as nephropathy, retinopathy, and lower extremity amputation (36-38). These trials provided no firm evidence that decreasing  $\\mathrm{HbA_{1c}}$  levels to less than  $8.5\\%$  reduces risk for death from cardiovascular disease (39). Depending on the presence and degree of microvascular complications,  $\\mathrm{HbA_{1c}}$  target ranges of  $7.0\\%$  to  $8.0\\%$  or  $7.5\\%$  to  $8.5\\%$  are appropriate for most patients (Supplement).",
+        "bbox": [
+            67,
+            733,
+            481,
+            948
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The presence of major comorbidities that decrease life expectancy (<5 years) or advanced microvascular complications (such as severe nonproliferative or proliferative retinopathy, renal insufficiency [stage 3b or greater chronic kidney disease], insensate extremities, or autonomic neuropathy) may justify a higher  $\\mathrm{HbA}_{1c}$  target range. Such patients are less likely to benefit from intensive glucose control and more likely to have risks from treatment.",
+        "bbox": [
+            511,
+            82,
+            924,
+            209
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Intensive glucose control may cause frank harms, such as increased risk for death from cardiovascular events (40) and severe hypoglycemia (that is, hypoglycemia requiring help from another person). Risk factors for hypoglycemia include use of specific drugs (insulin and sulfonylureas), advanced age (>75 years), cognitive impairment, and chronic kidney disease (including causes unrelated to diabetic nephropathy) (41-43). Additional risk factors include lack of appropriate glucose monitoring, inadequate diabetes education, lack of family and social support systems, and food insufficiency. There are racial differences between estimated average glucose level and  $\\mathrm{HbA_{1c}}$  values in patients with established type 2 diabetes based on 7-point glucose testing (44). Thus, self-monitoring results and  $\\mathrm{HbA_{1c}}$  test results may be discordant. The presence of any of these factors should prompt a discussion about higher  $\\mathrm{HbA_{1c}}$  target ranges.",
+        "bbox": [
+            511,
+            210,
+            925,
+            465
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Assessing the effect of these patient characteristics and nonglycemic factors that affect  $\\mathrm{HbA_{1c}}$  levels allows for better individualization of management. Thus, we recommend that treatment goals involve target ranges for  $\\mathrm{HbA_{1c}}$  rather than levels above or below a specific value for most persons with diabetes. This approach is consistent with clinical and laboratory science and avoids unnecessary intensification of therapy due to fluctuations within the range. This recommendation allows for individualized treatment plans and is consistent with patient values.",
+        "bbox": [
+            511,
+            464,
+            925,
+            620
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Pharmaceutical Agents Should Be Selected on the Basis of Efficacy, Contraindications, Drug Interactions, Comorbidities, and Potential Adverse Effects and Patients Should Be Engaged With the Various Treatment Options and Should Arrive at a Shared Treatment Plan With Their Clinician",
+        "text_level": 1,
+        "bbox": [
+            511,
+            629,
+            919,
+            733
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "When individualized glycemic goals are not achieved with nonpharmacologic therapy, such as diet and increased physical activity, adjunctive therapy with medications is indicated. The magnitude of the reduction in  $\\mathrm{HbA}_{1\\mathrm{c}}$  level necessary to achieve goals should be considered when choosing medications, along with hypoglycemia risk, weight gain, administrative burden, and cost.",
+        "bbox": [
+            511,
+            733,
+            924,
+            847
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Although evidence for pharmacologic treatment options was not systematically reviewed as part of this guideline update, the VA/DoD CPG made the following recommendations based on a review of a recent systematic review conducted by the Agency for Healthcare Research and Quality (45). First, when selecting a medication, efficacy, contraindications, drug interactions,",
+        "bbox": [
+            511,
+            845,
+            924,
+            948
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            70,
+            42,
+            604,
+            57
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            713,
+            37,
+            924,
+            57
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            70,
+            956,
+            136,
+            967
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            540,
+            953,
+            897,
+            967
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "page_number",
+        "text": "659",
+        "bbox": [
+            902,
+            956,
+            924,
+            966
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "comorbidities, and potential adverse effects must be considered. Clinicians should discuss the various treatment options with patients and arrive at a shared treatment plan. Second, metformin should be given as the first-line agent unless it is contraindicated. Third, when initial therapy no longer provides adequate glycemic control, addition of a second-line agent from another class rather than substitution is usually necessary. Substitution should be reserved for intolerance of or adverse effects from a drug. Finally, a combination of 2 antihyperglycemic drugs has the benefit of reducing hyperglycemia by working on different mechanisms that cause it. Combination therapy needs to be guided by clinical considerations in addition to antihyperglycemic efficacy.",
+        "bbox": [
+            69,
+            82,
+            481,
+            295
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Three medications (metformin, empagliflozin, and liraglutide) have shown a specific benefit for cardiovascular outcomes in patients with type 2 diabetes who are at high risk for cardiovascular events. However, although each of these medications decreases average blood glucose level, the mechanism for improved cardiovascular outcomes cannot be ascribed solely to intensive glycemic control.",
+        "bbox": [
+            69,
+            295,
+            479,
+            408
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "A limitation of studies is that many patients seen in practice, especially older patients with significant risks for potential complications from newer therapies, are often excluded from clinical trials. Clinicians should therefore be aware of drug alerts from the U.S. Food and Drug Administration because harms of therapy will continue to evolve based on postmarketing surveillance. Both the VA (46) and the DoD (47) maintain criteria for use, which are updated frequently.",
+        "bbox": [
+            69,
+            408,
+            479,
+            537
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Aggressive Glucose Control Is Not Recommended in Hospitalized Patients",
+        "text_level": 1,
+        "bbox": [
+            69,
+            548,
+            400,
+            578
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Hyperglycemia during hospitalization is associated with adverse outcomes, and glucose-lowering interventions reduce morbidity and mortality in critically ill patients. However, there is uncertainty about the appropriate glucose target for hospitalized patients and about which patients benefit from glucose-lowering interventions. Randomized trials examining inpatient glycemic control and/or insulin therapy are often limited to hospitalized patients with severe illness (for example, illness requiring admission to the intensive care unit, acute myocardial infarction, or acute stroke). A large multicenter trial among critically ill patients with diabetes showed that a blood glucose target less than 10.0 mmol/L (<180 mg/dL) resulted in lower mortality than a target of 4.4 to 6.1 mmol/L (80 to 110 mg/dL), and the lower range was associated with increased hypoglycemia (odds ratio, 14.7) (48). These data should not be extrapolated to inpatients who are not in the intensive care unit because the evidence on glycemic control targets in non-critically ill hospitalized patients is of low quality (49).",
+        "bbox": [
+            69,
+            579,
+            479,
+            876
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Achieving near-normal glucose levels in hospitalized patients without risk for hypoglycemia can be challenging. Hypoglycemic episodes are associated with increased risk for death in patients in the intensive care unit (50). Fingerstick blood glucose monitoring is often",
+        "bbox": [
+            69,
+            876,
+            481,
+            948
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "performed in hospitalized patients with diagnosed diabetes, hyperglycemia, or both to identify potentially harmful hyperglycemia and hypoglycemia. There is no evidence to support a given frequency of such monitoring. Therefore, the frequency of glucose monitoring should take into account the diabetes treatment method used (such as insulin or oral agents), the effect of hyperglycemia on the clinical condition requiring hospitalization, and the patient's overall stability.",
+        "bbox": [
+            511,
+            82,
+            925,
+            212
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Use Basal Insulin and Short-Acting Mealtime Insulin or Basal Insulin and Correction Insulin for Hospitalized Patients Who Are Not in the Intensive Care Unit",
+        "text_level": 1,
+        "bbox": [
+            511,
+            222,
+            905,
+            281
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Although much attention has focused on the appropriate glucose target in hospitalized patients, the literature examining treatment methods for diabetes in hospitalized patients is growing (51-54). Key factors to consider in devising a glucose control strategy are prehospital diabetes treatment, in-hospital dietary intake, and factors that can either increase (for example, corticosteroids) or decrease (for example, renal or liver failure) insulin resistance. In patients with insulin deficiency (for example, type 1 diabetes or long-standing type 2 diabetes), providing basal insulin along with short-acting preprandial doses to cover food intake and correction doses for glucose elevations tends to work well. This is referred to as a basal-bolus-plus-correction regimen. Such treatment schemes are often underused in the hospital, possibly due to complexity, fear of hypoglycemia, and challenges in transferring home-based insulin regimens to the hospital setting. Many patients are instead prescribed correction insulin alone (for example, sliding-scale insulin), based on doses assigned to treat a prespecified glucose range on a scale or table. Sliding-scale insulin regimens are viewed as easy to implement but should be discouraged. Unlike regimens that use basal and preprandial insulin, sliding-scale insulin does not have favorable in-hospital outcomes. Basal insulin with preprandial correction doses used in general medical and surgical patients with type 2 diabetes produced similar glycemic control and rates of hypoglycemic events compared with a more complex regimen of basal-bolus and correction doses. Both regimens resulted in better glycemic control and fewer treatment failures than use of sliding-scale insulin alone (54). Use of basal-bolus insulin also reduced risk for postsurgical complications (51).",
+        "bbox": [
+            511,
+            281,
+            925,
+            764
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "DISCUSSION OF DIFFERENCES BETWEEN GUIDELINES",
+        "text_level": 1,
+        "bbox": [
+            511,
+            798,
+            858,
+            830
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "There are similarities and differences between the recommendations from the VA/DoD CPG and those from the Standards of Medical Care in Diabetes, issued by the American Diabetes Association (ADA) (55-57); Diabetes in Older Adults: A Consensus Report, a joint report of the ADA and the American Geriatrics Society (ADA/AGS) (17); and the American Association of Clinical Endocrinologists (AACE) CPG (58).",
+        "bbox": [
+            511,
+            832,
+            925,
+            948
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            72,
+            38,
+            281,
+            56
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            390,
+            43,
+            925,
+            57
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "page_number",
+        "text": "660",
+        "bbox": [
+            72,
+            956,
+            95,
+            965
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            99,
+            956,
+            454,
+            966
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            861,
+            956,
+            924,
+            967
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Although the ADA notes that such factors as age, race/ethnicity, and certain clinical conditions may result in differences between  $\\mathrm{HbA_{1c}}$  level and measures of glycemic control, use of  $\\mathrm{HbA_{1c}}$  level alone for diagnosis of diabetes is acceptable (55). In contrast, the VA/DoD CPG concluded that evidence showing racial differences between  $\\mathrm{HbA_{1c}}$  level and glycemic control for diagnosis and treatment is strong (7). Therefore, the CPG recommends that to establish a new diabetes diagnosis, an  $\\mathrm{HbA_{1c}}$  value of  $6.5\\%$  to  $6.9\\%$  should be confirmed with an elevated fasting blood glucose level ( $>7.0$  mmol/L  $[>126$  mg/dL]). The guideline panel agreed that requiring a fasting blood glucose level in this setting did not pose an undue burden compared with the potential effect of an incorrect diagnosis of diabetes on life or disability insurance premiums or military career trajectory.",
+        "bbox": [
+            67,
+            82,
+            481,
+            323
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The VA/DoD (8), the ADA (56), and the ADA/AGS (17) recommend individualized approaches based on patient preferences. The VA/DoD CPG also recommends target ranges rather than thresholds. An emphasis on dichotomous  $\\mathrm{HbA_{1c}}$  thresholds may result in clinicians and patients viewing values marginally above the threshold as being clinically significant, which could result in inappropriate intensification of therapy without consideration for absolute benefits and risks. A range can accommodate known laboratory and clinical factors that affect interpretation of  $\\mathrm{HbA_{1c}}$  test results. In addition, the VA/DoD CPG is the only one to state that the evidence is strong that race affects the relationship between  $\\mathrm{HbA_{1c}}$  level and glycemic control. The ADA states that it is prudent to establish  $\\mathrm{HbA_{1c}}$  goals with consideration of both individualized self-monitoring blood glucose results and  $\\mathrm{HbA_{1c}}$  results in ethnic populations (56). In addition, the VA/DoD CPG recommends against the use of estimated average glucose level. Thus, the VA/DoD CPG was the most explicit in stating that a target glycemic range can best balance these competing priorities and avoid intensification of therapy to a marginally higher  $\\mathrm{HbA_{1c}}$  test result.",
+        "bbox": [
+            67,
+            323,
+            481,
+            649
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The VA/DoD CPG differs not only in the nature of the target but in what the target should be. For example, the ADA and the ADA/AGS recommend an  $\\mathrm{HbA_{1c}}$  level less than  $8\\%$  for patients with advanced disease, limited life expectancy, or other mitigating factors but as high as  $8.5\\%$  for frail adults. The AACE recommends that the goal of therapy should be an  $\\mathrm{HbA_{1c}}$  level of  $6.5\\%$  or lower for most nonpregnant adults, if it can be achieved safely. A range of  $7\\%$  to  $8\\%$  is recommended in patients with a history of severe hypoglycemia, limited life expectancy, advanced renal disease, or macrovascular complications (58).",
+        "bbox": [
+            67,
+            649,
+            481,
+            818
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In contrast, the VA/DoD CPG concluded that, on average, the potential absolute benefit of decreasing  $\\mathrm{HbA_{1c}}$  level from  $8.5\\%$  to  $8.0\\%$  in high-risk patients was less than the potential risk for harms from increasing medication therapy. The VA/DoD CPG recommends a range of  $7.5\\%$  to  $8.5\\%$  for most patients with life expectancy less than 10 years and significant comorbid conditions and a range of  $8\\%$  to  $9\\%$  for those with limited life expectancy (<5 years).",
+        "bbox": [
+            67,
+            818,
+            481,
+            948
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Insulin management recommendations in the intensive care unit are similar between the VA/DoD and ADA guidelines. The ADA recommends that insulin therapy should be initiated for treatment of persistent hyperglycemia starting at a glucose threshold of 10.0 mmol/L (180 mg/dL), with a target range of 7.8 to 10.0 mmol/L (140 to 180 mg/dL) for most critically ill patients. The VA/DoD CPG recommends that insulin doses be adjusted to maintain a blood glucose level of 6.1 to 10.0 mmol/L (110 to 180 mg/dL) for critically ill patients or those with acute myocardial infarction. These recommendations should not be extrapolated to other hospital settings in the absence of randomized controlled trials.",
+        "bbox": [
+            511,
+            82,
+            925,
+            281
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In summary, the VA/DoD CPG attempts to convey to clinicians, policymakers, and patients the rationale for personalizing treatment on the basis of results from major trials, limitations of the  $\\mathrm{HbA_{1c}}$  test, and evaluation of patient risk for adverse drug events. Conveying complex information in an understandable manner to individual patients and families through a formal process of shared decision making is thus foundational to setting and revising goals that are meaningful, safe, and achievable in everyday clinical practice (59).",
+        "bbox": [
+            511,
+            281,
+            925,
+            424
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "From VA Boston Healthcare System, West Roxbury, Massachusetts; San Antonio Military Medical Center, Fort Sam Houston, Texas; Louis Stokes Cleveland VA Medical Center, Cleveland, Ohio; VHA National Center for Health Promotion and Disease Prevention, Durham, North Carolina; San Diego Internal Medicine, San Diego, California; and Veterans Affairs Central Office, Office of Specialty Care Services, Washington, DC.",
+        "bbox": [
+            511,
+            435,
+            925,
+            533
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Disclaimer: The views expressed in this article are not to be construed as those of the U.S. Department of Veterans Affairs or the U.S. Department of Defense.",
+        "bbox": [
+            511,
+            552,
+            925,
+            593
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgment: The authors thank the participants of the VA/DoD working group for their commitment to advancing evidence-based care for diabetes (see Appendix G of the CPG [8]) and the patient focus group for their valuable insights into the care we provide them.",
+        "bbox": [
+            511,
+            613,
+            925,
+            683
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Financial Support: Development of the VA/DoD CPG was supported by the Office of Quality, Safety and Value of the U.S. Department of Veterans Affairs.",
+        "bbox": [
+            511,
+            701,
+            925,
+            742
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Disclosures: Dr. Aron reports a grant from the U.S. Department of Veterans Affairs Health Services Research and Development Service during the conduct of the study and is a member of the quality measures committee of the Endocrine Society. Authors not named here have disclosed no conflicts of interest. Disclosures can also be viewed at www.acponline.org/authors/icmje/ConflictOfInterestForms.do?msNum=M17-1362.",
+        "bbox": [
+            511,
+            763,
+            925,
+            872
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Requests for Single Reprints: Leonard Pogach, MD, MBA, Veterans Affairs Central Office, Office of Specialty Care (P11), 810 Vermont Avenue, Washington, DC 20420; e-mail, leonard.pogach@va.gov.",
+        "bbox": [
+            511,
+            892,
+            925,
+            948
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            70,
+            42,
+            604,
+            57
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            713,
+            37,
+            925,
+            57
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            70,
+            956,
+            136,
+            967
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            542,
+            955,
+            898,
+            967
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "page_number",
+        "text": "661",
+        "bbox": [
+            902,
+            956,
+            924,
+            966
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Current author addresses and author contributions are available at Annals.org.",
+        "bbox": [
+            69,
+            83,
+            479,
+            111
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "References",
+        "text_level": 1,
+        "bbox": [
+            72,
+            141,
+            176,
+            155
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "list",
+        "sub_type": "ref_text",
+        "list_items": [
+            "1. Rewers A, Barrett-Connor E, Wingard D, Wong N, Goldberg R, Pikula A, et al. Complications of diabetes and related conditions. In: Cowie CC, Casagrande SS, Menke A, Cissell MA, Eberhardt MS, Meigs JB, et al. Diabetes in America. 3rd ed. NIH publication no. 17-1468. Bethesda: National Institutes of Health; 2017:17-36. Accessed at www.niddk.nih.gov/about-niddk/strategic-plans-reports /Pages/diabetes-america-3rd-edition.aspx on 10 August 2017.",
+            "2. Pogach LM, Brietzke SA, Cowan CL Jr, Conlin P, Walder DJ, Sawin CT; VA/DoD Diabetes Guideline Development Group. Development of evidence-based clinical practice guidelines for diabetes: the Department of Veterans Affairs/Department of Defense guidelines initiative. Diabetes Care. 2004;27 Suppl 2:B82-9. [PMID:15113788]",
+            "3. Qaseem A, Vijan S, Snow V, Cross JT, Weiss KB, Owens DK: Clinical Efficacy Assessment Subcommittee of the American College of Physicians. Glycemic control and type 2 diabetes mellitus: the optimal hemoglobin  $A_{1c}$  targets. A guidance statement from the American College of Physicians. Ann Intern Med. 2007;147:417-22. [PMID: 17876024]",
+            "4. Introduction: the American Diabetes Association's (ADA) evidence-based practice guidelines, standards, and related recommendations and documents for diabetes care. Diabetes Care. 2012;35 Suppl 1:S1-2. [PMID:22187466] doi:10.2337/dc12-s001",
+            "5. AGS Choosing Wisely Workgroup. American Geriatrics Society identifies five things that healthcare providers and patients should question. J Am Geriatr Soc. 2013;61:622-31. [PMID: 23469880] doi: 10.1111/jgs.12226",
+            "6. Diabetes agents. In: U.S. Department of Health and Human Services. National Action Plan for Adverse Drug Event Prevention. Washington, DC: U.S. Department of Health and Human Services; 2014:99-130. Accessed at www.health.gov/hcq/pdfs/ADE-Action-Plan-Diabetes-Agents.pdf on 10 August 2017.",
+            "7. Centers for Disease Control and Prevention. National Diabetes Statistics Report 2017: Estimates of Diabetes and Its Burden in the United States. 2017. Accessed at www.cdc.gov/diabetes/pdfs/data/statistics/national-diabetes-statistics-report.pdf on 10 August 2017.",
+            "8. U.S. Department of Veterans Affairs/U.S. Department of Defense. VA/DoD Clinical Practice Guidelines for the Management of Diabetes Mellitus in Primary Care. 2017. Accessed at www.healthquality.va.gov/guidelines/CD/diabetes on 10 August 2017.",
+            "9. U.S. Department of Veterans Affairs/U.S. Department of Defense. VA/DoD CPG Policy Guidance. Updated 10 April 2013. Accessed at www.healthquality.va.gov/policy/index.asp on 10 August 2017.",
+            "10. Laine C, Taichman DB, Mulrow C. Trustworthy clinical guidelines [Editorial]. Ann Intern Med. 2011;154:774-5. [PMID: 21646561] doi: 10.7326/0003-4819-154-11-201106070-00011",
+            "11. Schünemann H, Brozek J, Guyatt G, Oxman A, eds. Handbook for grading the quality of evidence and the strength of recommendations using the GRADE approach. Updated October 2013. Accessed at http://gdt.guidedocument.org on 10 August 2017.",
+            "12. Hsu WC, Lau KH, Huang R, Ghiloni S, Le H, Gilroy S, et al. Utilization of a cloud-based diabetes management program for insulin initiation and titration enables collaborative decision making between healthcare providers and patients. Diabetes Technol Ther. 2016;18:59-67. [PMID: 26645932] doi:10.1089/dia.2015.0160",
+            "13. Branda ME, LeBlanc A, Shah ND, Tiedje K, Ruud K, Van Houten H, et al. Shared decision making for patients with type 2 diabetes: a randomized trial in primary care. BMC Health Serv Res. 2013;13:301. [PMID: 23927490] doi:10.1186/1472-6963-13-301",
+            "14. Buhse S, Muhlhauser I, Heller T, Kuniss N, Müller UA, Kasper J, et al. Informed shared decision-making programme on the prevention of myocardial infarction in type 2 diabetes: a randomised controlled trial. BMJ Open. 2015;5:e009116. [PMID: 26567256] doi:10.1136/bmjopen-2015-009116"
+        ],
+        "bbox": [
+            72,
+            158,
+            479,
+            946
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "list",
+        "sub_type": "ref_text",
+        "list_items": [
+            "15. Bertakis KD, Azari R. Patient-centered care is associated with decreased health care utilization. J Am Board Fam Med. 2011;24:229-39. [PMID: 21551394] doi:10.3122/jabfm.2011.03.100170",
+            "16. Robinson JH, Callister LC, Berry JA, Dearing KA. Patient-centered care and adherence: definitions and applications to improve outcomes. J Am Acad Nurse Pract. 2008;20:600-7. [PMID: 19120591] doi:10.1111/j.1745-7599.2008.00360.x",
+            "17. Kirkman MS, Briscoe VJ, Clark N, Florez H, Haas LB, Halter JB, et al; Consensus Development Conference on Diabetes and Older Adults. Diabetes in older adults: a consensus report. J Am Geriatr Soc. 2012;60:2342-56. [PMID: 23106132] doi:10.1111/jgs.12035",
+            "18. Agency for Healthcare Research and Quality. Use the Teach-Back Method: Tool 5. Health Literacy Universal Precautions Toolkit. 2nd ed. February 2015. Accessed at www.ahrq.gov/professionals/quality-patient-safety/quality-resources/tools/literacy-toolkit/health-little toolkit2-tool5.html on 9 August 2017.",
+            "19. Radin MS. Pitfalls in hemoglobin  $\\mathsf{A}_{1\\mathrm{c}}$  measurement: when results may be misleading. J Gen Intern Med. 2014;29:388-94. [PMID: 24002631] doi:10.1007/s11606-013-2595-x",
+            "20. Cohen RM, Franco RS, Khera PK, Smith EP, Lindsell CJ, Ciraolo PJ, et al. Red cell life span heterogeneity in hematologically normal people is sufficient to alter  $\\mathrm{HbA_{1c}}$ . Blood. 2008;112:4284-91. [PMID: 18694998] doi:10.1182/blood-2008-04-154112",
+            "21. Smith EP, Cohen RM. Physiologic concepts that may revise the interpretation and implications of  $\\mathrm{HbA_{1c}}$  in clinical medicine: an American perspective. J Diabetes Sci Technol. 2015;9:696-700. [PMID: 25691656] doi:10.1177/1932296815572255",
+            "22. English E, Idris I, Smith G, Dhatariya K, Kilpatrick ES, John WG. The effect of anaemia and abnormalities of erythrocyte indices on  $\\mathrm{HbA_{1c}}$  analysis: a systematic review. Diabetologia. 2015;58:1409-21. [PMID: 25994072] doi:10.1007/s00125-015-3599-3",
+            "23. Goldstein DE, Little RR, Lorenz RA, Malone JI, Nathan D, Peterson CM. Tests of glycemia in diabetes. Diabetes Care. 1995;18:896-909. [PMID: 7555528]",
+            "24. Little RR, Rohlfing CL, Hanson S, Connolly S, Higgins T, Weykamp CW, et al. Effects of hemoglobin (Hb) E and HbD traits on measurements of glycated Hb  $(\\mathrm{HbA_{1c}})$  by 23 methods. Clin Chem. 2008;54:1277-82. [PMID: 18556332] doi:10.1373/clinchem.2008.103580",
+            "25. Little RR, Rohlfing CL, Hanson SE, Schmidt RL, Lin CN, Madsen RW, et al. The effect of increased fetal hemoglobin on 7 common Hb  $A_{1c}$  assay methods [Letter]. Clin Chem. 2012;58:945-7. [PMID: 22357875] doi:10.1373/clinchem.2012.181933",
+            "26. Kim IY, Kim MJ, Lee DW, Lee SB, Rhee H, Song SH, et al. Glycated albumin is a more accurate glycemic indicator than hemoglobin  $\\mathrm{A}_{1\\mathrm{c}}$  in diabetic patients with pre-dialysis chronic kidney disease. Nephrology (Carlton). 2015. [PMID: 25974106] doi:10.1111/nep.12508",
+            "27. Herman WH, Ma Y, Uwaifo G, Haffner S, Kahn SE, Horton ES, et al; Diabetes Prevention Program Research Group. Differences in  $A_{1c}$  by race and ethnicity among patients with impaired glucose tolerance in the Diabetes Prevention Program. Diabetes Care. 2007;30: 2453-7. [PMID: 17536077]",
+            "28. Viberti G, Lachin J, Holman R, Zinman B, Haffner S, Kravitz B, et al; ADOPT Study Group. A Diabetes Outcome Progression Trial (ADOPT): baseline characteristics of type 2 diabetic patients in North America and Europe. Diabet Med. 2006;23:1289-94. [PMID: 17116177]",
+            "29. Sacks DB, Arnold M, Bakris GL, Bruns DE, Horvath AR, Kirkman MS, et al. Executive summary: guidelines and recommendations for laboratory analysis in the diagnosis and management of diabetes mellitus. Clin Chem. 2011;57:793-8. [PMID: 21617153] doi:10.1373/clinchem.2011.163634",
+            "30. UK Prospective Diabetes Study (UKPDS) Group. Intensive bloodglucose control with sulphonylureas or insulin compared with conventional treatment and risk of complications in patients with type 2 diabetes (UKPDS 33). Lancet. 1998;352:837-53. [PMID: 9742976]",
+            "31. Stratton IM, Adler AI, Neil HA, Matthews DR, Manley SE, Cull CA, et al. Association of glycaemia with macrovascular and microvascular"
+        ],
+        "bbox": [
+            516,
+            83,
+            924,
+            946
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            72,
+            38,
+            281,
+            56
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            390,
+            43,
+            925,
+            57
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "page_number",
+        "text": "662",
+        "bbox": [
+            72,
+            956,
+            94,
+            965
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            97,
+            956,
+            452,
+            966
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            861,
+            956,
+            922,
+            967
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            983,
+            698,
+            994
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "list",
+        "sub_type": "ref_text",
+        "list_items": [
+            "complications of type 2 diabetes (UKPDS 35): prospective observational study. BMJ. 2000;321:405-12. [PMID: 10938048]",
+            "32. Holman RR, Paul SK, Bethel MA, Matthews DR, Neil HA. 10-year follow-up of intensive glucose control in type 2 diabetes. N Engl J Med. 2008;359:1577-89. [PMID: 18784090] doi:10.1056/NEJMoa0806470",
+            "33. UK Prospective Diabetes Study (UKPDS) Group. Effect of intensive blood-glucose control with metformin on complications in overweight patients with type 2 diabetes (UKPDS 34). Lancet. 1998;352: 854-65. [PMID: 9742977]",
+            "34. Nathan DM, Genuth S, Lachin J, Cleary P, Crofford O, Davis M, et al; Diabetes Control and Complications Trial Research Group. The effect of intensive treatment of diabetes on the development and progression of long-term complications in insulin-dependent diabetes mellitus. N Engl J Med. 1993;329:977-86. [PMID: 8366922]",
+            "35. The relationship of glycemic exposure  $(\\mathrm{HbA}_{1c})$  to the risk of development and progression of retinopathy in the Diabetes Control and Complications Trial. Diabetes. 1995;44:968-83. [PMID: 7622004]",
+            "36. Hemmingsen B, Lund SS, Gluud C, Vaag A, Almdal T, Hemmingsen C, et al. Targeting intensive glycaemic control versus targeting conventional glycaemic control for type 2 diabetes mellitus. Cochrane Database Syst Rev. 2011:CD008143. [PMID: 21678374] doi: 10.1002/14651858.CD008143.pub2",
+            "37. Hasan R, Firwana B, Elraiyah T, Domecq JP, Prutsky G, Nabhan M, et al. A systematic review and meta-analysis of glycemic control for the prevention of diabetic foot syndrome. J Vasc Surg. 2016;63:22S-28S. [PMID: 26804364] doi:10.1016/j.jvs.2015.10.005",
+            "38. Callaghan BC, Little AA, Feldman EL, Hughes RA. Enhanced glucose control for preventing and treating diabetic neuropathy. Cochrane Database Syst Rev. 2012:CD007543. [PMID: 22696371] doi: 10.1002/14651858.CD007543.pub2",
+            "39. Duckworth W, Abraira C, Moritz T, Reda D, Emanuele N, Reaven PD, et al; VADT Investigators. Glucose control and vascular complications in veterans with type 2 diabetes. N Engl J Med. 2009;360:129-39. [PMID: 19092145] doi:10.1056/NEJMoa0808431",
+            "40. Gerstein HC, Miller ME, Ismail-Beigi F, Largay J, McDonald C, Lochnan HA, et al; ACCORD Study Group. Effects of intensive glycaemic control on ischaemic heart disease: analysis of data from the randomised, controlled ACCORD trial. Lancet. 2014;384:1936-41. [PMID: 25088437] doi:10.1016/S0140-6736(14)60611-5",
+            "41. Seaquist ER, Anderson J, Childs B, Cryer P, Dagogo-Jack S, Fish L, et al. Hypoglycemia and diabetes: a report of a workgroup of the American Diabetes Association and the Endocrine Society. Diabetes Care. 2013;36:1384-95. [PMID: 23589542] doi:10.2337/dc12-2480",
+            "42. ORIGIN Trial Investigators. Predictors of nonsevere and severe hypoglycemia during glucose-lowering treatment with insulin glargine or standard drugs in the ORIGIN trial. Diabetes Care. 2015; 38:22-8. [PMID: 25352653] doi:10.2337/dc14-1329",
+            "43. Bruderer SG, Bodmer M, Jick SS, Bader G, Schlienger RG, Meier CR. Incidence of and risk factors for severe hypoglycaemia in treated type 2 diabetes mellitus patients in the UK-a nested case-control analysis. Diabetes Obes Metab. 2014;16:801-11. [PMID: 24612200] doi:10.1111/dom.12282",
+            "44. Wolffenbuttel BH, Herman WH, Gross JL, Dharmalingam M, Jiang HH, Hardin DS. Ethnic differences in glycemic markers in patients with type 2 diabetes. Diabetes Care. 2013;36:2931-6. [PMID: 23757434] doi:10.2337/dc12-2711",
+            "45. Maruthur NM, Tseng E, Hutfless S, Wilson LM, Suarez-Cuervo C, Berger Z, et al. Diabetes medications as monotherapy or metformin"
+        ],
+        "bbox": [
+            72,
+            83,
+            481,
+            816
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "list",
+        "sub_type": "ref_text",
+        "list_items": [
+            "based combination therapy for type 2 diabetes: a systematic review and meta-analysis. Ann Intern Med. 2016;164:740-51. [PMID: 27088241] doi:10.7326/M15-2650",
+            "46. U.S. Department of Veterans Affairs. Pharmacy Benefits Management Services. 2017. Accessed at www.pbm.va.gov on 10 August 2017.",
+            "47. Military Health System; Defense Health Agency. DoD Pharmacy & Therapeutics Committee. 2017. Accessed at www.health.mil /PandT on 10 August 2017.",
+            "48. Finfer S, Chittock DR, Su SY, Blair D, Foster D, Dhingra V, et al; NICE-SUGAR Study Investigators. Intensive versus conventional glucose control in critically ill patients. N Engl J Med. 2009;360:1283-97. [PMID: 19318384] doi:10.1056/NEJMoa0810625",
+            "49. Murad MH, Coburn JA, Coto-Yglesias F, Dzyubak S, Hazem A, Lane MA, et al. Glycemic control in non-critically ill hospitalized patients: a systematic review and meta-analysis. J Clin Endocrinol Metab. 2012;97:49-58. [PMID: 22090269] doi:10.1210/jc.2011-2100",
+            "50. Kalfon P, Le Manach Y, Ichai C, Bréchot N, Cinotti R, Dequin PF, et al; CGAO-REA Study Group. Severe and multiple hypoglycemic episodes are associated with increased risk of death in ICU patients. Crit Care. 2015;19:153. [PMID: 25888011] doi:10.1186/s13054-015-0851-7",
+            "51. Umpierrez GE, Smiley D, Jacobs S, Peng L, Temponi A, Mulligan P, et al. Randomized study of basal-bolus insulin therapy in the inpatient management of patients with type 2 diabetes undergoing general surgery (RABBIT 2 surgery). Diabetes Care. 2011;34:256-61. [PMID: 21228246] doi:10.2337/dc10-1407",
+            "52. Farrokhi F, Klindukhova O, Chandra P, Peng L, Smiley D, Newton C, et al. Risk factors for inpatient hypoglycemia during subcutaneous insulin therapy in non-critically ill patients with type 2 diabetes. J Diabetes Sci Technol. 2012;6:1022-9. [PMID: 23063027]",
+            "53. Smiley D, Umpierrez GE, Hermayer K, Newton C, Jacobs S, Olson DE, et al. Differences in inpatient glycemic control and response to subcutaneous insulin therapy between medicine and surgery patients with type 2 diabetes. J Diabetes Complications. 2013;27:637-41. [PMID: 23911535] doi:10.1016/j.jdicomp.2013.05.007",
+            "54. Umpierrez GE, Smiley D, Hermayer K, Khan A, Olson DE, Newton C, et al. Randomized study comparing a basal-bolus with a basal plus correction insulin regimen for the hospital management of medical and surgical patients with type 2 diabetes: Basal Plus Trial. Diabetes Care. 2013;36:2169-74. [PMID: 23435159] doi:10.2337/dc12-1988",
+            "55. American Diabetes Association. 2. Classification and diagnosis of diabetes. Diabetes Care. 2017;40:S11-24. [PMID: 27979889]",
+            "56. American Diabetes Association. 6. Glycemic targets. Diabetes Care. 2017;40:S48-56. [PMID: 27979893]",
+            "57. American Diabetes Association. 11. Older adults. Diabetes Care. 2017;40:S99-104. [PMID:27979898]",
+            "58. Garber AJ, Abrahamson MJ, Barzilay JI, Blonde L, Bloomgarden ZT, Bush MA, et al. Consensus statement by the American Association of Clinical Endocrinologists and American College of Endocrinology on the comprehensive type 2 diabetes management algorithm-2017 executive summary. Endocr Pract. 2017;23:207-38. [PMID: 28095040] doi:10.4158/EP161682.CS",
+            "59. Agency for Healthcare Research and Quality. The SHARE Approach. 2017. Accessed at www.ahrq.gov/professionals/education/curriculum-tools/shareddecisionmaking/index.html on 10 August 2017."
+        ],
+        "bbox": [
+            516,
+            83,
+            925,
+            816
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "header",
+        "text": "Synopsis of the VA/DoD Guideline on Management of Type 2 Diabetes Mellitus",
+        "bbox": [
+            70,
+            43,
+            602,
+            57
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "header",
+        "text": "CLINICAL GUIDELINE",
+        "bbox": [
+            713,
+            38,
+            925,
+            57
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            70,
+            956,
+            134,
+            967
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            540,
+            956,
+            897,
+            967
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "page_number",
+        "text": "663",
+        "bbox": [
+            902,
+            956,
+            924,
+            966
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "list",
+        "sub_type": "ref_text",
+        "list_items": [
+            "Current Author Addresses: Dr. Conlin: Chief, Medical Service, VA Boston Healthcare System, 1400 VFW Parkway, West Roxbury, MA 02132.",
+            "Dr. Colburn: Staff Endocrinologist, San Antonio Military Medical Center, 3551 Roger Brooke Drive, JBSA Fort Sam Houston, TX 78234-4504.",
+            "Dr. Aron: Director, Clinical Program Research and Evaluation, Louis Stokes Cleveland VA Medical Center, Administrative Building EUL 5M677, 10701 East Boulevard, Cleveland, OH 44106.",
+            "Dr. Pries: National Program Manager, Veterans Health Education Program, VHA National Center for Health Promotion and Disease Prevention (10P4N), Office of Patient Care Services, 3022 Croasdaile, Suite 200, Durham, NC 27705.",
+            "Dr. Tschanz: Associate Program Director, Naval Medical Center San Diego, Internal Medicine, Building 3/3, 34800 Bob Wilson Drive, San Diego, CA 92134.",
+            "Dr. Pogach: National Director, Medicine, Veterans Affairs Central Office, Office of Specialty Care Services (P11), 810 Vermont Avenue, Washington, DC 20420."
+        ],
+        "bbox": [
+            70,
+            83,
+            479,
+            365
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "list",
+        "sub_type": "ref_text",
+        "list_items": [
+            "Author Contributions: Conception and design: P.R. Conlin, J. Colburn, D. Aron, R.M. Pries, M.P. Tschanz, L. Pogach.",
+            "Analysis and interpretation of the data: P.R. Conlin, J. Colburn, D. Aron, R.M. Pries, M.P. Tschanz, L. Pogach.",
+            "Drafting of the article: P.R. Conlin, J. Colburn, D. Aron, R.M. Pries, M.P. Tschanz, L. Pogach.",
+            "Critical revision of the article for important intellectual content: P.R. Conlin, J. Colburn, D. Aron, R.M. Pries, M.P. Tschanz, L. Pogach.",
+            "Final approval of the article: P.R. Conlin, J. Colburn, D. Aron, R.M. Pries, M.P. Tschanz, L. Pogach.",
+            "Provision of study materials or patients: J. Colburn."
+        ],
+        "bbox": [
+            513,
+            83,
+            924,
+            251
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "footer",
+        "text": "Annals.org",
+        "bbox": [
+            70,
+            956,
+            134,
+            967
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "footer",
+        "text": "Annals of Internal Medicine  $\\cdot$  Vol. 167 No. 9  $\\cdot$  7 November 2017",
+        "bbox": [
+            560,
+            955,
+            915,
+            967
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "footer",
+        "text": "Downloaded from https://annals.org by Wuhan University on 11/07/2025.",
+        "bbox": [
+            296,
+            982,
+            698,
+            994
+        ],
+        "page_idx": 9
+    }
+]

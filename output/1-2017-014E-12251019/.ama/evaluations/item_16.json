@@ -1,0 +1,19 @@
+{
+  "item_id": "item_16",
+  "domain": 4,
+  "title": "The different options for management of the condition or health issue are clearly presented.",
+  "chain_of_thought": {
+    "step1_locate": "Located in Recommendations section under 'Set HbA1c Target Ranges Based on Absolute Reduction in Risk' and 'Individualized Treatment Plans Based on Complications, Comorbidities, Life Expectancy, and Patient Preferences'",
+    "step2_evidence": [
+      "A target HbA1c range of 6.0% -7.0% (if it can be safely achieved) is recommended for patients with a life expectancy greater than 10-15 y and no or mild microvascular complications.",
+      "In patients with type 2 diabetes, an HbA1c target range of 7.0% -8.5% is appropriate (if it can be safely achieved) for most persons with established microvascular or macrovascular disease, comorbid conditions, or life expectancy of 5-10 y.",
+      "A target HbA1c range of 8.0% -9.0% is recommended for patients with type 2 diabetes with a life expectancy < 5y; significant comorbid conditions; advanced complications; or difficulties with self-management attributable to mental status, disability, or other factors (such as food insecurity or insufficient social support)."
+    ],
+    "step3_reasoning": "The guideline presents three distinct management options (HbA1c target ranges: 6.0%-7.0%, 7.0%-8.5%, and 8.0%-9.0%) with clear descriptions of the suitable patient populations for each option. This meets the criteria for 'multiple options + description of suitable populations/clinical status' as required for the 5-7 score range. The evidence shows specific population characteristics (life expectancy, presence/absence of complications, comorbidities) for each management option, satisfying the evaluation criteria for item_16.",
+    "score": 5
+  },
+  "metadata": {
+    "skill_config": "skills/item_16.yaml",
+    "evaluated_at": "2025-12-25T10:30:34.081034"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "item_id": "item_1",
+  "domain": 1,
+  "title": "The overall objective(s) of the guideline is (are) specifically described.",
+  "chain_of_thought": {
+    "step1_locate": "Locating in Scope section (Section 1: 临床地位与使用时机)",
+    "step2_evidence": [
+      "二甲双胍是控制高血糖的基础治疗药物。在无GLP-1RA或SGLT2i心肾保护强适应证的情况下,建议二甲双胍作为2型糖尿病的首选一线降糖药物并一直保留在治疗方案中。"
+    ],
+    "step3_reasoning": "1. Health content: '2型糖尿病' (Type 2 Diabetes Mellitus) is explicitly stated as the clinical issue.\n2. Target population: '2型糖尿病' implies the target population is patients with Type 2 Diabetes.\n3. Expected benefits: '控制高血糖' (glycemic control) is specifically stated as the outcome.\nAll three required elements (disease, population, outcomes) are present in the verbatim text. The guideline explicitly states the disease (T2DM), specifies the target population (T2DM patients), and describes the expected benefit (glycemic control). This meets the criteria for score 7 (Comprehensive description).",
+    "score": 7
+  },
+  "metadata": {
+    "skill_config": "skills/item_1.yaml",
+    "evaluated_at": "2025-12-25T10:38:54.718227"
+  }
+}

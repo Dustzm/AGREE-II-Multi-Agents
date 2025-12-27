@@ -1,0 +1,32 @@
+item_id: item_15
+enabled: true
+domain: 4
+domain_name: Clarity of Presentation
+domain_name_zh: 表达清晰性
+title: The recommendations are specific and unambiguous.
+title_zh: 推荐意见是具体且明确的。
+description: "Recommendations should be clearly identified with specific \npurpose/intent\
+  \ and relevant population.\n"
+description_zh: '推荐意见应被明确识别，具有具体的目的/意图和相关人群。
+
+  '
+locating_info: 'Recommendations, Implementation Procedures Summary.
+
+  '
+locating_info_zh: '查看推荐意见、实施程序摘要章节。
+
+  '
+criteria:
+- Statement on formation (关于形成的声明)
+- Identification of purpose/intent (目的/意图的识别)
+- Identification of relevant population (and exceptions) (相关人群的识别（含例外情况））
+scoring_principle:
+- range: '1'
+  condition: Vague and unclear if it is a recommendation
+  condition_zh: 模糊不清，不确定是否为推荐意见
+- range: 2-4
+  condition: Clearly identified as a recommendation (using terms like 'should', 'recommend')
+  condition_zh: 明确识别为推荐意见（使用'应该'、'建议'等术语）
+- range: 5-7
+  condition: Clearly identified + states purpose AND/OR population
+  condition_zh: 明确识别 + 说明目的和/或人群

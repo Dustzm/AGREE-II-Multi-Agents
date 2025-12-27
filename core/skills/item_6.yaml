@@ -1,0 +1,35 @@
+item_id: item_6
+enabled: true
+domain: 2
+domain_name: Stakeholder Involvement
+domain_name_zh: 利益相关者参与
+title: The target users of the guideline are clearly defined.
+title_zh: 指南的目标用户被明确定义。
+description: 'Intended users (e.g., GPs, specialists, nurses).
+
+  '
+description_zh: '目标用户（如全科医生、专科医师、护士）。
+
+  '
+locating_info: '\"Users\" or \"Intended Users\" section.
+
+  '
+locating_info_zh: '查看"用户"或"目标用户"章节。
+
+  '
+criteria:
+- Clear description of intended readers (明确描述目标读者)
+- Statement on how they should use the guideline (说明如何使用指南)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Vaguely mentioned (e.g., 'doctors')
+  condition_zh: 模糊提及（如'医生'）
+- range: 3-4
+  condition: Clear statement of intended users
+  condition_zh: 明确声明目标用户
+- range: 6-7
+  condition: Clear users + How to use the guideline (inform decisions/policy)
+  condition_zh: 明确用户 + 如何使用指南（指导临床决策/政策）

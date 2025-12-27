@@ -1,0 +1,23 @@
+{
+  "item_id": "item_15",
+  "domain": 4,
+  "title": "The recommendations are specific and unambiguous.",
+  "chain_of_thought": {
+    "step1_locate": "Recommendations section (Table 1) and Implementation Procedures Summary section (section 4: Special Populations)",
+    "step2_evidence": [
+      "1.二甲双胍是控制高血糖的基础治疗药物。在无GLP-1RA或SGLT2i心肾保护强适应证的情况下,建议二甲双胍作为2型糖尿病的首选一线降糖药物并一直保留在治疗方案中",
+      "2.因改善心肾临床结局需要优先使用GLP-1RA或(和)SGLT2i治疗时,二甲双胍可作为联合治疗方案首选的降糖药物",
+      "3.二甲双胍适用于体重正常、超重或肥胖的2型糖尿病患者,其疗效和不良反应与体重指数无关",
+      "二甲双胍可用于10岁及以上的儿童和青少年2型糖尿病患者",
+      "老年和肾功能不全的2型糖尿病患者应在用药前及接受药物治疗期间定期检查肾功能,并根据eGFR水平调整二甲双胍的剂量",
+      "二甲双胍在eGFR<45ml·min-1·1.73m-2的患者中慎用或减量使用,在eGFR<30ml·min-1·1.73m-2的患者中禁用",
+      "2023年版ADA指南推荐：糖尿病前期成人应考虑使用二甲双胍预防T2DM，尤其是年龄25~59岁、体重指数≥35 kg/m2、空腹血糖≥6.1 mmol/L, HbA1c≥6.0%的成人及既往有妊娠期糖尿病的女性"
+    ],
+    "step3_reasoning": "The guideline contains clear recommendations using terms like '建议' (recommend) and '应' (should). The recommendations specify the purpose (e.g., '在无GLP-1RA或SGLT2i心肾保护强适应证的情况下' - in the absence of strong indications for GLP-1RA or SGLT2i for cardiorenal protection) and identify the relevant population with specific details (e.g., '2型糖尿病患者' - type 2 diabetes patients, '10岁及以上的儿童和青少年' - children and adolescents aged 10 and above, 'eGFR<45ml·min-1·1.73m-2' - eGFR<45ml·min-1·1.73m-2). The recommendations also include specific exceptions (e.g., contraindications for specific eGFR levels). All elements required for a score of 5-7 are met, with clear identification of purpose and population, so the score is 7.",
+    "score": 7
+  },
+  "metadata": {
+    "skill_config": "skills/item_15.yaml",
+    "evaluated_at": "2025-12-25T10:48:18.945656"
+  }
+}

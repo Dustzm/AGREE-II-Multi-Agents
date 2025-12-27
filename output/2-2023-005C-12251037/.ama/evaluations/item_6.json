@@ -1,0 +1,17 @@
+{
+  "item_id": "item_6",
+  "domain": 2,
+  "title": "The target users of the guideline are clearly defined.",
+  "chain_of_thought": {
+    "step1_locate": "Located in the English abstract section of the guideline",
+    "step2_evidence": [
+      "This guideline is designed for primary care physicians, cardiologists, and nurses. It should be used to guide clinical practice and inform hospital policy development."
+    ],
+    "step3_reasoning": "The evidence explicitly states specific target users (primary care physicians, cardiologists, nurses) which meets the 'clear statement of intended users' requirement (not vague like 'doctors'). The guideline also specifies 'how to use' the guideline ('guide clinical practice and inform hospital policy development'), which matches the requirement for 'how to use the guideline (inform decisions/policy)'. This satisfies the 6-7 score range criteria as defined in the scoring principles.",
+    "score": 6
+  },
+  "metadata": {
+    "skill_config": "skills/item_6.yaml",
+    "evaluated_at": "2025-12-25T10:42:24.847797"
+  }
+}

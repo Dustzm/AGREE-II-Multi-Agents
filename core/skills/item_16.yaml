@@ -1,0 +1,32 @@
+item_id: item_16
+enabled: true
+domain: 4
+domain_name: Clarity of Presentation
+domain_name_zh: 表达清晰性
+title: The different options for management of the condition or health issue are clearly
+  presented.
+title_zh: 清晰呈现了管理疾病或健康问题的不同选择。
+description: "Description of different treatment/management options and \nthe most\
+  \ suitable population/clinical status for each option.\n"
+description_zh: '描述不同的治疗/管理选择以及每个选择最适合的人群/临床状态。
+
+  '
+locating_info: 'Recommendations, Discussion, Treatment Options.
+
+  '
+locating_info_zh: '查看推荐意见、讨论、治疗选择章节。
+
+  '
+criteria:
+- Description of options (e.g., drug A vs B, therapy) (选项描述：如药物A vs B、治疗方法）
+- Description of most suitable population/clinical status for each option (每个选项最适合的人群/临床状态描述)
+scoring_principle:
+- range: 1-2
+  condition: Only one option mentioned
+  condition_zh: 仅提及一种选择
+- range: 3-4
+  condition: Multiple options for the same issue
+  condition_zh: 同一问题有多种选择
+- range: 5-7
+  condition: Multiple options + Description of suitable populations/clinical status
+  condition_zh: 多种选择 + 适合人群/临床状态的描述

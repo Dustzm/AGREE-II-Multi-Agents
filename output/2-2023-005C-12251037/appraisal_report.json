@@ -1,0 +1,172 @@
+{
+  "guideline_title": "二甲双胍临床应用专家共识",
+  "evaluator": "AMA (AGREE-Multi-Agents)",
+  "evaluation_date": "2025-12-25 10:55:15",
+  "task_id": "2-2023-005C-12251037",
+  "domain_scores": {
+    "1": {
+      "name": "Scope and Purpose",
+      "score": 83.3,
+      "items": [
+        {
+          "item_id": "item_1",
+          "score": 7,
+          "title": "The overall objective(s) of the guideline is (are) specifically described."
+        },
+        {
+          "item_id": "item_2",
+          "score": 5,
+          "title": "The health question(s) covered by the guideline is (are) specifically described."
+        },
+        {
+          "item_id": "item_3",
+          "score": 6,
+          "title": "The population (patients, public, etc.) to whom the guideline is meant to apply is specifically described."
+        }
+      ]
+    },
+    "2": {
+      "name": "Stakeholder Involvement",
+      "score": 50.0,
+      "items": [
+        {
+          "item_id": "item_4",
+          "score": 5,
+          "title": "The guideline development group includes individuals from all relevant professional groups."
+        },
+        {
+          "item_id": "item_5",
+          "score": 1,
+          "title": "The views and preferences of the target population (patients, public, etc.) have been sought."
+        },
+        {
+          "item_id": "item_6",
+          "score": 6,
+          "title": "The target users of the guideline are clearly defined."
+        }
+      ]
+    },
+    "3": {
+      "name": "Rigour of Development",
+      "score": 12.5,
+      "items": [
+        {
+          "item_id": "item_7",
+          "score": 1,
+          "title": "Systematic methods were used to search for evidence."
+        },
+        {
+          "item_id": "item_8",
+          "score": 1,
+          "title": "The criteria for selecting the evidence are clearly described."
+        },
+        {
+          "item_id": "item_9",
+          "score": 1,
+          "title": "The strengths and limitations of the body of evidence are clearly described."
+        },
+        {
+          "item_id": "item_10",
+          "score": 1,
+          "title": "The methods for formulating the recommendations are clearly described."
+        },
+        {
+          "item_id": "item_11",
+          "score": 6,
+          "title": "The health benefits, side effects, and risks have been considered in formulating the recommendations."
+        },
+        {
+          "item_id": "item_12",
+          "score": 2,
+          "title": "There is an explicit link between the recommendations and the supporting evidence."
+        },
+        {
+          "item_id": "item_13",
+          "score": 1,
+          "title": "The guideline has been externally reviewed by experts prior to its publication."
+        },
+        {
+          "item_id": "item_14",
+          "score": 1,
+          "title": "A procedure for updating the guideline is provided."
+        }
+      ]
+    },
+    "4": {
+      "name": "Clarity of Presentation",
+      "score": 55.6,
+      "items": [
+        {
+          "item_id": "item_15",
+          "score": 7,
+          "title": "The recommendations are specific and unambiguous."
+        },
+        {
+          "item_id": "item_16",
+          "score": 5,
+          "title": "The different options for management of the condition or health issue are clearly presented."
+        },
+        {
+          "item_id": "item_17",
+          "score": 1,
+          "title": "Key recommendations are easily identifiable."
+        }
+      ]
+    },
+    "5": {
+      "name": "Applicability",
+      "score": 37.5,
+      "items": [
+        {
+          "item_id": "item_18",
+          "score": 1,
+          "title": "The guideline describes facilitators and barriers to its application."
+        },
+        {
+          "item_id": "item_19",
+          "score": 1,
+          "title": "The guideline provides advice and/or tools on how the recommendations can be put into practice."
+        },
+        {
+          "item_id": "item_20",
+          "score": 4,
+          "title": "The potential resource implications of applying the recommendations have been considered."
+        },
+        {
+          "item_id": "item_21",
+          "score": 7,
+          "title": "The guideline presents monitoring and/or auditing criteria."
+        }
+      ]
+    },
+    "6": {
+      "name": "Editorial Independence",
+      "score": 33.3,
+      "items": [
+        {
+          "item_id": "item_22",
+          "score": 1,
+          "title": "The views of the funding body have not influenced the content of the guideline."
+        },
+        {
+          "item_id": "item_23",
+          "score": 5,
+          "title": "Competing interests of guideline development group members have been recorded and addressed."
+        }
+      ]
+    }
+  },
+  "overall_assessment": {
+    "strengths": [
+      "Scope and Purpose domain scored 83.3%, with high item scores (item_1: 7/7, item_3: 6/7)"
+    ],
+    "weaknesses": [
+      "Rigour of Development domain scored 12.5% (all critical items scored 1/7: item_7, item_8, item_9, item_10, item_13, item_14)"
+    ],
+    "recommendation": "Do not recommend"
+  },
+  "metadata": {
+    "generated_at": "2025-12-25T10:55:15.238649",
+    "total_items_evaluated": 23
+  }
+}

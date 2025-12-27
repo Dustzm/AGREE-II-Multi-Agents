@@ -1,0 +1,40 @@
+item_id: item_3
+enabled: true
+domain: 1
+domain_name: Scope and Purpose
+domain_name_zh: 范围和目的
+title: The population (patients, public, etc.) to whom the guideline is meant to apply
+  is specifically described.
+title_zh: 指南适用的人群（患者、公众等）被具体描述。
+description: 'Clear description of age, gender, clinical type, comorbidities, and
+  exclusions.
+
+  '
+description_zh: '清晰描述年龄、性别、临床类型、合并症和排除标准。
+
+  '
+locating_info: 'Check "Target Population," "Scope," or "Exclusion Criteria."
+
+  '
+locating_info_zh: '查看"目标人群"、"范围"或"排除标准"章节。
+
+  '
+criteria:
+- Target population (目标人群)
+- Clinical status (临床状态)
+- Severity/Stage (严重程度/分期)
+- Comorbidities (合并症)
+- Exclusion criteria (排除标准)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 2-3
+  condition: Rough description of category
+  condition_zh: 仅有人群类别的粗略描述
+- range: 4-6
+  condition: Detailed characteristics (gender, age, status)
+  condition_zh: 详细的特征描述（性别、年龄、状态）
+- range: '7'
+  condition: Detailed characteristics + Disease staging + Exclusion criteria
+  condition_zh: 详细特征 + 疾病分期 + 排除标准

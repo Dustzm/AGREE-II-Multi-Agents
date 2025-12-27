@@ -1,0 +1,19 @@
+{
+  "item_id": "item_1",
+  "domain": 1,
+  "title": "The overall objective(s) of the guideline is (are) specifically described.",
+  "chain_of_thought": {
+    "step1_locate": "Introduction section and key recommendations section",
+    "step2_evidence": [
+      "Diabetes is the leading cause of major complications, such as end-stage renal disease and lower extremity amputations, and is a significant contributor to ischemic heart disease, stroke, peripheral vascular disease, and vision loss (1).",
+      "Older adults account for an estimated 60% to 70% of the U.S. Department of Veterans Affairs (VA) and U.S. Department of Defense (DoD) diabetic population (largely retirees) (VA/DoD. Unpublished data).",
+      "Benefits include greater knowledge of medications (13) and understanding of risks (14). In addition, patient-centered care and shared decision making together may decrease patient anxiety, increase trust in clinicians (15), and improve treatment adherence (16)."
+    ],
+    "step3_reasoning": "The guideline comprehensively describes:\n- Health content: Type 2 diabetes as the disease with specific complications (end-stage renal disease, amputations, cardiovascular issues)\n- Target population: Veterans with type 2 diabetes, particularly older adults (60-70% of VA/DoD diabetic population)\n- Expected benefits: Reduced complications, improved patient knowledge, decreased anxiety, increased trust, and better treatment adherence through shared decision-making\n\nAll three required elements (disease, population, outcomes) are explicitly stated in verbatim text, meeting the criteria for score 7.",
+    "score": 7
+  },
+  "metadata": {
+    "skill_config": "skills/item_1.yaml",
+    "evaluated_at": "2025-12-25T10:20:47.203136"
+  }
+}

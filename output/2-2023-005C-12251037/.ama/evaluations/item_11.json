@@ -1,0 +1,19 @@
+{
+  "item_id": "item_11",
+  "domain": 3,
+  "title": "The health benefits, side effects, and risks have been considered in formulating the recommendations.",
+  "chain_of_thought": {
+    "step1_locate": "Locate in Safety section (五、安全性), Cardiovascular Effects section (六、对心血管系统的影响), and Summary (九、小结)",
+    "step2_evidence": [
+      "UKPDS34研究结果显示，在超重或肥胖的新诊断T2DM患者中，与常规治疗组相比，早期使用二甲双胍强化血糖控制组心肌梗死风险下降39%，全因死亡风险下降36%，任何糖尿病相关终点风险下降32%。",
+      "正确使用二甲双胍的乳酸性酸中毒发生率与其他降糖治疗无明显差异[65,79].",
+      "二甲双胍具有良好的降糖作用和潜在的心血管保护作用，长期使用安全性良好。若无禁忌证和不耐受，且无GLP-1RA或SGLT2i心肾保护的强适应证的情况下，二甲双胍仍应作为新诊断T2DM患者控制高血糖的一线用药和降糖药物联合治疗的基础用药，并贯穿于糖尿病治疗的全程。"
+    ],
+    "step3_reasoning": "1. Benefits with data: UKPDS34 study explicitly reports 39% MI risk reduction, 36% mortality reduction, and 32% endpoint risk reduction with specific data.\n2. Harms with data: States lactic acidosis incidence is comparable to other treatments (citing references 65,79).\n3. Benefit-harm balance: Summary states 'good safety' and explicitly links benefits (glucose-lowering, cardiovascular protection) with safety profile.\n4. Recommendations reflect balance: First-line recommendation specifies 'no contraindications' and 'no strong indications for GLP-1RA/SGLT2i', showing explicit risk-benefit consideration.\nThis meets all criteria for score 6-7 (explicit benefit-harm balance in recommendations).",
+    "score": 6
+  },
+  "metadata": {
+    "skill_config": "skills/item_11.yaml",
+    "evaluated_at": "2025-12-25T10:45:33.053993"
+  }
+}

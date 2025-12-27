@@ -1,0 +1,21 @@
+{
+  "item_id": "item_3",
+  "domain": 1,
+  "title": "The population (patients, public, etc.) to whom the guideline is meant to apply is specifically described.",
+  "chain_of_thought": {
+    "step1_locate": "Search for 'Target Population', 'Scope', or 'Exclusion Criteria' sections. Found in 'Special Populations' (Section 4), 'Safety' (Section 5), and 'Prevention of Diabetes' (Section 7).",
+    "step2_evidence": [
+      "3. Children and adolescents with T2DM: Metformin is the only oral hypoglycemic drug approved for T2DM in children and adolescents aged ≥10 years, with a maximum daily dose not exceeding 2000 mg, and not recommended for children under 10 years.",
+      "4. Elderly patients aged ≥65 years: For elderly T2DM patients with normal renal function, metformin remains the preferred first-line glucose-lowering drug without specific age restrictions.",
+      "5. Renal impairment patients: Metformin itself does not adversely affect renal function, but since metformin is excreted unchanged by the kidneys, the risk of accumulation and lactic acidosis increases in patients with renal impairment.",
+      "1. Contraindications for metformin: (1) Severe renal impairment; (2) Conditions that may affect renal function acutely, such as dehydration, severe infection, shock; (3) Diseases that cause tissue hypoxia (especially acute conditions or exacerbation of chronic conditions), such as decompensated heart failure, respiratory failure, recent myocardial infarction, and shock; (4) Severe infection and trauma, major surgery, clinical presence of hypotension and hypoxia; (5) Allergy to any component of the drug; (6) Any acute metabolic acidosis, including diabetic ketoacidosis, lactic acidosis; (7) Hepatic impairment, acute alcohol poisoning, alcohol abuse; (8) Uncorrected vitamin B12 or folic acid deficiency.",
+      "2023 ADA guidelines recommend: Consider metformin for diabetes prevention in adults with prediabetes, especially those aged 25-59 years, BMI ≥35 kg/m², fasting blood glucose ≥6.1 mmol/L, HbA1c ≥6.0%, and women with a history of gestational diabetes."
+    ],
+    "step3_reasoning": "The guideline specifies detailed characteristics for target population: age (≥10 years for children, ≥65 years for elderly, 25-59 years for prevention), clinical status (T2DM, prediabetes). It does not mention gender. Disease staging is not specified. Exclusion criteria are detailed (severe renal impairment, decompensated heart failure, etc.). The guideline meets the criteria for 'detailed characteristics' (age, clinical status) and has detailed exclusion criteria, but lacks disease staging. According to scoring principles: 4-6 = detailed characteristics (gender, age, status), 7 = detailed characteristics + disease staging + exclusion criteria. Since it has detailed characteristics (age, clinical status) and exclusion criteria but lacks disease staging, it scores 6.",
+    "score": 6
+  },
+  "metadata": {
+    "skill_config": "skills/item_3.yaml",
+    "evaluated_at": "2025-12-25T10:40:27.193938"
+  }
+}

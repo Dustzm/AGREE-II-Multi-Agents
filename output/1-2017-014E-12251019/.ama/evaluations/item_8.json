@@ -1,0 +1,17 @@
+{
+  "item_id": "item_8",
+  "domain": 3,
+  "title": "The criteria for selecting the evidence are clearly described.",
+  "chain_of_thought": {
+    "step1_locate": "Locating information in Methodology section under Literature Search",
+    "step2_evidence": [
+      "A systematic search of the peer-reviewed literature from January 2009 through March 2016 was conducted to find evidence relevant to the key questions that focused on randomized trials, systematic reviews, and meta-analyses of fair or better quality."
+    ],
+    "step3_reasoning": "The guideline describes inclusion criteria including study design (randomized trials, systematic reviews, meta-analyses), quality (fair or better), and time frame (January 2009-March 2016). However, it does not describe exclusion criteria. The scoring principle for 3-4 is 'Mention of inclusion (or exclusion) criteria only'. Since the guideline mentions inclusion criteria (study design, quality, time frame) but does not mention exclusion criteria, it falls under the 3-4 score range. The inclusion criteria description includes more than just study type (as required for score 2), so it qualifies for the higher end of the 3-4 range (score 4).",
+    "score": 4
+  },
+  "metadata": {
+    "skill_config": "skills/item_8.yaml",
+    "evaluated_at": "2025-12-25T10:25:40.553424"
+  }
+}

@@ -1,0 +1,30 @@
+item_id: item_1
+enabled: true
+domain: 1
+domain_name: Scope and Purpose
+domain_name_zh: 范围内和目的
+title: The overall objective(s) of the guideline is (are) specifically described.
+title_zh: 指南的总体目标被具体描述。
+description: "The guideline should detail objectives, potential health impacts, \n\
+  and benefits tailored to specific clinical issues \n(e.g., preventing complications,\
+  \ screening strategies).\n"
+description_zh: 指南应详细说明针对特定临床问题的目标、潜在的健康影响和益处（如预防并发症、筛查策略等）。
+locating_info: Check Introduction, Scope, Purpose, or Objectives sections.
+locating_info_zh: 查看引言、范围、目的或目标章节。
+criteria:
+- Health content (健康内容)
+- Expected benefits/outcomes (预期收益/结果)
+- Target population (目标人群)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 3-4
+  condition: Only disease described (no population/outcomes)
+  condition_zh: 仅描述了疾病（未提及人群/结果）
+- range: 5-6
+  condition: Disease and population described (no expected outcomes)
+  condition_zh: 描述了疾病和人群（未提及预期结果）
+- range: '7'
+  condition: Comprehensive description (Disease + Population + Outcomes)
+  condition_zh: 全面描述（疾病 + 人群 + 结果）

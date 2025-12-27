@@ -1,0 +1,5 @@
+"""
+KG-Weaver Web Backend Package
+
+FastAPI 后端服务
+"""

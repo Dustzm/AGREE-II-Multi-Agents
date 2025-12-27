@@ -1,0 +1,36 @@
+item_id: item_8
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: The criteria for selecting the evidence are clearly described.
+title_zh: 证据选择标准被清晰描述。
+description: 'Description of inclusion and exclusion criteria for selecting evidence.
+
+  '
+description_zh: '描述证据纳入和排除标准。
+
+  '
+locating_info: 'Methodology, Literature Search, Inclusion/Exclusion Criteria.
+
+  '
+locating_info_zh: '查看方法学、文献检索、纳入/排除标准章节。
+
+  '
+criteria:
+- Description of inclusion criteria (target population, study design, comparators,
+  outcomes, language) (纳入标准描述)
+- Description of exclusion criteria (排除标准描述)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Mention of included study type only
+  condition_zh: 仅提及纳入的研究类型
+- range: 3-4
+  condition: Mention of inclusion (or exclusion) criteria only
+  condition_zh: 仅提及纳入（或排除）标准
+- range: 5-7
+  condition: Detailed inclusion AND exclusion criteria
+  condition_zh: 详细的纳入和排除标准

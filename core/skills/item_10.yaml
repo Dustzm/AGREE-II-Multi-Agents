@@ -1,0 +1,39 @@
+item_id: item_10
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: The methods for formulating the recommendations are clearly described.
+title_zh: 形成推荐意见的方法被清晰描述。
+description: "Description of the process for generating recommendations, \nincluding\
+  \ consensus methods, voting, and outcomes.\n"
+description_zh: '描述形成推荐意见的过程，包括共识方法、投票和结果。
+
+  '
+locating_info: 'Methodology, Guideline Development Process.
+
+  '
+locating_info_zh: '查看方法学、指南制定过程章节。
+
+  '
+criteria:
+- Description of the process (e.g., Delphi, voting) (过程描述：德尔菲法、投票等)
+- Results of the process (e.g., consensus levels) (过程结果：共识程度等)
+- Description of how the process affected final recommendations (过程如何影响最终推荐的描述)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Provided recommendation generation method name only
+  condition_zh: 仅提供推荐意见生成方法名称
+- range: 3-4
+  condition: Provided method and described specific process/results, but no method
+    process details
+  condition_zh: 提供方法并描述具体过程/结果，但无方法过程细节
+- range: 5-6
+  condition: Described generation process AND provided results
+  condition_zh: 描述生成过程并提供结果
+- range: '7'
+  condition: Comprehensive description of process, results, AND impact on final recommendations
+  condition_zh: 全面描述过程、结果和对最终推荐的影响

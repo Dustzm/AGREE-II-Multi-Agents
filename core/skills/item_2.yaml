@@ -1,0 +1,39 @@
+item_id: item_2
+enabled: true
+domain: 1
+domain_name: Scope and Purpose
+domain_name_zh: 范围和目的
+title: The health question(s) covered by the guideline is (are) specifically described.
+title_zh: 指南涵盖的健康问题被具体描述。
+description: "Detailed health issues, ideally in PICO format \n(Population, Intervention,\
+  \ Comparator, Outcome).\n"
+description_zh: '详细的健康问题，理想情况下采用 PICO 格式
+
+  （人群、干预、对照、结局）。
+
+  '
+locating_info: 'Check Introduction, Scope, or Objectives.
+
+  '
+locating_info_zh: '查看引言、范围或目标章节。
+
+  '
+criteria:
+- Target population (目标人群)
+- Interventions (干预措施)
+- Comparators (对照措施)
+- Outcomes (结局指标)
+- Healthcare setting (医疗场景)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 3-4
+  condition: Rough description only
+  condition_zh: 仅有粗略描述
+- range: '5'
+  condition: Detailed PIC (Population, Intervention, Comparison) but lacking Outcomes/Settings
+  condition_zh: 详细的 PIC（人群、干预、对照）但缺少结局/场景
+- range: 6-7
+  condition: Detailed PICOS (All elements present)
+  condition_zh: 详细的 PICOS（所有要素齐全）

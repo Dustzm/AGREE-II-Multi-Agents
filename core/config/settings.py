@@ -1,0 +1,171 @@
+"""
+KG-Weaver 配置管理模块
+
+使用 pydantic-settings 从环境变量加载配置
+"""
+from functools import lru_cache
+from pathlib import Path
+from typing import Literal
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 获取项目根目录的 .env 文件路径
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+_ENV_FILE = _PROJECT_ROOT / ".env"
+
+
+class LLMSettings(BaseSettings):
+    """大模型配置 (OpenAI 兼容格式)"""
+    
+    model_config = SettingsConfigDict(
+        env_prefix="LLM_",
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    # API 基础地址
+    base_url: str = Field(
+        default="",
+        description="大模型 API 基础地址"
+    )
+    
+    # API Key
+    api_key: str = Field(
+        default="",
+        description="API Key (如果服务需要认证)"
+    )
+    
+    # 默认模型名称
+    model_name: str = Field(
+        default="qwen2.5",
+        description="默认使用的模型名称"
+    )
+    
+    # 请求超时时间
+    timeout: int = Field(
+        default=120,
+        description="请求超时时间 (秒)"
+    )
+
+
+class MinerUSettings(BaseSettings):
+    """MinerU 远程服务配置 (VLM HTTP Client)"""
+    
+    model_config = SettingsConfigDict(
+        env_prefix="MINERU_",
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    # VLM 服务地址 (OpenAI 兼容格式)
+    server_url: str = Field(
+        default="http://127.0.0.1:30000",
+        description="VLM 服务地址"
+    )
+
+    # 模型名称 (统一模型平台可能需要显式指定)
+    model_name: str = Field(
+        default="",
+        description="VLM 模型名称 (可选)"
+    )
+    
+    # API Key (用于 Authorization Bearer 认证)
+    api_key: str = Field(
+        default="",
+        description="VLM 服务 API Key"
+    )
+    
+    # HTTP 超时时间
+    http_timeout: int = Field(
+        default=600,
+        description="HTTP 请求超时时间 (秒)"
+    )
+    
+    # 最大并发请求数
+    max_concurrency: int = Field(
+        default=100,
+        description="最大并发请求数"
+    )
+
+
+class AppSettings(BaseSettings):
+    """应用配置"""
+    
+    model_config = SettingsConfigDict(
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    # 运行环境
+    env: Literal["development", "production"] = Field(
+        default="development",
+        alias="APP_ENV",
+        description="运行环境"
+    )
+    
+    # 日志级别
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
+        default="INFO",
+        alias="LOG_LEVEL",
+        description="日志级别"
+    )
+    
+    # 输入目录 (PDF 文件输入)
+    dir_input: str = Field(
+        default="./input",
+        alias="DIR_INPUT",
+        description="输入目录 (存放待处理的 PDF 文件)"
+    )
+    
+    # 输出目录 (任务结果输出)
+    dir_output: str = Field(
+        default="./output",
+        alias="DIR_OUTPUT",
+        description="输出目录 (任务结果存放位置)"
+    )
+    
+    # 数据存储根目录 (向后兼容，实际使用 dir_output)
+    @property
+    def data_root(self) -> str:
+        """向后兼容的数据根目录属性 (绝对路径)"""
+        return str(self.path_output)
+
+    @property
+    def path_input(self) -> Path:
+        """解析后的输入目录 (绝对路径)"""
+        path = Path(self.dir_input)
+        if path.is_absolute():
+            return path
+        return _PROJECT_ROOT / path
+
+    @property
+    def path_output(self) -> Path:
+        """解析后的输出目录 (绝对路径)"""
+        path = Path(self.dir_output)
+        if path.is_absolute():
+            return path
+        return _PROJECT_ROOT / path
+
+
+class Settings(BaseSettings):
+    """全局配置聚合"""
+    
+    model_config = SettingsConfigDict(
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+    mineru: MinerUSettings = Field(default_factory=MinerUSettings)
+    app: AppSettings = Field(default_factory=AppSettings)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """获取全局配置单例"""
+    return Settings()

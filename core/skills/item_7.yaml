@@ -1,0 +1,42 @@
+item_id: item_7
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: Systematic methods were used to search for evidence.
+title_zh: 使用了系统的方法来搜索证据。
+description: "Description of the systematic process for searching evidence, \nincluding\
+  \ databases, time span, and search terms.\n"
+description_zh: '描述搜索证据的系统过程，包括数据库、时间范围和检索词。
+
+  '
+locating_info: 'Methodology, Literature Search Strategy, Appendices.
+
+  '
+locating_info_zh: '查看方法学、文献检索策略、附录章节。
+
+  '
+criteria:
+- Search of known electronic databases (MEDLINE, EMBASE, etc.) (搜索已知电子数据库)
+- Time span of search (检索时间范围)
+- Search terms used (使用的检索词)
+- Complete search strategy provided (提供完整的检索策略)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Mention of search databases without specific info
+  condition_zh: 提及搜索数据库但无具体信息
+- range: '3'
+  condition: Identification of databases without specific search info
+  condition_zh: 列出数据库但无具体检索信息
+- range: '4'
+  condition: Clear database AND search terms
+  condition_zh: 明确的数据库和检索词
+- range: '5'
+  condition: Clear database, search time, AND search terms
+  condition_zh: 明确的数据库、检索时间和检索词
+- range: 6-7
+  condition: Clear database, search time, search terms, AND complete search strategy
+  condition_zh: 明确的数据库、检索时间、检索词和完整检索策略

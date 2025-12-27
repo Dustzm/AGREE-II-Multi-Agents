@@ -1,0 +1,36 @@
+item_id: item_12
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: There is an explicit link between the recommendations and the supporting evidence.
+title_zh: 推荐意见与支持证据之间有明确联系。
+description: "Description of how each recommendation is linked to the \nsupporting\
+  \ evidence.\n"
+description_zh: '描述每条推荐意见如何与支持证据相关联。
+
+  '
+locating_info: 'Recommendations section, Key Evidence descriptions.
+
+  '
+locating_info_zh: '查看推荐意见章节、关键证据描述。
+
+  '
+criteria:
+- Description of how evidence was used to generate recommendations (描述证据如何用于生成推荐意见)
+- Each recommendation linked to key evidence/references (每条推荐意见关联关键证据/参考文献)
+- Recommendations linked to evidence summaries/tables (推荐意见关联证据摘要/表格)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 2-3
+  condition: Description of how evidence led to recommendations OR only references
+    provided
+  condition_zh: 描述证据如何导出推荐意见或仅提供参考文献
+- range: 4-5
+  condition: Description of link AND references provided
+  condition_zh: 描述关联并提供参考文献
+- range: 6-7
+  condition: Clear description of relationship, references, AND evidence summaries/tables
+  condition_zh: 清晰描述关系、参考文献和证据摘要/表格

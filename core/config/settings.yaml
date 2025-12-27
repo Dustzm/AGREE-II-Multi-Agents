@@ -1,0 +1,36 @@
+# AMA 系统配置文件
+# 所有智能体共用此配置
+
+# 语言设置
+language:
+  # 提示词语言: en/zh
+  # 建议与待评价指南语言一致以获得最佳效果
+  prompt: "en"
+
+  # Skill 配置字段语言
+  # en: 使用 title, locating_info, description
+  # zh: 使用 title_zh, locating_info_zh, description_zh
+  skill: "en"
+
+# LLM 行为配置
+llm:
+  # 温度参数 (0.0-1.0)
+  # 评价任务建议使用低温以保证一致性
+  temperature: 0.3
+
+  # 最大输出 token 数
+  # null 或 -1 表示无限制
+  max_tokens: null
+
+# 输出设置
+output:
+  # 是否保存思维链 (Chain of Thought)
+  save_cot: true
+
+  # 是否保存原文证据
+  save_evidence: true
+
+  # 报告输出格式
+  formats:
+    - json
+    - md

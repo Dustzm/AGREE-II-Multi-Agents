@@ -1,0 +1,18 @@
+{
+  "item_id": "item_2",
+  "domain": 1,
+  "title": "The health question(s) covered by the guideline is (are) specifically described.",
+  "chain_of_thought": {
+    "step1_locate": "Scanned Introduction and Scope sections for PICO elements",
+    "step2_evidence": [
+      "The 2017 VA/DoD Clinical Practice Guideline (CPG) for the Management of Type 2 Diabetes Mellitus in Primary Care offers health care providers an evidence-based framework to evaluate, treat, and manage persons with type 2 diabetes mellitus in the context of their individual needs and preferences (8).",
+      "This guideline addresses the diagnosis and management of type 2 diabetes mellitus in adults aged 18 to 75 years in primary care settings."
+    ],
+    "step3_reasoning": "The guideline mentions 'management of type 2 diabetes mellitus in primary care' and specifies 'adults aged 18 to 75 years' in the scope. However, it lacks detailed intervention specifications (e.g., specific treatments like metformin), comparator (e.g., placebo vs. standard care), and outcome measures (e.g., HbA1c reduction). The evidence shows only partial elements (Population: adults 18-75 with T2D; Setting: primary care) but omits Intervention, Comparator, and Outcome. This constitutes a rough description (3-4) per scoring criteria, as it fails to provide comprehensive PICO elements.",
+    "score": 3
+  },
+  "metadata": {
+    "skill_config": "skills/item_2.yaml",
+    "evaluated_at": "2025-12-25T10:21:36.900489"
+  }
+}

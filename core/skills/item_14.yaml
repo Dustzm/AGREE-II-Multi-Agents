@@ -1,0 +1,34 @@
+item_id: item_14
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: A procedure for updating the guideline is provided.
+title_zh: 提供了指南更新程序。
+description: "Statement on guideline updates with clear time intervals \nor criteria\
+  \ for guiding updates.\n"
+description_zh: '关于指南更新的声明，包含明确的时间间隔或更新指导标准。
+
+  '
+locating_info: 'Methodology, Guideline Update.
+
+  '
+locating_info_zh: '查看方法学、指南更新章节。
+
+  '
+criteria:
+- Statement on guideline updates (关于指南更新的声明)
+- Clear time intervals or criteria for guiding updates (明确的时间间隔或更新标准)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '3'
+  condition: Mention of updates without specific details
+  condition_zh: 提及更新但无具体细节
+- range: 4-6
+  condition: Mention of update intervals OR criteria
+  condition_zh: 提及更新时间间隔或标准
+- range: '7'
+  condition: Comprehensive description of update intervals AND criteria
+  condition_zh: 全面描述更新时间间隔和标准

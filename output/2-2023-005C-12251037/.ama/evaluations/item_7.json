@@ -1,0 +1,17 @@
+{
+  "item_id": "item_7",
+  "domain": 3,
+  "title": "Systematic methods were used to search for evidence.",
+  "chain_of_thought": {
+    "step1_locate": "Searched Methodology, Literature Search Strategy, Appendices sections for evidence search information",
+    "step2_evidence": [
+      "No relevant information found"
+    ],
+    "step3_reasoning": "The guideline does not contain a dedicated 'Literature Search Strategy' section. The document is structured as a clinical consensus on metformin, with sections on clinical status, mechanisms, dosage, special populations, safety, cardiovascular effects, prevention, and other effects. The document contains a References section with 116 references, but no description of how these references were selected or identified. There is no mention of:\n- Electronic databases searched (MEDLINE, EMBASE, etc.)\n- Time span of search\n- Search terms used\n- Complete search strategy provided\n\nThe guideline does not provide any information about the systematic search process for evidence, which is required for this item.",
+    "score": 1
+  },
+  "metadata": {
+    "skill_config": "skills/item_7.yaml",
+    "evaluated_at": "2025-12-25T10:42:48.452154"
+  }
+}

@@ -1,0 +1,40 @@
+item_id: item_11
+enabled: true
+domain: 3
+domain_name: Rigor of Development
+domain_name_zh: 制定严谨性
+title: The health benefits, side effects, and risks have been considered in formulating
+  the recommendations.
+title_zh: 在形成推荐意见时已考虑健康获益、副作用和风险。
+description: "Description of how benefits and harms were considered and \nbalanced\
+  \ in formulating recommendations.\n"
+description_zh: '描述在形成推荐意见时如何考虑和权衡获益与危害。
+
+  '
+locating_info: 'Methodology, Interpretation, Discussion, Recommendations.
+
+  '
+locating_info_zh: '查看方法学、解读、讨论、推荐意见章节。
+
+  '
+criteria:
+- Benefits reported + data (报告获益及数据)
+- Harms/Risks reported + data (报告危害/风险及数据)
+- Reporting of balance between benefits and harms (报告利弊平衡)
+- Recommendations reflect this consideration (推荐意见反映这一考虑)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: '2'
+  condition: Provided benefits or risks without supporting data
+  condition_zh: 提供获益或风险但无支持数据
+- range: '3'
+  condition: Provided benefits AND supporting data
+  condition_zh: 提供获益及支持数据
+- range: 4-5
+  condition: Provided benefits AND risks with supporting data
+  condition_zh: 提供获益和风险及支持数据
+- range: 6-7
+  condition: Consideration of benefit-harm balance explicit in recommendations
+  condition_zh: 推荐意见中明确考虑利弊平衡

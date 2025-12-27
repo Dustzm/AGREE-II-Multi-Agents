@@ -1,0 +1,15 @@
+{
+  "item_id": "item_13",
+  "domain": 3,
+  "title": "The guideline has been externally reviewed by experts prior to its publication.",
+  "chain_of_thought": {
+    "step1_locate": "Searched in Outcomes, Interpretation, and Acknowledgments sections of the guideline",
+    "step2_evidence": [],
+    "step3_reasoning": "The guideline contains a section listing '共识更新专家组成员（按姓氏拼音顺序）' which lists the members of the internal consensus update expert group. However, there is no explicit mention of an external review process by independent experts prior to publication. The document describes the internal development group but does not provide any information about external review (purpose, methodology, reviewers, outcomes, or how information was used). The document does not contain any statements such as 'the guideline was externally reviewed', 'external experts provided feedback', or similar language indicating an external review process.",
+    "score": 1
+  },
+  "metadata": {
+    "skill_config": "skills/item_13.yaml",
+    "evaluated_at": "2025-12-25T10:47:04.908616"
+  }
+}

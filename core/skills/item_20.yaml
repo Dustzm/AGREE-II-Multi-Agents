@@ -1,0 +1,37 @@
+item_id: item_20
+enabled: true
+domain: 5
+domain_name: Applicability
+domain_name_zh: 适用性
+title: The potential resource implications of applying the recommendations have been
+  considered.
+title_zh: 已考虑应用推荐意见的潜在资源影响。
+description: "Consideration of cost information, economic evaluations, \nand how this\
+  \ information was used in formulating recommendations.\n"
+description_zh: '考虑成本信息、经济评估，以及这些信息如何用于形成推荐意见。
+
+  '
+locating_info: 'Methodology, Cost-Use, Cost-Effectiveness, Budget.
+
+  '
+locating_info_zh: '查看方法学、成本效用、成本效益、预算章节。
+
+  '
+criteria:
+- Consideration of cost info types (economic eval, drug costs) (考虑成本信息类型：经济评估、药物成本)
+- Methodology for collecting cost info (economist involved) (收集成本信息的方法：经济学家参与)
+- Survey info (调查信息)
+- Description of how info was used in formulation (信息如何用于形成的描述)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 3-4
+  condition: Mention of cost/economic issues only
+  condition_zh: 仅提及成本/经济问题
+- range: 5-6
+  condition: Specific survey information provided
+  condition_zh: 提供具体的调查信息
+- range: '7'
+  condition: Survey information provided AND how it was used in formulation
+  condition_zh: 提供调查信息及其如何用于形成

@@ -1,0 +1,39 @@
+item_id: item_18
+enabled: true
+domain: 5
+domain_name: Applicability
+domain_name_zh: 适用性
+title: The guideline describes facilitators and barriers to its application.
+title_zh: 指南描述了应用的促进因素和障碍。
+description: "Identification of facilitators and barriers to guideline application,\
+  \ \nincluding methods used to collect them and their impact on recommendations.\n"
+description_zh: '识别指南应用的促进因素和障碍，包括收集方法及其对推荐意见的影响。
+
+  '
+locating_info: 'Barriers, Guideline Application, Quality Indicators.
+
+  '
+locating_info_zh: '查看障碍、指南应用、质量指标章节。
+
+  '
+criteria:
+- Identification of facilitators and barriers (识别促进因素和障碍)
+- Consideration of methods to collect them (收集方法的考虑)
+- Description of factors from surveys (调查中的因素描述)
+- Impact on recommendations (对推荐意见的影响)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 2-3
+  condition: Mention of facilitators OR barriers
+  condition_zh: 提及促进因素或障碍
+- range: 4-5
+  condition: Mention of BOTH + Collection methods
+  condition_zh: 提及两者 + 收集方法
+- range: '6'
+  condition: Mention of BOTH + ID methods + Description
+  condition_zh: 提及两者 + 识别方法 + 描述
+- range: '7'
+  condition: Description of factors + Collection methods + Impact on recommendations
+  condition_zh: 因素描述 + 收集方法 + 对推荐意见的影响

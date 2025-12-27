@@ -1,0 +1,33 @@
+item_id: item_4
+enabled: true
+domain: 2
+domain_name: Stakeholder Involvement
+domain_name_zh: 利益相关者参与
+title: The guideline development group includes individuals from all relevant professional groups.
+title_zh: 指南制定小组包括来自所有相关专业群体的成员。
+description: "Includes the research team and those forming recommendations (excluding external reviewers).\n"
+description_zh: '包括研究团队和参与形成建议的人员（不包括外部审稿人）。'
+locating_info: 'Methods, Group Members List, Acknowledgments.'
+locating_info_zh: '查看方法、小组成员名单、致谢章节。'
+criteria:
+- Name (姓名)
+- Discipline/Profession (学科/专业)
+- Institution (机构)
+- Geographic Location (地理位置)
+- Role (角色)
+scoring_principle:
+- range: '1'
+  condition: Not mentioned
+  condition_zh: 未提及
+- range: 2-3
+  condition: Rough description or names only
+  condition_zh: 仅有粗略描述或仅列出姓名
+- range: '4'
+  condition: Names + Disciplines
+  condition_zh: 姓名 + 学科
+- range: '5'
+  condition: Names + Disciplines + Institutions
+  condition_zh: 姓名 + 学科 + 机构
+- range: 6-7
+  condition: Names + Disciplines + Institutions + Roles + Geography
+  condition_zh: 姓名 + 学科 + 机构 + 角色 + 地理位置

@@ -1,0 +1,28 @@
+item_id: item_17
+enabled: true
+domain: 4
+domain_name: Clarity of Presentation
+domain_name_zh: 表达清晰性
+title: Key recommendations are easily identifiable.
+title_zh: 关键推荐意见易于识别。
+description: "Recommendations should be highlighted using visual formatting \nsuch\
+  \ as boxes, bold text, underlining, or flowcharts.\n"
+description_zh: '推荐意见应使用视觉格式突出显示，如方框、加粗、下划线或流程图。
+
+  '
+locating_info: 'Summary, Conclusions, Recommendations.
+
+  '
+locating_info_zh: '查看摘要、结论、推荐意见章节。
+
+  '
+criteria:
+- Recommendations placed in a box, bold text, underlined, or flowcharts (推荐意见放置在方框中、加粗、下划线或流程图)
+- Specific recommendations are grouped (具体推荐意见分组)
+scoring_principle:
+- range: '1'
+  condition: No easily identifiable recommendations
+  condition_zh: 没有易于识别的推荐意见
+- range: 4-7
+  condition: Recommendations summarized in a box (or bold/underlined/flowcharts)
+  condition_zh: 推荐意见以方框形式汇总（或加粗/下划线/流程图）
