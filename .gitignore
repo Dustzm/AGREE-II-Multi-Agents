@@ -62,3 +62,5 @@ logs/
 .agent/
 AGENTS.md
 .pids/
+input/
+output/

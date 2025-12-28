@@ -3,9 +3,9 @@
  * 
  * 使用时序图展示评价过程，取代传统对话框
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, Sparkles, Upload } from 'lucide-react'
 import { api, type PdfFile } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,11 @@ export function Chat() {
     const [loadingFiles, setLoadingFiles] = useState(true)
     const [currentFile, setCurrentFile] = useState<string | null>(null)
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
+
+    // 上传相关状态
+    const [isUploading, setIsUploading] = useState(false)
+    const [isDragOver, setIsDragOver] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // 时序图事件
     const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
@@ -67,6 +72,57 @@ export function Chat() {
             setLoadingFiles(false)
         }
     }, [])
+
+    // 处理文件上传
+    const handleUpload = useCallback(async (file: File) => {
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            alert('只支持 PDF 文件')
+            return
+        }
+
+        setIsUploading(true)
+        try {
+            await api.uploadPdfToInput(file)
+            await loadPdfFiles()  // 刷新文件列表
+        } catch (error) {
+            console.error('上传失败:', error)
+            alert(error instanceof Error ? error.message : '上传失败')
+        } finally {
+            setIsUploading(false)
+        }
+    }, [loadPdfFiles])
+
+    // 文件选择处理
+    const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            handleUpload(file)
+        }
+        // 重置 input 以便可以再次选择相同文件
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+        }
+    }, [handleUpload])
+
+    // 拖拽处理
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragOver(true)
+    }, [])
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragOver(false)
+    }, [])
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragOver(false)
+        const file = e.dataTransfer.files?.[0]
+        if (file) {
+            handleUpload(file)
+        }
+    }, [handleUpload])
 
     useEffect(() => {
         loadPdfFiles()
@@ -223,28 +279,65 @@ export function Chat() {
                             <h2 className="text-lg font-bold text-gray-800 tracking-tight">文档列表</h2>
                             <p className="text-xs text-gray-500 mt-1">Select PDF to start</p>
                         </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={loadPdfFiles}
-                            disabled={loadingFiles}
-                            className="h-9 w-9 hover:bg-white/60 rounded-xl"
-                        >
-                            <RefreshCw className={cn("h-4 w-4 text-gray-600", loadingFiles && "animate-spin")} />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".pdf"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
+                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500/20 hover:to-pink-500/20 hover:shadow-lg hover:shadow-purple-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95"
+                                title="上传 PDF"
+                            >
+                                {isUploading ? (
+                                    <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
+                                ) : (
+                                    <Upload className="h-4 w-4 text-gray-600 transition-colors group-hover:text-purple-600" />
+                                )}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={loadPdfFiles}
+                                disabled={loadingFiles}
+                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-500/20 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95"
+                                title="刷新列表"
+                            >
+                                <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFiles && "animate-spin")} />
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
+                <div
+                    className={cn(
+                        "flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent transition-colors",
+                        isDragOver && "bg-primary/5"
+                    )}
+                    style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
                     {loadingFiles ? (
                         <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                             <Loader2 className="h-6 w-6 animate-spin mb-2" />
                             <span className="text-xs">加载中...</span>
                         </div>
                     ) : pdfFiles.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/50 border-2 border-dashed border-muted/50 rounded-xl m-2">
-                            <FileText className="h-10 w-10 mb-2 opacity-20" />
-                            <p className="text-sm">暂无 PDF 文件</p>
+                        <div className={cn(
+                            "flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl m-2 transition-colors",
+                            isDragOver ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground/50 border-muted/50"
+                        )}>
+                            <Upload className="h-10 w-10 mb-2 opacity-40" />
+                            <p className="text-sm">拖拽 PDF 文件到此处上传</p>
+                            <p className="text-xs mt-1 opacity-60">或点击上方按钮选择文件</p>
                         </div>
                     ) : (
                         pdfFiles.map((file) => (

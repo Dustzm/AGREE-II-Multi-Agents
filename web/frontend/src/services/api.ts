@@ -24,6 +24,12 @@ export interface StartTaskResponse {
     output_dir: string
 }
 
+export interface UploadToInputResponse {
+    filename: string
+    path: string
+    size: number
+}
+
 export interface ReportSummary {
     task_id: string
     title: string
@@ -111,6 +117,24 @@ export const api = {
 
         if (!response.ok) {
             throw new Error('上传失败')
+        }
+
+        return response.json()
+    },
+
+    // 上传 PDF 文件到 input 目录
+    async uploadPdfToInput(file: File): Promise<UploadToInputResponse> {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const response = await fetch(`${API_BASE}/api/files/upload`, {
+            method: 'POST',
+            body: formData,
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: '上传失败' }))
+            throw new Error(error.detail || '上传失败')
         }
 
         return response.json()
