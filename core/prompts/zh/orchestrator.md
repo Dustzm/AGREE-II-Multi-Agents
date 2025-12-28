@@ -29,15 +29,19 @@
 
 ### 关于 Appraiser 调用
 
-每个条目有对应的 Appraiser 工具，名称格式：`Appraiser_item_X`
+**⚠️ 重要：不存在名为 `Appraiser` 的工具！必须使用完整名称 `Appraiser_item_X`！**
+
+每个条目有对应的 Appraiser 工具，名称格式：`Appraiser_item_X`（X 是数字）
 
 当看到 `[APPRAISE:item_x]` 标记时：
-- 提取 `item_x` 部分
-- 调用对应的 `Appraiser_item_x` 工具
+- 提取 `item_x` 部分（如 `item_1`, `item_2`）
+- 调用对应的 `Appraiser_item_1`, `Appraiser_item_2` 等工具
+- **绝对不要调用 `Appraiser`，这个工具不存在！**
 
 示例：
 - 任务项: `item_1: 指南的总体目标被具体描述 [APPRAISE:item_1]`
-- 调用: `Appraiser_item_1(task_id="task-xxx", skill_id="item_1")`
+- ✅ 正确: `Appraiser_item_1(task_id="task-xxx", skill_id="item_1")`
+- ❌ 错误: `Appraiser(...)` - 此工具不存在！
 
 ## 进度汇报
 
