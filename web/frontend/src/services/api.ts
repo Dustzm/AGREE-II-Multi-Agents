@@ -1,4 +1,6 @@
-const API_BASE = ''
+import { API_URL } from '@/config'
+
+const API_BASE = API_URL
 
 export interface UploadResponse {
     task_id: string
@@ -85,7 +87,7 @@ export interface ReportDetail {
 export const api = {
     // 列出 input 目录下的 PDF 文件
     async listPdfFiles(): Promise<PdfListResponse> {
-        const response = await fetch(`${API_BASE}/api/files/list`)
+        const response = await fetch(`${API_BASE}/files/list`)
         if (!response.ok) {
             throw new Error('获取文件列表失败')
         }
@@ -94,7 +96,7 @@ export const api = {
 
     // 启动评价任务
     async startTask(pdfPath: string): Promise<StartTaskResponse> {
-        const response = await fetch(`${API_BASE}/api/files/start`, {
+        const response = await fetch(`${API_BASE}/files/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pdf_path: pdfPath }),
@@ -110,7 +112,7 @@ export const api = {
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await fetch(`${API_BASE}/api/upload`, {
+        const response = await fetch(`${API_BASE}/upload`, {
             method: 'POST',
             body: formData,
         })
@@ -127,7 +129,7 @@ export const api = {
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await fetch(`${API_BASE}/api/files/upload`, {
+        const response = await fetch(`${API_BASE}/files/upload`, {
             method: 'POST',
             body: formData,
         })
@@ -142,7 +144,7 @@ export const api = {
 
     // 获取报告列表
     async listReports(): Promise<ReportListResponse> {
-        const response = await fetch(`${API_BASE}/api/reports`)
+        const response = await fetch(`${API_BASE}/reports`)
         if (!response.ok) {
             throw new Error('获取报告列表失败')
         }
@@ -151,7 +153,7 @@ export const api = {
 
     // 获取报告详情
     async getReport(taskId: string): Promise<ReportDetail> {
-        const response = await fetch(`${API_BASE}/api/reports/${taskId}`)
+        const response = await fetch(`${API_BASE}/reports/${taskId}`)
         if (!response.ok) {
             throw new Error('获取报告详情失败')
         }

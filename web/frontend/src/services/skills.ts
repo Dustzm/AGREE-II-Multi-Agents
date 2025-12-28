@@ -1,4 +1,6 @@
-const API_BASE_URL = '/api'
+import { API_URL } from '@/config'
+
+const API_BASE_URL = API_URL
 
 export interface Skill {
     item_id: string

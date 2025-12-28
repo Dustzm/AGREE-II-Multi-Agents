@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { WS_URL } from '@/config'
 
 export interface ChatMessage {
     type: 'status' | 'agent' | 'progress' | 'complete' | 'error'
@@ -17,14 +18,6 @@ interface UseWebSocketOptions {
     onOpen?: () => void
 }
 
-// WebSocket 服务地址 - 动态获取当前 host，后端端口为 8011
-const WS_BASE = (() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const hostname = window.location.hostname
-    // 开发环境下后端在 8011 端口
-    return `${protocol}//${hostname}:8011`
-})()
-
 export function useWebSocket(options: UseWebSocketOptions = {}) {
     const [isConnected, setIsConnected] = useState(false)
     const wsRef = useRef<WebSocket | null>(null)
@@ -36,7 +29,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             wsRef.current.close()
         }
 
-        const ws = new WebSocket(`${WS_BASE}/api/chat/${sessionId}`)
+        const ws = new WebSocket(`${WS_URL}/chat/${sessionId}`)
 
         ws.onopen = () => {
             console.log('WebSocket 已连接')
