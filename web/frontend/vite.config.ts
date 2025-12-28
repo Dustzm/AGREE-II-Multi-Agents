@@ -21,6 +21,7 @@ export default defineConfig({
     server: {
         host: '0.0.0.0',
         port: 8012,
+        allowedHosts: true,  // 允许所有域名访问（生产环境建议使用构建后的静态文件）
         proxy: {
             [`${APP_BASE_PATH}/api`]: {
                 target: BACKEND_URL,
