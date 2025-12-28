@@ -7,7 +7,7 @@
  * - Initiator、Appraiser（Orchestrator 子代理，缩进显示）
  */
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/utils/cn'
 import { FileText, Bot, Sparkles, CheckCircle2, AlertCircle, Circle, Info } from 'lucide-react'
 import { PromptModal } from './PromptModal'
 

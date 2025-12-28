@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { MessageSquare, FileText, Settings, Sparkles, Bot } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/utils/cn'
 
 const navItems = [
     { to: '/chat', icon: MessageSquare, label: '对话' },

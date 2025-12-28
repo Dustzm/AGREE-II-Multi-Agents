@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List } from 'lucide-react'
 import { api, type ReportSummary, type ReportDetail } from '@/services/api'
-import { cn } from '@/lib/utils'
+import { cn } from '@/utils/cn'
 
 export function Reports() {
     const [reports, setReports] = useState<ReportSummary[]>([])

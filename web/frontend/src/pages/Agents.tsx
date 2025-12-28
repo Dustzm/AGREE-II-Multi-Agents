@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { promptsService } from '../services/prompts'
 import { motion } from 'framer-motion'
 import { Bot, Pencil, Check, AlertCircle, Loader2, Languages } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/utils/cn'
 import {
     Dialog,
     DialogContent,

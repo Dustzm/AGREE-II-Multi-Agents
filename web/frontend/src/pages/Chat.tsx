@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { FileText, Loader2, RefreshCw, Sparkles, Upload } from 'lucide-react'
 import { api, type PdfFile } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
-import { cn } from '@/lib/utils'
+import { cn } from '@/utils/cn'
 import { TimelineView, type TimelineEvent } from '@/components/TimelineView'
 
 export function Chat() {

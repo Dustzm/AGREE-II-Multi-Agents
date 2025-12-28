@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { skillsService, Skill, SkillUpdateDetails } from '../services/skills'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Layers, Check, X, AlertCircle, Pencil, Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/utils/cn'
 import {
     Dialog,
     DialogContent,
