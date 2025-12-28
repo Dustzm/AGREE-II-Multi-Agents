@@ -26,6 +26,7 @@ export default defineConfig({
             [`${APP_BASE_PATH}/api`]: {
                 target: BACKEND_URL,
                 changeOrigin: true,
+                ws: true,  // 启用 WebSocket 代理
             },
             [`${APP_BASE_PATH}/health`]: {
                 target: BACKEND_URL,
