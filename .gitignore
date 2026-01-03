@@ -59,6 +59,7 @@ logs/
 *.egg-info
 
 #customize
+package-lock.json
 .agent/
 AGENTS.md
 .pids/
