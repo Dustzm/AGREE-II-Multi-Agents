@@ -6,9 +6,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List } from 'lucide-react'
+import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye } from 'lucide-react'
 import { api, type ReportSummary, type ReportDetail } from '@/services/api'
 import { cn } from '@/utils/cn'
+import { EvidenceViewer } from '@/components/EvidenceViewer'
 
 export function Reports() {
     const [reports, setReports] = useState<ReportSummary[]>([])
@@ -16,6 +17,7 @@ export function Reports() {
     const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null)
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+    const [detailTab, setDetailTab] = useState<'score' | 'evidence'>('score')
 
     // 加载报告列表
     const loadReports = useCallback(async () => {
@@ -97,128 +99,157 @@ export function Reports() {
                     </div>
                 </div>
 
-                {/* 领域评分 */}
-                <div className="bg-card rounded-xl border p-6">
-                    <h2 className="text-lg font-semibold mb-4">领域评分</h2>
-                    <div className="space-y-3">
-                        {Object.entries(selectedReport.domain_scores).map(([key, domain]) => (
-                            <div key={key} className="flex items-center gap-4">
-                                <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
-                                    {key}
-                                </span>
-                                <span className="flex-1 text-sm">{domain.name}</span>
-                                <div className="w-48 bg-muted rounded-full h-2 overflow-hidden">
-                                    {domain.score !== null ? (
-                                        <div
-                                            className="h-full bg-primary rounded-full transition-all"
-                                            style={{ width: `${domain.score}%` }}
-                                        />
-                                    ) : (
-                                        <div className="h-full bg-muted-foreground/20 w-full" />
-                                    )}
-                                </div>
-                                <span className={cn(
-                                    "w-16 text-right text-sm font-medium",
-                                    domain.score === null && "text-muted-foreground"
-                                )}>
-                                    {domain.score !== null ? `${domain.score}%` : 'N/A'}
-                                </span>
-                                <span className="text-xs text-muted-foreground w-16 text-right">
-                                    {domain.evaluated_count}/{domain.item_count} 项
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+                {/* Tab 切换 */}
+                <div className="flex items-center gap-2 p-1 bg-muted rounded-xl w-fit">
+                    <Button
+                        variant={detailTab === 'score' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDetailTab('score')}
+                        className="gap-2"
+                    >
+                        <FileBarChart className="h-4 w-4" />
+                        评分详情
+                    </Button>
+                    <Button
+                        variant={detailTab === 'evidence' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDetailTab('evidence')}
+                        className="gap-2"
+                    >
+                        <Eye className="h-4 w-4" />
+                        证据池视图
+                    </Button>
                 </div>
 
-                {/* 总体评估 */}
-                {(selectedReport.overall_assessment.strengths?.length > 0 ||
-                    selectedReport.overall_assessment.weaknesses?.length > 0) && (
-                        <div className="grid md:grid-cols-2 gap-4">
-                            {selectedReport.overall_assessment.strengths?.length > 0 && (
-                                <div className="bg-green-50 rounded-xl border border-green-100 p-6">
-                                    <h3 className="font-medium text-green-800 mb-3">优势</h3>
-                                    <ul className="space-y-2">
-                                        {selectedReport.overall_assessment.strengths.map((s, i) => (
-                                            <li key={i} className="text-sm text-green-700">{s}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                            {selectedReport.overall_assessment.weaknesses?.length > 0 && (
-                                <div className="bg-red-50 rounded-xl border border-red-100 p-6">
-                                    <h3 className="font-medium text-red-800 mb-3">不足</h3>
-                                    <ul className="space-y-2">
-                                        {selectedReport.overall_assessment.weaknesses.map((w, i) => (
-                                            <li key={i} className="text-sm text-red-700">{w}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                {/* 条目评价详情 */}
-                {selectedReport.item_evaluations?.length > 0 && (
-                    <div className="bg-card rounded-xl border p-6">
-                        <h2 className="text-lg font-semibold mb-4">条目评价详情</h2>
-                        <div className="space-y-4">
-                            {[...selectedReport.item_evaluations]
-                                .sort((a, b) => {
-                                    // 提取 item_id 中的数字进行排序
-                                    const numA = parseInt(a.item_id.replace(/\D/g, '')) || 0
-                                    const numB = parseInt(b.item_id.replace(/\D/g, '')) || 0
-                                    return numA - numB
-                                })
-                                .map((item) => (
-                                    <details key={item.item_id} className="group border border-border/50 rounded-lg overflow-hidden">
-                                        <summary className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                                            <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
-                                                {item.item_id}
-                                            </span>
-                                            <span className="text-sm font-medium flex-1 line-clamp-1">{item.title}</span>
-                                            <span className={cn(
-                                                "font-semibold",
-                                                item.score && item.score >= 5 ? "text-green-600" : "text-yellow-600"
-                                            )}>
-                                                {item.score !== null ? `${item.score}/7` : 'N/A'}
-                                            </span>
-                                        </summary>
-                                        <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-3">
-                                            {item.step1_locate && (
-                                                <div>
-                                                    <h4 className="text-xs font-medium text-muted-foreground mb-1">证据位置</h4>
-                                                    <p className="text-sm">{item.step1_locate}</p>
-                                                </div>
-                                            )}
-                                            {item.step2_evidence && item.step2_evidence.length > 0 && (
-                                                <div>
-                                                    <h4 className="text-xs font-medium text-muted-foreground mb-1">引用证据</h4>
-                                                    <ul className="space-y-1">
-                                                        {item.step2_evidence.map((e, i) => (
-                                                            <li key={i} className="text-sm text-muted-foreground bg-white/50 p-2 rounded border-l-2 border-primary/30">
-                                                                {e}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                            {item.step3_reasoning && (
-                                                <div>
-                                                    <h4 className="text-xs font-medium text-muted-foreground mb-1">评分理由</h4>
-                                                    <p className="text-sm">{item.step3_reasoning}</p>
-                                                </div>
-                                            )}
-                                            {item.evaluated_at && (
-                                                <p className="text-xs text-muted-foreground/50 text-right">
-                                                    评价时间: {new Date(item.evaluated_at).toLocaleString()}
-                                                </p>
+                {/* Tab 内容 */}
+                {detailTab === 'evidence' ? (
+                    <EvidenceViewer taskId={selectedReport.task_id} />
+                ) : (
+                    <>
+                        {/* 领域评分 */}
+                        <div className="bg-card rounded-xl border p-6">
+                            <h2 className="text-lg font-semibold mb-4">领域评分</h2>
+                            <div className="space-y-3">
+                                {Object.entries(selectedReport.domain_scores).map(([key, domain]) => (
+                                    <div key={key} className="flex items-center gap-4">
+                                        <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
+                                            {key}
+                                        </span>
+                                        <span className="flex-1 text-sm">{domain.name}</span>
+                                        <div className="w-48 bg-muted rounded-full h-2 overflow-hidden">
+                                            {domain.score !== null ? (
+                                                <div
+                                                    className="h-full bg-primary rounded-full transition-all"
+                                                    style={{ width: `${domain.score}%` }}
+                                                />
+                                            ) : (
+                                                <div className="h-full bg-muted-foreground/20 w-full" />
                                             )}
                                         </div>
-                                    </details>
+                                        <span className={cn(
+                                            "w-16 text-right text-sm font-medium",
+                                            domain.score === null && "text-muted-foreground"
+                                        )}>
+                                            {domain.score !== null ? `${domain.score}%` : 'N/A'}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground w-16 text-right">
+                                            {domain.evaluated_count}/{domain.item_count} 项
+                                        </span>
+                                    </div>
                                 ))}
+                            </div>
                         </div>
-                    </div>
+
+                        {/* 总体评估 */}
+                        {(selectedReport.overall_assessment.strengths?.length > 0 ||
+                            selectedReport.overall_assessment.weaknesses?.length > 0) && (
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    {selectedReport.overall_assessment.strengths?.length > 0 && (
+                                        <div className="bg-green-50 rounded-xl border border-green-100 p-6">
+                                            <h3 className="font-medium text-green-800 mb-3">优势</h3>
+                                            <ul className="space-y-2">
+                                                {selectedReport.overall_assessment.strengths.map((s, i) => (
+                                                    <li key={i} className="text-sm text-green-700">{s}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {selectedReport.overall_assessment.weaknesses?.length > 0 && (
+                                        <div className="bg-red-50 rounded-xl border border-red-100 p-6">
+                                            <h3 className="font-medium text-red-800 mb-3">不足</h3>
+                                            <ul className="space-y-2">
+                                                {selectedReport.overall_assessment.weaknesses.map((w, i) => (
+                                                    <li key={i} className="text-sm text-red-700">{w}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                        {/* 条目评价详情 */}
+                        {selectedReport.item_evaluations?.length > 0 && (
+                            <div className="bg-card rounded-xl border p-6">
+                                <h2 className="text-lg font-semibold mb-4">条目评价详情</h2>
+                                <div className="space-y-4">
+                                    {[...selectedReport.item_evaluations]
+                                        .sort((a, b) => {
+                                            // 提取 item_id 中的数字进行排序
+                                            const numA = parseInt(a.item_id.replace(/\D/g, '')) || 0
+                                            const numB = parseInt(b.item_id.replace(/\D/g, '')) || 0
+                                            return numA - numB
+                                        })
+                                        .map((item) => (
+                                            <details key={item.item_id} className="group border border-border/50 rounded-lg overflow-hidden">
+                                                <summary className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                                                    <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
+                                                        {item.item_id}
+                                                    </span>
+                                                    <span className="text-sm font-medium flex-1 line-clamp-1">{item.title}</span>
+                                                    <span className={cn(
+                                                        "font-semibold",
+                                                        item.score && item.score >= 5 ? "text-green-600" : "text-yellow-600"
+                                                    )}>
+                                                        {item.score !== null ? `${item.score}/7` : 'N/A'}
+                                                    </span>
+                                                </summary>
+                                                <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-3">
+                                                    {item.step1_locate && (
+                                                        <div>
+                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">证据位置</h4>
+                                                            <p className="text-sm">{item.step1_locate}</p>
+                                                        </div>
+                                                    )}
+                                                    {item.step2_evidence && item.step2_evidence.length > 0 && (
+                                                        <div>
+                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">引用证据</h4>
+                                                            <ul className="space-y-1">
+                                                                {item.step2_evidence.map((e, i) => (
+                                                                    <li key={i} className="text-sm text-muted-foreground bg-white/50 p-2 rounded border-l-2 border-primary/30">
+                                                                        {e}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    {item.step3_reasoning && (
+                                                        <div>
+                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">评分理由</h4>
+                                                            <p className="text-sm">{item.step3_reasoning}</p>
+                                                        </div>
+                                                    )}
+                                                    {item.evaluated_at && (
+                                                        <p className="text-xs text-muted-foreground/50 text-right">
+                                                            评价时间: {new Date(item.evaluated_at).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </details>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         )

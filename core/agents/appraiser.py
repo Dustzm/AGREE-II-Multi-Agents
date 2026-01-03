@@ -10,6 +10,7 @@ Appraiser (评价专家)
 3. 标准对比推理 (Reasoning)
 4. 最终评分 (Scoring)
 """
+from functools import partial
 from typing import Optional
 
 from google.adk.agents import LlmAgent
@@ -36,9 +37,15 @@ def create_appraiser_agent(skill_id: str, lang: Optional[str] = None) -> LlmAgen
     改进：
     - 提示词已包含完整的评价标准，无需调用 load_skill_config
     - 评价配置在 Python 层面预处理，LLM 直接执行
+    - 使用证据池提供领域相关的上下文，而非全文
     """
     # 动态渲染提示词（包含具体评价标准）
     instruction = render_appraiser_prompt(skill_id, lang)
+    
+    # 创建绑定了 skill_id 的 load_source_to_cache 版本
+    load_source_with_skill = partial(load_source_to_cache, skill_id=skill_id)
+    # 设置函数名称，以便 ADK 正确识别
+    load_source_with_skill.__name__ = "load_source_to_cache"
     
     return LlmAgent(
         name=f"Appraiser_{skill_id}",
@@ -47,7 +54,7 @@ def create_appraiser_agent(skill_id: str, lang: Optional[str] = None) -> LlmAgen
         description=f"Evaluation Expert for {skill_id} - Evaluates guideline quality using AGREE-II criteria",
         instruction=instruction,
         tools=[
-            load_source_to_cache,
+            load_source_with_skill,
             save_item_evaluation,
         ],
         disallow_transfer_to_peers=True,

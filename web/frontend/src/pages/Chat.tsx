@@ -1,12 +1,12 @@
 /**
  * Chat - 评价任务工作区
  * 
- * 使用时序图展示评价过程，取代传统对话框
+ * 使用时序图展示评价过程，支持文件夹层级展示
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, RefreshCw, Sparkles, Upload } from 'lucide-react'
-import { api, type PdfFile } from '@/services/api'
+import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown } from 'lucide-react'
+import { api, type PdfFile, type FolderInfo } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
 import { cn } from '@/utils/cn'
 import { TimelineView, type TimelineEvent } from '@/components/TimelineView'
@@ -14,7 +14,10 @@ import { TimelineView, type TimelineEvent } from '@/components/TimelineView'
 export function Chat() {
     const [isLoading, setIsLoading] = useState(false)
     const [sessionId] = useState(() => `session-${Date.now()}`)
-    const [pdfFiles, setPdfFiles] = useState<PdfFile[]>([])
+    // 层级数据
+    const [folders, setFolders] = useState<FolderInfo[]>([])
+    const [rootFiles, setRootFiles] = useState<PdfFile[]>([])
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
     const [loadingFiles, setLoadingFiles] = useState(true)
     const [currentFile, setCurrentFile] = useState<string | null>(null)
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
@@ -60,17 +63,33 @@ export function Chat() {
         })
     }, [])
 
-    // Load PDF Files
+    // Load PDF Files (层级结构)
     const loadPdfFiles = useCallback(async () => {
         setLoadingFiles(true)
         try {
             const result = await api.listPdfFiles()
-            setPdfFiles(result.files)
+            setFolders(result.folders)
+            setRootFiles(result.root_files)
+            // 默认全部展开
+            setExpandedFolders(new Set(result.folders.map(f => f.name)))
         } catch (error) {
             console.error('加载文件列表失败:', error)
         } finally {
             setLoadingFiles(false)
         }
+    }, [])
+
+    // 切换文件夹展开状态
+    const toggleFolder = useCallback((folderName: string) => {
+        setExpandedFolders(prev => {
+            const next = new Set(prev)
+            if (next.has(folderName)) {
+                next.delete(folderName)
+            } else {
+                next.add(folderName)
+            }
+            return next
+        })
     }, [])
 
     // 处理文件上传
@@ -199,6 +218,16 @@ export function Chat() {
                         upsertEvent('parsing', 'parsing', 'running', content)
                     }
                 }
+                // 检测语义证据池状态
+                else if (content.includes('语义证据池')) {
+                    if (content.includes('正在')) {
+                        upsertEvent('preprocessing', 'preprocessing', 'running', content)
+                    } else if (content.includes('完成')) {
+                        upsertEvent('preprocessing', 'preprocessing', 'done', content)
+                    } else if (content.includes('失败') || content.includes('异常')) {
+                        upsertEvent('preprocessing', 'preprocessing', 'error', content)
+                    }
+                }
                 // 检测 Orchestrator 启动
                 else if (content.includes('智能体') || content.includes('启动')) {
                     upsertEvent('orchestrator', 'orchestrator', 'running', '协调评价任务...')
@@ -269,6 +298,45 @@ export function Chat() {
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
+    // 渲染单个 PDF 文件项
+    const renderPdfItem = (file: PdfFile, indent: boolean = false) => (
+        <div
+            key={file.path}
+            onClick={() => handleSelectPdf(file)}
+            className={cn(
+                "group relative flex items-start p-3 rounded-lg border border-transparent transition-all duration-200 cursor-pointer",
+                "hover:bg-white hover:shadow-sm hover:border-border/50",
+                currentFile === file.name && "bg-primary/5 border-primary/20",
+                isLoading ? "opacity-50 pointer-events-none grayscale" : "",
+                indent && "ml-6"
+            )}
+        >
+            <div className={cn(
+                "p-2 rounded-md mr-3 shrink-0 transition-colors",
+                currentFile === file.name
+                    ? "bg-primary/10 text-primary"
+                    : "bg-red-50 text-red-500 group-hover:bg-red-100"
+            )}>
+                <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+                <h3 className={cn(
+                    "text-sm font-medium truncate transition-colors",
+                    currentFile === file.name
+                        ? "text-primary"
+                        : "text-foreground/90 group-hover:text-primary"
+                )}>
+                    {file.name}
+                </h3>
+                <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-2">
+                    <span>{formatFileSize(file.size)}</span>
+                    <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
+                    <span>{file.modified}</span>
+                </p>
+            </div>
+        </div>
+    )
+
     return (
         <div className="flex h-full bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 isolate overflow-hidden">
             {/* Left Panel: File Explorer */}
@@ -330,7 +398,7 @@ export function Chat() {
                             <Loader2 className="h-6 w-6 animate-spin mb-2" />
                             <span className="text-xs">加载中...</span>
                         </div>
-                    ) : pdfFiles.length === 0 ? (
+                    ) : (folders.length === 0 && rootFiles.length === 0) ? (
                         <div className={cn(
                             "flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl m-2 transition-colors",
                             isDragOver ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground/50 border-muted/50"
@@ -340,42 +408,43 @@ export function Chat() {
                             <p className="text-xs mt-1 opacity-60">或点击上方按钮选择文件</p>
                         </div>
                     ) : (
-                        pdfFiles.map((file) => (
-                            <div
-                                key={file.path}
-                                onClick={() => handleSelectPdf(file)}
-                                className={cn(
-                                    "group relative flex items-start p-3 rounded-lg border border-transparent transition-all duration-200 cursor-pointer",
-                                    "hover:bg-white hover:shadow-sm hover:border-border/50",
-                                    currentFile === file.name && "bg-primary/5 border-primary/20",
-                                    isLoading ? "opacity-50 pointer-events-none grayscale" : ""
-                                )}
-                            >
-                                <div className={cn(
-                                    "p-2 rounded-md mr-3 shrink-0 transition-colors",
-                                    currentFile === file.name
-                                        ? "bg-primary/10 text-primary"
-                                        : "bg-red-50 text-red-500 group-hover:bg-red-100"
-                                )}>
-                                    <FileText className="h-4 w-4" />
+                        <>
+                            {/* 文件夹层级 */}
+                            {folders.map((folder) => (
+                                <div key={folder.path} className="space-y-1">
+                                    {/* 文件夹标题 */}
+                                    <div
+                                        onClick={() => toggleFolder(folder.name)}
+                                        className={cn(
+                                            "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all",
+                                            "hover:bg-gray-100 text-gray-700"
+                                        )}
+                                    >
+                                        {expandedFolders.has(folder.name) ? (
+                                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                                        ) : (
+                                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                                        )}
+                                        <Folder className="h-4 w-4 text-amber-500" />
+                                        <span className="text-sm font-medium flex-1">{folder.name}</span>
+                                        <span className="text-xs text-gray-400">{folder.files.length}</span>
+                                    </div>
+                                    {/* 文件夹内的 PDF */}
+                                    {expandedFolders.has(folder.name) && (
+                                        <div className="space-y-1">
+                                            {folder.files.map(file => renderPdfItem(file, true))}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <h3 className={cn(
-                                        "text-sm font-medium truncate transition-colors",
-                                        currentFile === file.name
-                                            ? "text-primary"
-                                            : "text-foreground/90 group-hover:text-primary"
-                                    )}>
-                                        {file.name}
-                                    </h3>
-                                    <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-2">
-                                        <span>{formatFileSize(file.size)}</span>
-                                        <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
-                                        <span>{file.modified}</span>
-                                    </p>
+                            ))}
+                            {/* 根目录 PDF */}
+                            {rootFiles.length > 0 && folders.length > 0 && (
+                                <div className="border-t border-gray-100 pt-2 mt-2">
+                                    <p className="text-xs text-gray-400 px-2 mb-1">根目录</p>
                                 </div>
-                            </div>
-                        ))
+                            )}
+                            {rootFiles.map(file => renderPdfItem(file, false))}
+                        </>
                     )}
                 </div>
             </div>

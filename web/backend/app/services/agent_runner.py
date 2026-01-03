@@ -14,6 +14,8 @@ from typing import Callable, Optional
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from core.agents.core.preprocessor import process_content_list
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,6 +173,35 @@ class AppraisalRunner:
             
             if self._cancelled:
                 return
+            
+            # Step 2.5: 语义证据池构建
+            if parse_success or source_file.exists():
+                self.on_status("status", "正在构建语义证据池...")
+                
+                pdf_stem = pdf_file.stem  # 不带 .pdf 后缀
+                content_list_path = Path(prep_dir) / f"{pdf_stem}_content_list.json"
+                evidence_pool_path = Path(prep_dir) / f"{pdf_stem}_evidence_pool.json"
+                
+                # 检查 content_list.json 是否存在
+                if content_list_path.exists():
+                    try:
+                        preprocess_result = await process_content_list(
+                            content_list_path=str(content_list_path),
+                            output_path=str(evidence_pool_path),
+                            pdf_path=str(pdf_file),  # 添加 PDF 路径以构建 docindex
+                            lang="zh"
+                        )
+                        
+                        if preprocess_result["status"] == "success":
+                            self.on_status("status", "语义证据池构建完成")
+                        else:
+                            logger.warning(f"预处理失败: {preprocess_result.get('error')}")
+                            self.on_status("status", "语义证据池构建失败，将使用默认模式")
+                    except Exception as e:
+                        logger.error(f"预处理过程异常: {e}")
+                        self.on_status("status", "预处理异常，继续执行")
+                else:
+                    logger.warning(f"未找到 content_list.json: {content_list_path}")
             
             # Step 3: 运行 Orchestrator
             self.on_status("status", "🤖 启动智能体团队...")

@@ -18,28 +18,59 @@ from core.skills import load_skill_config as _load_skill_config
 logger = logging.getLogger(__name__)
 
 
-def load_source_to_cache(task_id: str) -> dict:
+def load_source_to_cache(task_id: str, skill_id: str) -> dict:
     """
-    加载指南全文到内存缓存
+    从证据池加载与条目领域相关的上下文
     
     Args:
         task_id: 任务 ID
+        skill_id: 条目 ID（必需，用于确定领域）
     
     Returns:
         dict: {
-            "status": "success/error",
-            "content": str,  # 指南全文
+            "status": "success/error/no_evidence",
+            "content": str,  # 领域相关的证据文本
             "char_count": int,  # 字符数
+            "domain": int,  # 领域 ID
+            "auto_evaluated": bool,  # 是否已自动评分
             "error": str
         }
     """
-    result = read_source_document(task_id)
+    # 从证据池加载相关上下文
+    from core.agents.core.preprocessor import load_evidence_for_skill
     
-    if result["status"] == "success":
-        result["char_count"] = len(result["content"])
-        logger.info(f"指南全文已加载: {result['char_count']} 字符")
+    result = load_evidence_for_skill(task_id, skill_id)
     
-    return result
+    if result["status"] == "error" or not result.get("content"):
+        # 证据池为空或加载失败，自动评分为 1 分
+        logger.warning(f"证据池无可用内容: skill_id={skill_id}, domain={result.get('domain')}")
+        
+        # 自动保存 1 分评价
+        auto_eval_result = save_item_evaluation(
+            task_id=task_id,
+            skill_id=skill_id,
+            step1_locate="无法定位：证据池中无该领域相关内容",
+            step2_evidence=["无相关内容"],
+            step3_reasoning="由于证据池中不存在与该评价条目领域相关的语义块，无法提取有效证据进行评价。根据 AGREE-II 评分原则，信息完全缺失时应评为最低分。",
+            score=1
+        )
+        
+        return {
+            "status": "no_evidence",
+            "content": "",
+            "char_count": 0,
+            "domain": result.get("domain", 0),
+            "auto_evaluated": True,
+            "eval_path": auto_eval_result.get("path", ""),
+            "error": f"证据池无可用内容，已自动评分为 1 分"
+        }
+    
+    logger.info(f"证据池已加载: skill_id={skill_id}, domain={result.get('domain')}, 字符数={result.get('char_count')}")
+    
+    return {
+        **result,
+        "auto_evaluated": False
+    }
 
 
 
@@ -49,7 +80,8 @@ def save_item_evaluation(
     step1_locate: str,
     step2_evidence: list[str],
     step3_reasoning: str,
-    score: int
+    score: int,
+    evidence_sources: Optional[list[str]] = None
 ) -> dict:
     """
     保存单个条目的评价结果
@@ -63,6 +95,7 @@ def save_item_evaluation(
         step2_evidence: 提取的原文证据列表
         step3_reasoning: 推理过程
         score: 最终评分 (1-7)
+        evidence_sources: 证据来源 chunk_id 列表 (可选)
     
     Returns:
         dict: {
@@ -104,6 +137,7 @@ def save_item_evaluation(
                 "step3_reasoning": step3_reasoning,
                 "score": score
             },
+            "evidence_sources": evidence_sources or [],
             "metadata": {
                 "skill_config": f"skills/{skill_id}.yaml",
                 "evaluated_at": datetime.now().isoformat(),

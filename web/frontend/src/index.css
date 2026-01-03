@@ -98,6 +98,11 @@ body {
   color: #f97316;
 }
 
+.pulse-indigo {
+  animation: pulse-glow 1.8s ease-in-out infinite;
+  color: #6366f1;
+}
+
 /* 时序图缩进 */
 .timeline-indent {
   margin-left: 2rem;

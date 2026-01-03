@@ -15,8 +15,15 @@ export interface PdfFile {
     modified: string
 }
 
-export interface PdfListResponse {
+export interface FolderInfo {
+    name: string
+    path: string
     files: PdfFile[]
+}
+
+export interface PdfListResponse {
+    folders: FolderInfo[]
+    root_files: PdfFile[]
     input_dir: string
 }
 

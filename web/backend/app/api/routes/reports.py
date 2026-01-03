@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from core.config import get_settings
@@ -190,5 +191,59 @@ async def get_report(task_id: str):
         domain_scores=domain_scores,
         overall_assessment=data.get("overall_assessment", {}),
         item_evaluations=item_evaluations
+    )
+
+
+@router.get("/reports/{task_id}/visual_evidence")
+async def get_visual_evidence(task_id: str):
+    """
+    获取可视化证据数据
+    """
+    output_dir = get_output_dir()
+    task_dir = output_dir / task_id
+    prep_dir = task_dir / ".ama" / "prep"
+    
+    # 从 task_id 中提取基础名称（去掉时间戳）
+    base_name = task_id.rsplit("-", 1)[0]
+    visual_evidence_path = prep_dir / f"{base_name}_visual_evidence.json"
+    
+    if not visual_evidence_path.exists():
+        raise HTTPException(status_code=404, detail=f"可视化证据不存在: {task_id}")
+    
+    try:
+        with open(visual_evidence_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取可视化证据失败: {e}")
+
+
+@router.get("/reports/{task_id}/pdf")
+async def get_pdf_file(task_id: str):
+    """
+    获取原始 PDF 文件
+    """
+    settings = get_settings()
+    input_dir = settings.app.path_input
+    
+    # 从 task_id 中提取 PDF 文件名（去掉时间戳）
+    base_name = task_id.rsplit("-", 1)[0]
+    pdf_filename = f"{base_name}.pdf"
+    
+    # 首先在根目录查找
+    pdf_path = input_dir / pdf_filename
+    
+    # 如果根目录没有，递归搜索子目录
+    if not pdf_path.exists():
+        for sub_path in input_dir.rglob(pdf_filename):
+            pdf_path = sub_path
+            break
+    
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail=f"PDF 文件不存在: {base_name}.pdf")
+    
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=pdf_filename
     )
 

@@ -30,13 +30,16 @@ def get_model() -> LiteLlm:
     获取配置好的 LiteLLM 模型实例
     
     使用 openai/ 前缀表示 OpenAI 兼容格式
+    温度设为较低值以提高指令遵循度
     """
     settings = get_settings()
     
     # 使用 openai/ 前缀表示 OpenAI 兼容格式
     model_string = f"openai/{settings.llm.model_name}"
     
-    return LiteLlm(model=model_string)
+    
+    # 设置较低温度以提高工具调用的可靠性
+    return LiteLlm(model=model_string, temperature=0.2)
 
 
 # 预定义的模型常量，方便在 Agent 中使用

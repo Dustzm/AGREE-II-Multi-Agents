@@ -178,6 +178,7 @@ class MagicModel:
                     "angle": block_angle,
                     "lines": [line],
                     "index": index,
+                    "block_id": block_info.get("block_id", ""),  # 保留原始 block_id
                 }
             )
 

@@ -12,7 +12,25 @@ const BACKEND_URL = 'http://localhost:8011' // 后端服务地址
 // https://vite.dev/config/
 export default defineConfig({
     base: `${APP_BASE_PATH}/`,
-    plugins: [react(), tailwindcss()],
+    plugins: [
+        react(),
+        tailwindcss(),
+        // 添加自定义插件处理 /ama 到 /ama/ 的重定向
+        {
+            name: 'redirect-base-path',
+            configureServer(server) {
+                server.middlewares.use((req, res, next) => {
+                    // 如果访问 /ama (不带尾部斜杠)，重定向到 /ama/
+                    if (req.url === APP_BASE_PATH) {
+                        res.writeHead(302, { Location: `${APP_BASE_PATH}/` })
+                        res.end()
+                        return
+                    }
+                    next()
+                })
+            },
+        },
+    ],
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),

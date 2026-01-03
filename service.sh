@@ -63,7 +63,7 @@ wait_for_service() {
         # 首先检查端口是否已监听
         if check_port $port; then
             # 尝试 HTTP 健康检查
-            local http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://localhost:$port$health_path" 2>/dev/null)
+            local http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "http://localhost:$port$health_path" 2>/dev/null)
             if [ "$http_code" = "200" ] || [ "$http_code" = "404" ] || [ "$http_code" = "307" ]; then
                 echo -e " ${GREEN}✓${NC}"
                 return 0
@@ -124,8 +124,8 @@ start_frontend() {
     cd "$SCRIPT_DIR"
     
     # 使用健康检查等待服务启动 (最多等待30秒)
-    if wait_for_service $FRONTEND_PORT "前端服务" "/ama" 30; then
-        success "前端服务已启动 → http://localhost:$FRONTEND_PORT/ama"
+    if wait_for_service $FRONTEND_PORT "前端服务" "/ama/" 30; then
+        success "前端服务已启动 → http://localhost:$FRONTEND_PORT/ama/"
     else
         error "前端服务启动超时，请查看日志: $PID_DIR/frontend.log"
         echo "  最近日志:"
@@ -174,7 +174,7 @@ show_status() {
     fi
     
     if check_port $FRONTEND_PORT; then
-        echo -e "║  前端服务: ${GREEN}运行中${NC} → http://localhost:$FRONTEND_PORT/ama ║"
+        echo -e "║  前端服务: ${GREEN}运行中${NC} → http://localhost:$FRONTEND_PORT/ama/ ║"
     else
         echo -e "║  前端服务: ${RED}已停止${NC}                         ║"
     fi

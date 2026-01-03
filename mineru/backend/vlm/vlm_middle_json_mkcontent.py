@@ -161,10 +161,18 @@ def make_blocks_to_content_list(para_block, img_buket_path, page_idx, page_size)
             'sub_type': para_block.get('sub_type', ''),
             'list_items':[],
         }
+        # 收集 list 内所有子 block 的 block_ids
+        list_block_ids = []
         for block in para_block['blocks']:
             item_text = merge_para_with_text(block)
             if item_text.strip():
                 para_content['list_items'].append(item_text)
+            # 收集子 block 的 block_id
+            if block.get('block_id'):
+                list_block_ids.append(block['block_id'])
+        # 保存收集的子 block_ids
+        if list_block_ids:
+            para_content['list_block_ids'] = list_block_ids
     elif para_type == BlockType.TITLE:
         title_level = get_title_level(para_block)
         para_content = {
@@ -232,6 +240,10 @@ def make_blocks_to_content_list(para_block, img_buket_path, page_idx, page_size)
         ]
 
     para_content['page_idx'] = page_idx
+    
+    # 传递 block_id（用于精确匹配）
+    if para_block.get('block_id'):
+        para_content['block_id'] = para_block['block_id']
 
     return para_content
 

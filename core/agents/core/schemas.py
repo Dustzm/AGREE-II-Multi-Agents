@@ -50,3 +50,13 @@ class EvaluationOutput(BaseModel):
     reasoning_summary: str = Field(..., description="评分理由简述")
 
 
+from typing import Literal
+
+
+class SemanticLabelOutput(BaseModel):
+    """语义标签输出 Schema（用于预处理阶段的内容分类）"""
+    reason: str = Field(..., description="A brief, objective classification rationale in 1-2 sentences. Focus on key evidence (title, section path, content type) that supports the tag. Do NOT write in first person or describe your thinking process.")
+    tag: Literal["Overview", "Methodology", "Clinical", "Independence", "Irrelevant"] = Field(
+        ..., 
+        description="Semantic tag: Overview (abstract/introduction), Methodology (process/committee), Clinical (main body recommendations), Independence (conflict of interest), Irrelevant (references/TOC)"
+    )

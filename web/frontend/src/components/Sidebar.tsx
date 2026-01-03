@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { MessageSquare, FileText, Settings, Sparkles, Bot } from 'lucide-react'
+import { MessageSquare, FileText, Settings, Sparkles, Bot, PlayCircle } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
 const navItems = [
     { to: '/chat', icon: MessageSquare, label: '对话' },
+    { to: '/batch', icon: PlayCircle, label: '批量' },
     { to: '/reports', icon: FileText, label: '报告' },
     { to: '/skills', icon: Settings, label: '条目' },
     { to: '/agents', icon: Bot, label: '智能体' },

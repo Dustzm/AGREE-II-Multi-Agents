@@ -382,13 +382,15 @@ class MinerUParser:
             # 保存中间文件到 prep 目录
             # content_list JSON
             content_list = vlm_union_make(pdf_info, MakeMode.CONTENT_LIST, image_dir_name)
-            (prep_path / f"{pdf_name}_content_list.json").write_text(
+            content_list_path = prep_path / f"{pdf_name}_content_list.json"
+            content_list_path.write_text(
                 json.dumps(content_list, ensure_ascii=False, indent=4),
                 encoding="utf-8"
             )
             
             # middle_json
-            (prep_path / f"{pdf_name}_middle.json").write_text(
+            middle_json_path = prep_path / f"{pdf_name}_middle.json"
+            middle_json_path.write_text(
                 json.dumps(middle_json, ensure_ascii=False, indent=4),
                 encoding="utf-8"
             )
@@ -399,6 +401,7 @@ class MinerUParser:
                 encoding="utf-8"
             )
             
+            
             logger.info(f"PDF 解析完成: {pdf_path} -> {source_path}")
             
             return {
@@ -406,8 +409,12 @@ class MinerUParser:
                 "pages": pages_count,
                 "output_path": str(source_file),
                 "prep_path": str(prep_path),
+                "middle_json": str(middle_json_path),
+                "content_list": str(content_list_path),
+                "output_dir": str(prep_path),
                 "error": ""
             }
+
             
         except Exception as e:
             error_msg = f"PDF 解析异常: {str(e)}"

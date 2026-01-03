@@ -23,8 +23,9 @@ class PdfFile(BaseModel):
 
 
 class PdfListResponse(BaseModel):
-    """PDF 文件列表响应"""
-    files: List[PdfFile]
+    """PDF 文件列表响应（层级结构）"""
+    folders: List[dict]  # [{"name": "en", "path": "...", "files": [...]}]
+    root_files: List[PdfFile]  # 根目录下的 PDF
     input_dir: str
 
 
@@ -80,28 +81,54 @@ def get_unique_filename(directory: Path, filename: str) -> str:
 @router.get("/files/list", response_model=PdfListResponse)
 async def list_pdf_files():
     """
-    列出 input 目录下的所有 PDF 文件
+    列出 input 目录下的所有 PDF 文件（层级结构）
+    
+    返回格式：
+    - folders: 子文件夹及其 PDF 文件
+    - root_files: 根目录下的 PDF 文件
     """
     input_dir = get_input_dir()
     
     if not input_dir.exists():
         input_dir.mkdir(parents=True, exist_ok=True)
     
-    files = []
-    for pdf_path in input_dir.glob("*.pdf"):
-        stat = pdf_path.stat()
-        files.append(PdfFile(
-            name=pdf_path.name,
-            path=str(pdf_path),
-            size=stat.st_size,
-            modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
-        ))
+    folders = []
+    root_files = []
     
-    # 按修改时间排序
-    files.sort(key=lambda x: x.modified, reverse=True)
+    # 遍历 input 目录
+    for item in sorted(input_dir.iterdir()):
+        if item.is_dir() and not item.name.startswith('.'):
+            # 子文件夹
+            folder_files = []
+            for pdf_path in sorted(item.glob("*.pdf")):
+                stat = pdf_path.stat()
+                folder_files.append(PdfFile(
+                    name=pdf_path.name,
+                    path=str(pdf_path),
+                    size=stat.st_size,
+                    modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+                ))
+            
+            if folder_files:  # 只添加有 PDF 的文件夹
+                folders.append({
+                    "name": item.name,
+                    "path": str(item),
+                    "files": [f.dict() for f in folder_files]
+                })
+        
+        elif item.is_file() and item.suffix.lower() == '.pdf':
+            # 根目录 PDF
+            stat = item.stat()
+            root_files.append(PdfFile(
+                name=item.name,
+                path=str(item),
+                size=stat.st_size,
+                modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+            ))
     
     return PdfListResponse(
-        files=files,
+        folders=folders,
+        root_files=root_files,
         input_dir=str(input_dir)
     )
 

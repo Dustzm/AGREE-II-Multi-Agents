@@ -20,6 +20,7 @@ AMA (AGREE-Multi-Agents) 智能体模块
   - model_config    模型配置
   - communication   通信管理
   - schemas         数据模型
+  - preprocessor    文档预处理模块
 """
 from .portal import create_portal_agent, list_input_pdfs, check_extraction_intent
 from .orchestrator import create_orchestrator

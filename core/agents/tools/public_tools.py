@@ -158,7 +158,15 @@ def read_source_document(task_id: str) -> dict:
                 "error": f"源文档尚未解析，请先使用 PDF 解析器处理文档"
             }
         
+        # 读取内容
         content = source_path.read_text(encoding="utf-8")
+        
+        # 截断过长的内容（防止 Initiator 爆显存/上下文）
+        # 尤其是当 source.md 包含大量表格或参考文献时
+        MAX_CHARS = 50000 
+        if len(content) > MAX_CHARS:
+            content = content[:MAX_CHARS] + "\n\n... (Content truncated due to length limit) ..."
+            logger.warning(f"源文档过长 ({len(content)} 字符)，已截断为 {MAX_CHARS} 字符")
         
         logger.info(f"读取源文档: {source_path} ({len(content)} 字符)")
         return {

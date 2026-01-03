@@ -8,13 +8,13 @@
  */
 import { useState } from 'react'
 import { cn } from '@/utils/cn'
-import { FileText, Bot, Sparkles, CheckCircle2, AlertCircle, Circle, Info } from 'lucide-react'
+import { FileText, Bot, Sparkles, CheckCircle2, AlertCircle, Circle, Info, Database } from 'lucide-react'
 import { PromptModal } from './PromptModal'
 
 // 时序图事件类型
 export interface TimelineEvent {
     id: string
-    type: 'parsing' | 'orchestrator' | 'initiator' | 'appraiser' | 'reporter' | 'error' | 'complete'
+    type: 'parsing' | 'preprocessing' | 'orchestrator' | 'initiator' | 'appraiser' | 'reporter' | 'error' | 'complete'
     status: 'pending' | 'running' | 'done' | 'error'
     message: string
     detail?: string  // 例如 Appraiser 的 item_id
@@ -25,6 +25,7 @@ export interface TimelineEvent {
 // Agent 颜色配置
 const agentColors: Record<string, { pulse: string; text: string; bg: string }> = {
     parsing: { pulse: 'pulse-gray', text: 'text-gray-600', bg: 'bg-gray-100' },
+    preprocessing: { pulse: 'pulse-indigo', text: 'text-indigo-600', bg: 'bg-indigo-50' },
     orchestrator: { pulse: 'pulse-green', text: 'text-green-600', bg: 'bg-green-50' },
     initiator: { pulse: 'pulse-blue', text: 'text-blue-600', bg: 'bg-blue-50' },
     appraiser: { pulse: 'pulse-purple', text: 'text-purple-600', bg: 'bg-purple-50' },
@@ -47,6 +48,8 @@ function getIcon(type: TimelineEvent['type'], status: TimelineEvent['status']) {
     switch (type) {
         case 'parsing':
             return <FileText {...iconProps} />
+        case 'preprocessing':
+            return <Database {...iconProps} />
         case 'orchestrator':
             return <Sparkles {...iconProps} />
         case 'reporter':
