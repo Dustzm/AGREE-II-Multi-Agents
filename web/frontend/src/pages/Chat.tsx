@@ -5,7 +5,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react'
 import { api, type PdfFile, type FolderInfo } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
 import { cn } from '@/utils/cn'
@@ -24,8 +24,10 @@ export function Chat() {
 
     // 上传相关状态
     const [isUploading, setIsUploading] = useState(false)
+    const [isUploadingFolder, setIsUploadingFolder] = useState(false)
     const [isDragOver, setIsDragOver] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const folderInputRef = useRef<HTMLInputElement>(null)
 
     // 时序图事件
     const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
@@ -122,6 +124,36 @@ export function Chat() {
             fileInputRef.current.value = ''
         }
     }, [handleUpload])
+
+    // 处理文件夹上传
+    const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files
+        if (!files || files.length === 0) return
+
+        setIsUploadingFolder(true)
+        try {
+            const fileList = Array.from(files)
+            const result = await api.uploadFolder(fileList)
+
+            // 显示上传结果
+            if (result.failed_count > 0) {
+                alert(`上传完成: 成功 ${result.success_count} 个，失败 ${result.failed_count} 个`)
+            } else {
+                alert(`成功上传 ${result.success_count} 个 PDF 文件`)
+            }
+
+            await loadPdfFiles()  // 刷新文件列表
+        } catch (error) {
+            console.error('文件夹上传失败:', error)
+            alert(error instanceof Error ? error.message : '文件夹上传失败')
+        } finally {
+            setIsUploadingFolder(false)
+            // 重置 input
+            if (folderInputRef.current) {
+                folderInputRef.current.value = ''
+            }
+        }
+    }, [loadPdfFiles])
 
     // 拖拽处理
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -355,12 +387,20 @@ export function Chat() {
                                 onChange={handleFileSelect}
                                 className="hidden"
                             />
+                            <input
+                                ref={folderInputRef}
+                                type="file"
+                                {...({ webkitdirectory: '', directory: '' } as any)}
+                                multiple
+                                onChange={handleFolderSelect}
+                                className="hidden"
+                            />
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500/20 hover:to-pink-500/20 hover:shadow-lg hover:shadow-purple-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95"
+                                disabled={isUploading || isUploadingFolder}
+                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500/20 hover:to-pink-500/20 hover:shadow-lg hover:shadow-purple-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
                                 title="上传 PDF"
                             >
                                 {isUploading ? (
@@ -372,9 +412,23 @@ export function Chat() {
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => folderInputRef.current?.click()}
+                                disabled={isUploading || isUploadingFolder}
+                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-amber-500/20 hover:to-orange-500/20 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
+                                title="上传文件夹"
+                            >
+                                {isUploadingFolder ? (
+                                    <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
+                                ) : (
+                                    <FolderOpen className="h-4 w-4 text-gray-600 transition-colors" />
+                                )}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={loadPdfFiles}
-                                disabled={loadingFiles}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-500/20 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95"
+                                disabled={loadingFiles || isUploadingFolder}
+                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-500/20 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
                                 title="刷新列表"
                             >
                                 <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFiles && "animate-spin")} />

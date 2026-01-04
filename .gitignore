@@ -62,6 +62,8 @@ logs/
 package-lock.json
 .agent/
 AGENTS.md
+CLAUDE.md
+GEMINI.md
 .pids/
 input/
 output/

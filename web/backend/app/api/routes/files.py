@@ -48,6 +48,23 @@ class StartTaskResponse(BaseModel):
     output_dir: str
 
 
+class UploadedFile(BaseModel):
+    """单个上传文件信息"""
+    filename: str
+    relative_path: str
+    absolute_path: str
+    size: int
+
+
+class UploadFolderResponse(BaseModel):
+    """文件夹上传响应"""
+    total_count: int
+    success_count: int
+    failed_count: int
+    uploaded_files: List[UploadedFile]
+    failed_files: List[dict]
+
+
 def get_input_dir() -> Path:
     """获取 input 目录路径"""
     return get_settings().app.path_input
@@ -210,4 +227,80 @@ async def start_task(request: StartTaskRequest):
         task_id=task_id,
         pdf_name=pdf_path.name,
         output_dir=str(task_dir)
+    )
+
+
+@router.post("/files/upload-folder", response_model=UploadFolderResponse)
+async def upload_folder(files: List[UploadFile] = File(...)):
+    """
+    批量上传文件夹中的 PDF 文件
+
+    - 保持原有文件夹结构
+    - 递归处理子文件夹
+    - 自动处理文件名冲突
+    - 返回每个文件的上传结果
+    """
+    input_dir = get_input_dir()
+
+    # 确保目录存在
+    if not input_dir.exists():
+        input_dir.mkdir(parents=True, exist_ok=True)
+
+    uploaded_files = []
+    failed_files = []
+
+    for file in files:
+        try:
+            # 获取相对路径（从 filename 字段，前端会设置 webkitRelativePath）
+            relative_path = file.filename if file.filename else ""
+
+            # 统一路径分隔符为 /
+            relative_path = relative_path.replace("\\", "/")
+
+            # 验证文件类型
+            if not relative_path.lower().endswith('.pdf'):
+                failed_files.append({"filename": relative_path, "error": "非 PDF 文件"})
+                continue
+
+            # 安全检查：防止路径遍历
+            if ".." in relative_path or relative_path.startswith("/"):
+                failed_files.append({"filename": relative_path, "error": "非法路径"})
+                continue
+
+            # 构建目标路径
+            file_path = input_dir / relative_path
+
+            # 确保父目录存在
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # 处理文件名冲突（在目标目录中检查）
+            final_filename = get_unique_filename(file_path.parent, file_path.name)
+            final_path = file_path.parent / final_filename
+
+            # 保存文件
+            with open(final_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+
+            # 获取文件大小
+            file_size = final_path.stat().st_size
+
+            uploaded_files.append(UploadedFile(
+                filename=final_filename,
+                relative_path=relative_path,
+                absolute_path=str(final_path),
+                size=file_size
+            ))
+
+        except Exception as e:
+            failed_files.append({
+                "filename": getattr(file, 'filename', 'unknown'),
+                "error": str(e)
+            })
+
+    return UploadFolderResponse(
+        total_count=len(files),
+        success_count=len(uploaded_files),
+        failed_count=len(failed_files),
+        uploaded_files=uploaded_files,
+        failed_files=failed_files
     )

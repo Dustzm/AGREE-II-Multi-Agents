@@ -39,6 +39,21 @@ export interface UploadToInputResponse {
     size: number
 }
 
+export interface UploadedFile {
+    filename: string
+    relative_path: string
+    absolute_path: string
+    size: number
+}
+
+export interface UploadFolderResponse {
+    total_count: number
+    success_count: number
+    failed_count: number
+    uploaded_files: UploadedFile[]
+    failed_files: Array<{ filename: string; error: string }>
+}
+
 export interface ReportSummary {
     task_id: string
     title: string
@@ -137,6 +152,32 @@ export const api = {
         formData.append('file', file)
 
         const response = await fetch(`${API_BASE}/files/upload`, {
+            method: 'POST',
+            body: formData,
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: '上传失败' }))
+            throw new Error(error.detail || '上传失败')
+        }
+
+        return response.json()
+    },
+
+    // 上传文件夹中的 PDF 文件
+    async uploadFolder(files: File[]): Promise<UploadFolderResponse> {
+        const formData = new FormData()
+
+        // 过滤并添加 PDF 文件
+        const pdfFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf'))
+
+        pdfFiles.forEach(file => {
+            // 使用 webkitRelativePath 作为 filename，保持目录结构
+            const relativePath = (file as any).webkitRelativePath || file.name
+            formData.append('files', file, relativePath)
+        })
+
+        const response = await fetch(`${API_BASE}/files/upload-folder`, {
             method: 'POST',
             body: formData,
         })
