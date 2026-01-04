@@ -125,10 +125,8 @@ export function Skills() {
             // Silent update
             await skillsService.updateDetails(editingSkill.item_id, payload)
 
-            // Update local snapshot (optional, but good for consistency)
-            setSkills(prev => prev.map(s =>
-                s.item_id === editingSkill.item_id ? { ...s, ...payload } : s
-            ))
+            // Reload skills to ensure data consistency
+            await loadSkills()
 
             setSaveStatus('saved')
         } catch (err) {
