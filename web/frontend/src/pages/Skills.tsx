@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { skillsService, Skill, SkillUpdateDetails } from '../services/skills'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Layers, Check, X, AlertCircle, Pencil, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
@@ -12,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 
 export function Skills() {
+    const { t, i18n } = useTranslation()
     const [skills, setSkills] = useState<Skill[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export function Skills() {
 
     useEffect(() => {
         loadSkills()
-    }, [])
+    }, [i18n.language])  // 语言变化时重新加载数据
 
     // Auto-hide 'saved' status after 3 seconds
     useEffect(() => {
@@ -177,10 +179,10 @@ export function Skills() {
                 <div className="flex items-start justify-between">
                     <div>
                         <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 mb-2">
-                            评价条目配置
+                            {t('skills.title')}
                         </h2>
                         <p className="text-lg text-gray-600 max-w-2xl font-light">
-                            管理 AGREE-II 评价体系的各个维度和具体条目，定制您的评价标准。
+                            {t('skills.description')}
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -192,7 +194,7 @@ export function Skills() {
                             className="gap-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
                         >
                             {batchUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ToggleRight className="h-4 w-4" />}
-                            全部启用
+                            {t('skills.button.enableAll')}
                         </Button>
                         <Button
                             variant="outline"
@@ -202,7 +204,7 @@ export function Skills() {
                             className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
                         >
                             {batchUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ToggleLeft className="h-4 w-4" />}
-                            全部禁用
+                            {t('skills.button.disableAll')}
                         </Button>
                     </div>
                 </div>
@@ -386,7 +388,7 @@ export function Skills() {
                                     }}
                                     className="h-7 text-xs gap-1"
                                 >
-                                    <span>+ 添加规则</span>
+                                    <span>{t('skills.form.addRule')}</span>
                                 </Button>
                             </div>
                             <div className="rounded-md border border-gray-200 overflow-hidden">
@@ -462,6 +464,8 @@ export function Skills() {
 }
 
 function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => void, onEdit: () => void }) {
+    const { t } = useTranslation()
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -492,7 +496,7 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                             "text-lg font-bold leading-tight transition-colors",
                             skill.enabled ? "text-gray-900" : "text-gray-500"
                         )}>
-                            {skill.title_zh || skill.title}
+                            {skill.title}
                         </h4>
                     </div>
 
@@ -513,7 +517,7 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                                 "relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                                 skill.enabled ? 'bg-blue-600' : 'bg-gray-300'
                             )}
-                            title={skill.enabled ? "点击禁用" : "点击启用"}
+                            title={skill.enabled ? t('skills.card.clickToDisable') : t('skills.card.clickToEnable')}
                         >
                             <span className="sr-only">Toggle setting</span>
                             <span
@@ -528,7 +532,7 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                 </div>
 
                 <p className="text-sm text-gray-600 flex-1 leading-relaxed mb-4 line-clamp-3">
-                    {skill.description_zh || skill.description}
+                    {skill.description}
                 </p>
 
                 <div className="mt-auto pt-4 border-t border-gray-100/50 flex items-center justify-between text-xs text-gray-400">
@@ -536,12 +540,12 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                         {skill.enabled ? (
                             <div className="flex items-center text-green-600 font-medium">
                                 <Check className="w-3.5 h-3.5 mr-1" />
-                                已启用
+                                {t('skills.card.enabled')}
                             </div>
                         ) : (
                             <div className="flex items-center text-gray-500">
                                 <X className="w-3.5 h-3.5 mr-1" />
-                                已禁用
+                                {t('skills.card.disabled')}
                             </div>
                         )}
                     </div>

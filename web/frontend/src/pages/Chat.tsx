@@ -4,6 +4,7 @@
  * 使用时序图展示评价过程，支持文件夹层级展示
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react'
 import { api, type PdfFile, type FolderInfo } from '@/services/api'
@@ -12,6 +13,7 @@ import { cn } from '@/utils/cn'
 import { TimelineView, type TimelineEvent } from '@/components/TimelineView'
 
 export function Chat() {
+    const { t } = useTranslation()
     const [isLoading, setIsLoading] = useState(false)
     const [sessionId] = useState(() => `session-${Date.now()}`)
     // 层级数据
@@ -75,7 +77,7 @@ export function Chat() {
             // 默认全部展开
             setExpandedFolders(new Set(result.folders.map(f => f.name)))
         } catch (error) {
-            console.error('加载文件列表失败:', error)
+            console.error(t('chat.error.loadFailed'), error)
         } finally {
             setLoadingFiles(false)
         }
@@ -97,7 +99,7 @@ export function Chat() {
     // 处理文件上传
     const handleUpload = useCallback(async (file: File) => {
         if (!file.name.toLowerCase().endsWith('.pdf')) {
-            alert('只支持 PDF 文件')
+            alert(t('chat.error.pdfOnly'))
             return
         }
 
@@ -137,15 +139,15 @@ export function Chat() {
 
             // 显示上传结果
             if (result.failed_count > 0) {
-                alert(`上传完成: 成功 ${result.success_count} 个，失败 ${result.failed_count} 个`)
+                alert(t('chat.upload.result', { success: result.success_count, failed: result.failed_count }))
             } else {
-                alert(`成功上传 ${result.success_count} 个 PDF 文件`)
+                alert(t('chat.upload.success', { count: result.success_count }))
             }
 
             await loadPdfFiles()  // 刷新文件列表
         } catch (error) {
             console.error('文件夹上传失败:', error)
-            alert(error instanceof Error ? error.message : '文件夹上传失败')
+            alert(error instanceof Error ? error.message : t('chat.error.folderUploadFailed'))
         } finally {
             setIsUploadingFolder(false)
             // 重置 input
@@ -315,7 +317,10 @@ export function Chat() {
 
             connect(sessionId)
             setTimeout(() => {
-                send({ type: 'start', task_id: result.task_id, pdf_path: pdfFile.path })
+                // 从 useTranslation 获取当前语言，转换为后端格式 (zh-CN -> zh, en-US -> en)
+                const currentLang = document.documentElement.lang || 'en'
+                const lang = currentLang.split('-')[0]
+                send({ type: 'start', task_id: result.task_id, pdf_path: pdfFile.path, lang })
             }, 500)
 
         } catch (error) {
@@ -376,8 +381,8 @@ export function Chat() {
                 <div className="p-6 border-b border-white/20">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800 tracking-tight">文档列表</h2>
-                            <p className="text-xs text-gray-500 mt-1">Select PDF to start</p>
+                            <h2 className="text-lg font-bold text-gray-800 tracking-tight">{t('chat.fileList.title')}</h2>
+                            <p className="text-xs text-gray-500 mt-1">{t('chat.fileList.hint')}</p>
                         </div>
                         <div className="flex items-center gap-1">
                             <input
@@ -401,7 +406,7 @@ export function Chat() {
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading || isUploadingFolder}
                                 className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500/20 hover:to-pink-500/20 hover:shadow-lg hover:shadow-purple-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
-                                title="上传 PDF"
+                                title={t('chat.fileList.uploadPdf')}
                             >
                                 {isUploading ? (
                                     <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
@@ -415,7 +420,7 @@ export function Chat() {
                                 onClick={() => folderInputRef.current?.click()}
                                 disabled={isUploading || isUploadingFolder}
                                 className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-amber-500/20 hover:to-orange-500/20 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
-                                title="上传文件夹"
+                                title={t('chat.fileList.uploadFolder')}
                             >
                                 {isUploadingFolder ? (
                                     <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
@@ -429,7 +434,7 @@ export function Chat() {
                                 onClick={loadPdfFiles}
                                 disabled={loadingFiles || isUploadingFolder}
                                 className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-500/20 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
-                                title="刷新列表"
+                                title={t('chat.fileList.refresh')}
                             >
                                 <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFiles && "animate-spin")} />
                             </Button>
@@ -450,7 +455,7 @@ export function Chat() {
                     {loadingFiles ? (
                         <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                             <Loader2 className="h-6 w-6 animate-spin mb-2" />
-                            <span className="text-xs">加载中...</span>
+                            <span className="text-xs">{t('common.loading')}</span>
                         </div>
                     ) : (folders.length === 0 && rootFiles.length === 0) ? (
                         <div className={cn(
@@ -458,8 +463,8 @@ export function Chat() {
                             isDragOver ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground/50 border-muted/50"
                         )}>
                             <Upload className="h-10 w-10 mb-2 opacity-40" />
-                            <p className="text-sm">拖拽 PDF 文件到此处上传</p>
-                            <p className="text-xs mt-1 opacity-60">或点击上方按钮选择文件</p>
+                            <p className="text-sm">{t('chat.fileList.dragHint')}</p>
+                            <p className="text-xs mt-1 opacity-60">{t('chat.fileList.clickHint')}</p>
                         </div>
                     ) : (
                         <>
@@ -494,7 +499,7 @@ export function Chat() {
                             {/* 根目录 PDF */}
                             {rootFiles.length > 0 && folders.length > 0 && (
                                 <div className="border-t border-gray-100 pt-2 mt-2">
-                                    <p className="text-xs text-gray-400 px-2 mb-1">根目录</p>
+                                    <p className="text-xs text-gray-400 px-2 mb-1">{t('chat.fileList.rootDir')}</p>
                                 </div>
                             )}
                             {rootFiles.map(file => renderPdfItem(file, false))}
@@ -515,7 +520,7 @@ export function Chat() {
                         </div>
                         <div className="flex flex-col">
                             <h1 className="text-xl font-bold text-gray-900 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
-                                评价进度
+                                {t('chat.progress.title')}
                             </h1>
                             <div className="flex items-center gap-2 mt-0.5">
                                 <span className={cn(
@@ -523,7 +528,7 @@ export function Chat() {
                                     isLoading ? "bg-purple-500 animate-pulse" : "bg-gray-300"
                                 )} />
                                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {isLoading ? 'Processing' : timelineEvents.length > 0 ? 'Completed' : 'Ready'}
+                                    {isLoading ? t('chat.progress.processing') : timelineEvents.length > 0 ? t('chat.progress.completed') : t('chat.progress.ready')}
                                 </p>
                             </div>
                         </div>

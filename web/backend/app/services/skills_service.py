@@ -1,39 +1,63 @@
 import yaml
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from web.backend.app.schemas.skills import SkillBase, SkillUpdate, SkillUpdateDetails
 from core.skills.loader import list_available_skills, _load_skill_config_raw, SKILLS_DIR
+from web.backend.app.i18n import get_language
 
-def _format_skill_response(config: dict, skill_id: str) -> dict:
+def _format_skill_response(config: dict, skill_id: str, lang: str = "en") -> dict:
     """
-    Format the raw skill config for frontend display, ensuring localized fields are used.
+    Format the raw skill config for frontend display.
+    
+    Args:
+        config: 原始配置
+        skill_id: 技能 ID
+        lang: 语言代码 (zh/en)，默认英语
     """
+    lang = get_language(lang)
+    
+    # 根据语言选择显示字段
+    if lang == "zh":
+        title = config.get("title_zh", config.get("title", ""))
+        description = config.get("description_zh", config.get("description", ""))
+        locating_info = config.get("locating_info_zh", config.get("locating_info", ""))
+        domain_name = config.get("domain_name_zh", config.get("domain_name", ""))
+    else:
+        # 英语优先
+        title = config.get("title", config.get("title_zh", ""))
+        description = config.get("description", config.get("description_zh", ""))
+        locating_info = config.get("locating_info", config.get("locating_info_zh", ""))
+        domain_name = config.get("domain_name", config.get("domain_name_zh", ""))
+    
     return {
         "item_id": skill_id,
         "enabled": config.get("enabled", False),
         "domain": config.get("domain", 0),
-        "domain_name": config.get("domain_name_zh", config.get("domain_name", "")),
-        # Display fields (prioritize Chinese)
-        "title": config.get("title_zh", config.get("title", "")),
-        "description": config.get("description_zh", config.get("description", "")),
-        "locating_info": config.get("locating_info_zh", config.get("locating_info", "")),
-        # Chinese fields for editing
+        "domain_name": domain_name,
+        # 显示字段（根据语言）
+        "title": title,
+        "description": description,
+        "locating_info": locating_info,
+        # 中文字段（用于编辑）
         "title_zh": config.get("title_zh", ""),
         "description_zh": config.get("description_zh", ""),
         "locating_info_zh": config.get("locating_info_zh", ""),
-        # English fields for editing (raw keys in yaml are title, description, locating_info)
+        # 英文字段（用于编辑）
         "title_en": config.get("title", ""),
         "description_en": config.get("description", ""),
         "locating_info_en": config.get("locating_info", ""),
-        # Original criteria/scoring
+        # 原始 criteria/scoring
         "criteria": config.get("criteria", []),
         "scoring_principle": config.get("scoring_principle", [])
     }
 
-def get_all_skills() -> List[Dict[str, Any]]:
+def get_all_skills(lang: str = "en") -> List[Dict[str, Any]]:
     """
     Get all available skills with their configuration.
+    
+    Args:
+        lang: 语言代码 (zh/en)，默认英语
     """
     skills_list = []
     skill_ids = list_available_skills(enabled_only=False)
@@ -41,7 +65,7 @@ def get_all_skills() -> List[Dict[str, Any]]:
     for skill_id in skill_ids:
         try:
             config = _load_skill_config_raw(skill_id)
-            skills_list.append(_format_skill_response(config, skill_id))
+            skills_list.append(_format_skill_response(config, skill_id, lang))
         except Exception as e:
             print(f"Error loading skill {skill_id}: {e}")
             continue

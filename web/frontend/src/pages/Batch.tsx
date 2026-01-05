@@ -4,6 +4,7 @@
  * 选择 input 目录下的文件夹，勾选 PDF 批量执行评价任务
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Toast, type ToastType } from '@/components/Toast'
 import {
@@ -29,11 +30,6 @@ const statusConfig: Record<TaskStatusType, { icon: typeof Clock; color: string; 
     cancelled: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', label: '已取消' },
 }
 
-// 扩展 PdfInfo 包含所属文件夹
-interface PdfWithFolder extends PdfInfo {
-    folder: string
-}
-
 // Toast 提示信息
 interface ToastMessage {
     id: number
@@ -42,6 +38,7 @@ interface ToastMessage {
 }
 
 export function Batch() {
+    const { t } = useTranslation()
     // 文件夹列表
     const [folders, setFolders] = useState<FolderInfo[]>([])
     const [loadingFolders, setLoadingFolders] = useState(true)
@@ -149,17 +146,6 @@ export function Batch() {
             return next
         })
     }, [folderPdfs, selectedPdfs])
-
-    // 全选所有
-    const selectAll = useCallback(() => {
-        const allPaths = Object.values(folderPdfs).flat().map(p => p.path)
-        setSelectedPdfs(new Set(allPaths))
-    }, [folderPdfs])
-
-    // 取消全选
-    const deselectAll = useCallback(() => {
-        setSelectedPdfs(new Set())
-    }, [])
 
     // 显示 Toast 提示
     const showToast = useCallback((
@@ -320,6 +306,36 @@ export function Batch() {
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
+    // 解析后端通过 i18n: 前缀发送的状态消息
+    const getStatusMessage = (step: string | null) => {
+        if (!step) return null
+
+        // 如果不是 i18n 消息，直接返回
+        if (!step.startsWith('i18n:')) return step
+
+        try {
+            const parts = step.split(':')
+            const key = parts[1] // e.g. batch.initializing
+            const args = parts.slice(2)
+
+            // Map backend keys to frontend translation keys (under batch.statusMsg)
+            const fieldName = key.split('.')[1]
+            const transKey = `batch.statusMsg.${fieldName}`
+
+            if (key === 'batch.retrying') {
+                return t(transKey, { current: args[0], max: args[1] })
+            }
+            if (key === 'batch.failed') {
+                return t(transKey, { error: args.join(':') })
+            }
+
+            return t(transKey)
+        } catch (e) {
+            console.warn('Failed to parse i18n message:', step)
+            return step
+        }
+    }
+
     // 计算文件夹选中状态
     const getFolderCheckState = (folderName: string): 'none' | 'some' | 'all' => {
         const pdfs = folderPdfs[folderName] || []
@@ -337,9 +353,9 @@ export function Batch() {
                 <div className="p-6 border-b border-gray-100">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800">选择 PDF</h2>
+                            <h2 className="text-lg font-bold text-gray-800">{t('batch.select.title')}</h2>
                             <p className="text-xs text-gray-500 mt-1">
-                                已选择 {selectedPdfs.size} 个文件
+                                {t('batch.select.count', { count: selectedPdfs.size })}
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -357,7 +373,7 @@ export function Batch() {
                                 onClick={() => folderInputRef.current?.click()}
                                 disabled={isRunning || isUploadingFolder}
                                 className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-amber-500/20 hover:to-orange-500/20 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
-                                title="上传文件夹"
+                                title={t('batch.uploadFolder')}
                             >
                                 {isUploadingFolder ? (
                                     <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
@@ -382,12 +398,12 @@ export function Batch() {
                     {loadingFolders ? (
                         <div className="flex items-center justify-center py-10 text-gray-500">
                             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                            <span className="text-sm">加载中...</span>
+                            <span className="text-sm">{t('common.loading')}</span>
                         </div>
                     ) : folders.length === 0 ? (
                         <div className="text-center py-10 text-gray-400">
                             <Folder className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                            <p className="text-sm">没有文件夹</p>
+                            <p className="text-sm">{t('batch.empty.folder')}</p>
                         </div>
                     ) : (
                         folders.map((folder) => {
@@ -443,10 +459,10 @@ export function Batch() {
                                             {isLoadingPdfs ? (
                                                 <div className="flex items-center gap-2 p-2 text-gray-400">
                                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span className="text-xs">加载中...</span>
+                                                    <span className="text-xs">{t('common.loading')}</span>
                                                 </div>
                                             ) : pdfs.length === 0 ? (
-                                                <div className="p-2 text-xs text-gray-400">没有 PDF 文件</div>
+                                                <div className="p-2 text-xs text-gray-400">{t('batch.empty.pdf')}</div>
                                             ) : (
                                                 pdfs.map(pdf => {
                                                     const isSelected = selectedPdfs.has(pdf.path)
@@ -483,7 +499,7 @@ export function Batch() {
                 {/* 控制区 */}
                 <div className="p-4 border-t border-gray-100 space-y-4">
                     <div className="flex items-center gap-3">
-                        <label className="text-sm text-gray-600">并发数:</label>
+                        <label className="text-sm text-gray-600">{t('batch.concurrency.label')}</label>
                         <input
                             type="number"
                             min={1}
@@ -502,7 +518,7 @@ export function Batch() {
                             className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
                         >
                             <Play className="h-4 w-4 mr-2" />
-                            开始 ({selectedPdfs.size})
+                            {t('batch.button.start')} ({selectedPdfs.size})
                         </Button>
                         <Button
                             variant="outline"
@@ -511,7 +527,7 @@ export function Batch() {
                             className="border-red-200 text-red-600 hover:bg-red-50"
                         >
                             <Square className="h-4 w-4 mr-2" />
-                            停止
+                            {t('batch.button.stop')}
                         </Button>
                     </div>
                 </div>
@@ -523,9 +539,9 @@ export function Batch() {
                 <div className="p-6 border-b border-gray-200/50 bg-white/95">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800">任务状态</h2>
+                            <h2 className="text-lg font-bold text-gray-800">{t('batch.status.title')}</h2>
                             <p className="text-xs text-gray-500 mt-1">
-                                {isRunning ? '正在运行...' : batchStatus?.total ? '已完成' : '等待启动'}
+                                {isRunning ? t('batch.status.running') : batchStatus?.total ? t('batch.status.completed') : t('batch.status.waiting')}
                             </p>
                         </div>
                         {batchStatus && batchStatus.total > 0 && (
@@ -556,7 +572,7 @@ export function Batch() {
                     {!batchStatus || batchStatus.tasks.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400">
                             <Clock className="h-12 w-12 mb-3 opacity-30" />
-                            <p className="text-sm">勾选 PDF 并点击开始</p>
+                            <p className="text-sm">{t('batch.status.hint')}</p>
                         </div>
                     ) : (
                         <div className="grid gap-3">
@@ -585,13 +601,13 @@ export function Batch() {
                                                 {task.id}
                                             </h4>
                                             <p className={cn("text-xs mt-0.5 truncate", config.color)}>
-                                                {task.current_step || config.label}
+                                                {getStatusMessage(task.current_step) || config.label}
                                                 {task.retry_count > 0 && ` (重试 ${task.retry_count} 次)`}
                                             </p>
                                         </div>
                                         {task.status === 'error' && task.error && (
                                             <div className="text-xs text-red-500 max-w-48 truncate" title={task.error}>
-                                                {task.error}
+                                                {getStatusMessage(task.error)}
                                             </div>
                                         )}
                                     </div>

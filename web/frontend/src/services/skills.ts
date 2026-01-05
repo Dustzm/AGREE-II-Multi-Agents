@@ -34,7 +34,15 @@ export interface SkillUpdateDetails {
 
 export const skillsService = {
     async getAll(): Promise<Skill[]> {
-        const response = await fetch(`${API_BASE_URL}/skills`)
+        // 获取当前语言并转换为后端格式 (zh-CN -> zh, en-US -> en)
+        const currentLang = document.documentElement.lang || 'en'
+        const lang = currentLang.split('-')[0]
+
+        const response = await fetch(`${API_BASE_URL}/skills`, {
+            headers: {
+                'Accept-Language': lang
+            }
+        })
         if (!response.ok) {
             throw new Error('Failed to fetch skills')
         }

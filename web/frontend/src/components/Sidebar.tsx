@@ -1,16 +1,20 @@
 import { NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { MessageSquare, FileText, Settings, Sparkles, Bot, PlayCircle } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { LanguageSwitch } from './LanguageSwitch'
 
 const navItems = [
-    { to: '/chat', icon: MessageSquare, label: '对话' },
-    { to: '/batch', icon: PlayCircle, label: '批量' },
-    { to: '/reports', icon: FileText, label: '报告' },
-    { to: '/skills', icon: Settings, label: '条目' },
-    { to: '/agents', icon: Bot, label: '智能体' },
+    { to: '/chat', icon: MessageSquare, labelKey: 'nav.chat' },
+    { to: '/batch', icon: PlayCircle, labelKey: 'nav.batch' },
+    { to: '/reports', icon: FileText, labelKey: 'nav.reports' },
+    { to: '/skills', icon: Settings, labelKey: 'nav.skills' },
+    { to: '/agents', icon: Bot, labelKey: 'nav.agents' },
 ]
 
 export function Sidebar() {
+    const { t } = useTranslation()
+
     return (
         <aside className="w-64 border-r border-gray-200/60 h-screen flex flex-col transition-all duration-300 relative overflow-hidden bg-white/95 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]" style={{ isolation: 'isolate' }}>
             <div className="absolute inset-0 bg-gradient-to-b from-white/60 to-white/10 pointer-events-none" />
@@ -22,7 +26,7 @@ export function Sidebar() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold tracking-tight text-gray-800">AMA</h1>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Evaluation System</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{t('sidebar.subtitle')}</p>
                     </div>
                 </div>
             </div>
@@ -51,7 +55,7 @@ export function Sidebar() {
                                     "h-4 w-4 transition-all duration-300",
                                     isActive ? "text-blue-600 scale-110" : "text-gray-400 group-hover:text-gray-600"
                                 )} />
-                                <span className="relative">{item.label}</span>
+                                <span className="relative">{t(item.labelKey)}</span>
                                 {isActive && (
                                     <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-blue-500" />
                                 )}
@@ -64,12 +68,16 @@ export function Sidebar() {
             <div className="relative p-4 border-t border-white/20">
                 <div className="flex items-center justify-between text-xs text-gray-500 px-2">
                     <span className="font-mono opacity-70">v1.0.0</span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                        <span className="opacity-70">Online</span>
+                    <div className="flex items-center gap-3">
+                        <LanguageSwitch />
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            <span className="opacity-70">{t('sidebar.status.online')}</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </aside>
     )
 }
+

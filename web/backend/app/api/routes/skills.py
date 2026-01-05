@@ -1,18 +1,24 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Path as PathParam
+from fastapi import APIRouter, HTTPException, Path as PathParam, Header
 
 from web.backend.app.schemas.skills import SkillBase, SkillUpdate, SkillUpdateDetails
 from web.backend.app.services.skills_service import get_all_skills, update_skill_status, update_skill_details
+from web.backend.app.i18n import get_language
 
 router = APIRouter()
 
 @router.get("/skills", response_model=List[SkillBase])
-async def list_skills():
+async def list_skills(
+    accept_language: Optional[str] = Header(None, alias="Accept-Language")
+):
     """
     List all available skills (items)
+    
+    根据 Accept-Language 请求头返回对应语言的内容
     """
-    return get_all_skills()
+    lang = get_language(accept_language)
+    return get_all_skills(lang)
 
 @router.put("/skills/{skill_id}", response_model=dict)
 async def update_skill(

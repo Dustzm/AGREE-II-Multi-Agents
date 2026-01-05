@@ -1,0 +1,274 @@
+{
+    "common": {
+        "loading": "Loading...",
+        "loadingData": "Loading data...",
+        "error": {
+            "unknown": "Unknown error"
+        }
+    },
+    "nav": {
+        "chat": "Chat",
+        "batch": "Batch",
+        "reports": "Reports",
+        "skills": "Items",
+        "agents": "Agents"
+    },
+    "sidebar": {
+        "subtitle": "Evaluation System",
+        "status": {
+            "online": "Online",
+            "offline": "Offline"
+        }
+    },
+    "chat": {
+        "fileList": {
+            "title": "Documents",
+            "hint": "Select PDF to start",
+            "uploadPdf": "Upload PDF",
+            "uploadFolder": "Upload Folder",
+            "refresh": "Refresh",
+            "rootDir": "Root",
+            "dragHint": "Drop PDF file here to upload",
+            "clickHint": "or click the button above to select"
+        },
+        "progress": {
+            "title": "Evaluation Progress",
+            "processing": "Processing",
+            "completed": "Completed",
+            "ready": "Ready"
+        },
+        "status": {
+            "parsing": "Parsing PDF...",
+            "orchestrating": "Coordinating evaluation...",
+            "complete": "Evaluation complete",
+            "processing": "{{agent}} is processing...",
+            "done": "{{text}} completed"
+        },
+        "upload": {
+            "result": "Upload complete: {{success}} succeeded, {{failed}} failed",
+            "success": "Successfully uploaded {{count}} PDF files"
+        },
+        "error": {
+            "pdfOnly": "Only PDF files are supported",
+            "uploadFailed": "Upload failed",
+            "folderUploadFailed": "Folder upload failed",
+            "loadFailed": "Failed to load file list",
+            "startFailed": "Start failed: {{error}}",
+            "occurred": "An error occurred",
+            "disconnected": "Connection lost"
+        }
+    },
+    "batch": {
+        "select": {
+            "title": "Select PDFs",
+            "count": "{{count}} files selected"
+        },
+        "uploadFolder": "Upload Folder",
+        "empty": {
+            "folder": "No folders",
+            "pdf": "No PDF files"
+        },
+        "concurrency": {
+            "label": "Concurrency:"
+        },
+        "button": {
+            "start": "Start",
+            "stop": "Stop"
+        },
+        "status": {
+            "title": "Task Status",
+            "running": "Running...",
+            "completed": "Completed",
+            "waiting": "Waiting to start",
+            "hint": "Select PDFs and click Start",
+            "retry": "Retry {{count}} times"
+        },
+        "taskStatus": {
+            "pending": "Pending",
+            "running": "Running",
+            "done": "Done",
+            "error": "Error",
+            "cancelled": "Cancelled"
+        },
+        "statusMsg": {
+            "service_restart": "Service restart, task interrupted",
+            "service_restart_step": "Service restart, task interrupted",
+            "initializing": "Initializing...",
+            "cancelled": "Cancelled",
+            "retrying": "Retrying ({{current}}/{{max}})...",
+            "failed": "Failed: {{error}}",
+            "completed": "Completed"
+        },
+        "error": {
+            "noTask": "No batch task is currently running",
+            "startFailed": "Start failed",
+            "stopFailed": "Stop failed"
+        },
+        "success": {
+            "stopped": "Batch task stopped, waiting for current step to complete..."
+        }
+    },
+    "reports": {
+        "title": "Evaluation Reports",
+        "description": "View and manage all guideline evaluation results.",
+        "refresh": "Refresh",
+        "backToList": "Back to list",
+        "table": {
+            "status": "Status",
+            "taskId": "Task ID",
+            "title": "Guideline Title",
+            "time": "Time",
+            "score": "Overall Score",
+            "recommendation": "Recommendation"
+        },
+        "detail": {
+            "date": "Evaluation Date:",
+            "notEvaluated": "Not evaluated",
+            "domainScores": "Domain Scores",
+            "items": "items",
+            "strengths": "Strengths",
+            "weaknesses": "Weaknesses",
+            "itemDetails": "Item Evaluation Details",
+            "evidenceLocation": "Location Info",
+            "quotedEvidence": "Supporting Text",
+            "scoringReason": "Scoring Rationale",
+            "evaluatedAt": "Evaluated at:"
+        },
+        "tab": {
+            "score": "Score Details",
+            "evidence": "Source View"
+        },
+        "empty": {
+            "title": "No evaluation reports",
+            "hint": "Reports will appear here after completing evaluation tasks"
+        },
+        "loading": {
+            "detail": "Loading report details..."
+        },
+        "noConclusion": "No conclusion",
+        "export": {
+            "pdf": "Export PDF",
+            "exporting": "Exporting..."
+        }
+    },
+    "skills": {
+        "title": "Evaluation Item Configuration",
+        "description": "Manage AGREE-II evaluation dimensions and specific items, customize your evaluation criteria.",
+        "button": {
+            "enableAll": "Enable All",
+            "disableAll": "Disable All"
+        },
+        "dialog": {
+            "title": "Edit Item",
+            "saving": "Saving...",
+            "saved": "Auto-saved",
+            "saveFailed": "Save failed"
+        },
+        "form": {
+            "titleEn": "Title (English)",
+            "titleZh": "Title (Chinese)",
+            "descEn": "Description (English)",
+            "descZh": "Description (Chinese)",
+            "locatingEn": "Locating Info (English)",
+            "locatingZh": "Locating Info (Chinese)",
+            "criteria": "Criteria (one per line)",
+            "scoringPrinciple": "Scoring Principle",
+            "addRule": "+ Add Rule",
+            "range": "Range",
+            "conditionEn": "Condition (English)",
+            "conditionZh": "Condition (Chinese)",
+            "actions": "Actions",
+            "noRules": "No scoring rules. Click \"Add Rule\" above to add one.",
+            "deleteRow": "Delete this row"
+        },
+        "card": {
+            "enabled": "Enabled",
+            "disabled": "Disabled",
+            "edit": "Edit item",
+            "clickToDisable": "Click to disable",
+            "clickToEnable": "Click to enable"
+        },
+        "error": {
+            "loadFailed": "Failed to load configuration"
+        }
+    },
+    "agents": {
+        "title": "Agent Prompt Management",
+        "description": "Manage system prompts for each agent, customize evaluation workflows and behaviors.",
+        "meta": {
+            "appraiser": {
+                "name": "Appraiser",
+                "desc": "Responsible for professional evaluation of guideline dimensions"
+            },
+            "initiator": {
+                "name": "Initiator",
+                "desc": "Responsible for parsing and initializing evaluation tasks"
+            },
+            "orchestrator": {
+                "name": "Orchestrator",
+                "desc": "Responsible for coordinating multi-agent workflows"
+            },
+            "reporter": {
+                "name": "Reporter",
+                "desc": "Responsible for generating evaluation reports and summaries"
+            }
+        },
+        "dialog": {
+            "english": "English",
+            "chinese": "中文",
+            "saving": "Saving...",
+            "saved": "Saved",
+            "save": "Save",
+            "editContent": "Edit Content",
+            "variableSyntax": "Supports {variable} injection syntax",
+            "variables": "Variables",
+            "noVariables": "No variables detected",
+            "detectedVar": "Detected variable:"
+        },
+        "card": {
+            "editPrompt": "Edit Prompt",
+            "agent": "Agent",
+            "languages": "EN / 中文"
+        },
+        "error": {
+            "loadFailed": "Failed to load agent list"
+        }
+    },
+    "timeline": {
+        "empty": {
+            "hint": "Select a PDF file to start evaluation"
+        },
+        "taskLabel": "AGREE-II Evaluation Task",
+        "viewPrompt": "View Prompt"
+    },
+    "evidence": {
+        "label": {
+            "overview": "Overview",
+            "methodology": "Methodology",
+            "clinical": "Clinical",
+            "independence": "Independence",
+            "irrelevant": "Irrelevant"
+        },
+        "loading": "Loading evidence pool...",
+        "error": {
+            "loadFailed": "Load failed: {{error}}",
+            "visualLoadFailed": "Failed to load visual source"
+        },
+        "pagination": "{{current}} / {{total}}",
+        "detail": {
+            "chunkId": "Chunk ID",
+            "semanticLabel": "Semantic Label",
+            "section": "Section",
+            "contentType": "Content Type",
+            "reason": "Classification Reason",
+            "preview": "Content Preview",
+            "clickHint1": "Click on an annotation region",
+            "clickHint2": "to view details"
+        }
+    },
+    "prompt": {
+        "title": "Prompt Context",
+        "copy": "Copy Prompt",
+        "empty": "No prompt content"
+    }
+}

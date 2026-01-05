@@ -15,6 +15,7 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.agents.core.preprocessor import process_content_list
+from web.backend.app.i18n import t, get_language
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class AppraisalRunner:
         on_agent: Optional[Callable[[str, str, int, int, Optional[str]], None]] = None,
         on_complete: Optional[Callable[[str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
+        lang: Optional[str] = None,
     ):
         """
         Args:
@@ -40,11 +42,13 @@ class AppraisalRunner:
             on_agent: 智能体回调 (agent, content, progress, total, prompt)
             on_complete: 完成回调 (task_id)
             on_error: 错误回调 (error_msg)
+            lang: 语言代码 (zh/en)，默认英语
         """
         self.on_status = on_status or (lambda *_: None)
         self.on_agent = on_agent or (lambda *_: None)
         self.on_complete = on_complete or (lambda *_: None)
         self.on_error = on_error or (lambda *_: None)
+        self.lang = get_language(lang)
         
         self._cancelled = False
     
@@ -77,24 +81,24 @@ class AppraisalRunner:
             
             pdf_file = Path(pdf_path)
             if not pdf_file.exists():
-                self.on_error(f"PDF 文件不存在: {pdf_path}")
+                self.on_error(t("error.pdf_not_found", self.lang, path=pdf_path))
                 return
             
             # Step 1: 初始化任务目录
-            self.on_status("status", "📁 初始化任务目录...")
+            self.on_status("status", t("status.init_task_dir", self.lang))
             
             # 使用文件名初始化（和 CLI 一致）
             task_result = init_task_directory(pdf_file.name)
             
             if task_result.get("status") == "error":
-                self.on_error(f"初始化失败: {task_result.get('error', '未知错误')}")
+                self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
                 return
             
             actual_task_id = task_result["task_id"]
             source_path = task_result["paths"]["source"]
             prep_dir = task_result["paths"]["prep_dir"]
             
-            self.on_status("status", f"任务ID: {actual_task_id}")
+            self.on_status("status", t("status.task_id", self.lang, task_id=actual_task_id))
             
             if self._cancelled:
                 return
@@ -103,7 +107,7 @@ class AppraisalRunner:
             source_file = Path(source_path)
             
             if source_file.exists():
-                self.on_status("status", "📄 发现已解析的文档，跳过解析步骤")
+                self.on_status("status", t("status.doc_found_skip", self.lang))
             else:
                 # 尝试使用 MinerU，失败则回退到 PyPDF
                 parse_success = False
@@ -115,7 +119,7 @@ class AppraisalRunner:
                     
                     # 只要配置了 MinerU URL 就尝试使用
                     if mineru_url:
-                        self.on_status("status", f"📄 正在解析 PDF (MinerU VLM)...")
+                        self.on_status("status", t("status.parsing_mineru", self.lang))
                         
                         parser = MinerUParser()
                         # 先检查服务是否可用
@@ -130,7 +134,7 @@ class AppraisalRunner:
                             
                             if parse_result.get("status") == "success":
                                 pages = parse_result.get("pages", 0)
-                                self.on_status("status", f"✓ PDF 解析完成 ({pages} 页) - MinerU")
+                                self.on_status("status", t("status.parse_done_mineru", self.lang, pages=pages))
                                 parse_success = True
                             else:
                                 logger.warning(f"MinerU 解析失败: {parse_result.get('error')}")
@@ -144,7 +148,7 @@ class AppraisalRunner:
                 
                 # 如果 MinerU 失败，回退到 PyPDF
                 if not parse_success:
-                    self.on_status("status", "📄 正在解析 PDF (本地 PyPDF)...")
+                    self.on_status("status", t("status.parsing_pypdf", self.lang))
                     
                     try:
                         from core.parsers import PyPDFParser
@@ -161,14 +165,14 @@ class AppraisalRunner:
                                     shutil.move(result["output_path"], source_path)
                             
                             pages = result.get("pages", 0)
-                            self.on_status("status", f"✓ PDF 解析完成 ({pages} 页) - PyPDF")
+                            self.on_status("status", t("status.parse_done_pypdf", self.lang, pages=pages))
                             parse_success = True
                         else:
-                            self.on_error(f"PDF 解析失败: {result.get('error', '未知错误')}")
+                            self.on_error(t("error.parse_failed", self.lang, error=result.get('error', 'Unknown')))
                             return
                             
                     except Exception as e:
-                        self.on_error(f"PDF 解析失败: {str(e)}")
+                        self.on_error(t("error.parse_failed", self.lang, error=str(e)))
                         return
             
             if self._cancelled:
@@ -176,7 +180,7 @@ class AppraisalRunner:
             
             # Step 2.5: 语义证据池构建
             if parse_success or source_file.exists():
-                self.on_status("status", "正在构建语义证据池...")
+                self.on_status("status", t("status.building_evidence", self.lang))
                 
                 pdf_stem = pdf_file.stem  # 不带 .pdf 后缀
                 content_list_path = Path(prep_dir) / f"{pdf_stem}_content_list.json"
@@ -193,19 +197,19 @@ class AppraisalRunner:
                         )
                         
                         if preprocess_result["status"] == "success":
-                            self.on_status("status", "语义证据池构建完成")
+                            self.on_status("status", t("status.evidence_done", self.lang))
                         else:
                             logger.warning(f"预处理失败: {preprocess_result.get('error')}")
-                            self.on_status("status", "语义证据池构建失败，将使用默认模式")
+                            self.on_status("status", t("status.evidence_failed", self.lang))
                     except Exception as e:
                         logger.error(f"预处理过程异常: {e}")
-                        self.on_status("status", "预处理异常，继续执行")
+                        self.on_status("status", t("status.preprocess_error", self.lang))
                 else:
                     logger.warning(f"未找到 content_list.json: {content_list_path}")
             
             # Step 3: 运行 Orchestrator
-            self.on_status("status", "🤖 启动智能体团队...")
-            self.on_agent("Orchestrator", "开始协调评价任务", 0, 4)
+            self.on_status("status", t("status.starting_agents", self.lang))
+            self.on_agent("Orchestrator", t("agent.orchestrator_start", self.lang), 0, 4)
             
             orchestrator = create_orchestrator()
             runner = runners.InMemoryRunner(
@@ -248,9 +252,9 @@ class AppraisalRunner:
                 "Reporter": 3
             }
             agent_messages = {
-                "Initiator": "正在生成评价计划...",
-                "Appraiser": "正在评价项目...",
-                "Reporter": "正在生成报告..."
+                "Initiator": t("agent.initiator_working", self.lang),
+                "Appraiser": t("agent.appraiser_working", self.lang),
+                "Reporter": t("agent.reporter_working", self.lang)
             }
             
             # 运行对话
@@ -299,7 +303,7 @@ class AppraisalRunner:
                                                 skill_id = args_dict.get("skill_id", "")
                                     
                                     if skill_id:
-                                        custom_message = f"正在评价 {skill_id}..."
+                                        custom_message = t("agent.appraising_item", self.lang, skill_id=skill_id)
                                         logger.info(f"Appraiser 正在评价条目: {skill_id}")
                                         
                                         # 获取渲染后的提示词
@@ -320,7 +324,7 @@ class AppraisalRunner:
                                 if agent_name == "Appraiser" or agent_name != current_agent:
                                     current_agent = agent_name
                                     progress = agent_progress.get(agent_name, 0)
-                                    message = custom_message or agent_messages.get(agent_name, f"{agent_name} 正在处理...")
+                                    message = custom_message or agent_messages.get(agent_name, t("agent.processing", self.lang, agent=agent_name))
                                     # 发送带提示词的消息（只有 Appraiser 有）
                                     self.on_agent(agent_name, message, progress, 4, appraiser_prompt if agent_name == "Appraiser" else None)
                                     logger.info(f"切换到代理: {agent_name}, 消息: {message}")
@@ -349,13 +353,13 @@ class AppraisalRunner:
                     if author != current_agent and author in agent_progress:
                         current_agent = author
                         progress = agent_progress.get(author, 0)
-                        message = agent_messages.get(author, f"{author} 正在处理...")
+                        message = agent_messages.get(author, t("agent.processing", self.lang, agent=author))
                         self.on_agent(author, message, progress, 4)
                         logger.info(f"通过 author 切换到代理: {author}")
             
             
             if not self._cancelled:
-                self.on_agent("Reporter", "报告生成完成", 4, 4)
+                self.on_agent("Reporter", t("agent.report_done", self.lang), 4, 4)
                 self.on_complete(actual_task_id)
         
         except Exception as e:

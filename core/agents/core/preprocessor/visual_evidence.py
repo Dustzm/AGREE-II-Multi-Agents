@@ -47,6 +47,48 @@ def find_matching_chunk_by_id(block_id: str, chunks: List[Dict]) -> Optional[Dic
     return None
 
 
+# 表格相关类型（这些类型在 model.json 中有独立的 block_id，
+# 但其 block_id 不在 evidence_pool 的 block_ids 中）
+TABLE_TYPES = {"table", "table_caption", "table_footnote"}
+
+
+def find_matching_chunk_by_content(
+    block_content: str,
+    block_type: str,
+    chunks: List[Dict]
+) -> Optional[Dict]:
+    """
+    通过内容匹配查找对应的 chunk（用于表格类型的备用匹配）
+    
+    表格在 content_list.json 中作为整体存在（没有 block_id），
+    但在 model.json 中被拆分为 table_caption, table, table_footnote 等子块。
+    此函数通过检查 block 内容是否包含在 chunk 的 content 中来匹配。
+    
+    Args:
+        block_content: block 的内容文本
+        block_type: block 的类型（table, table_caption, table_footnote）
+        chunks: evidence_pool 中的语义块列表
+        
+    Returns:
+        匹配到的 chunk，或 None
+    """
+    if not block_content or block_type not in TABLE_TYPES:
+        return None
+    
+    # 对于表格相关内容，截取前100字符进行匹配（避免过长内容的性能问题）
+    search_text = block_content[:100].strip()
+    if not search_text:
+        return None
+    
+    for chunk in chunks:
+        chunk_content = chunk.get("content", "")
+        # 检查 block 内容是否出现在 chunk 内容中
+        if search_text in chunk_content:
+            return chunk
+    
+    return None
+
+
 def generate_visual_evidence(
     model_json_path: str,
     evidence_pool_path: str,
@@ -94,8 +136,12 @@ def generate_visual_evidence(
             block_bbox = block.get("bbox", [0, 0, 0, 0])
             block_id = block.get("block_id")  # 获取 block_id
             
-            # 通过 block_id 精确匹配 chunk（不再使用近似匹配）
+            # 通过 block_id 精确匹配 chunk
             chunk = find_matching_chunk_by_id(block_id, chunks)
+            
+            # 如果 block_id 匹配失败，且是表格相关类型，尝试内容匹配
+            if chunk is None and block_type in TABLE_TYPES:
+                chunk = find_matching_chunk_by_content(block_content, block_type, chunks)
             
             if chunk:
                 label = chunk.get("label", "Irrelevant")

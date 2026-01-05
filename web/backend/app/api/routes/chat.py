@@ -11,6 +11,8 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from web.backend.app.i18n import t, get_language
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -107,7 +109,7 @@ async def chat_message(request: ChatMessageRequest):
                             response_text = text
         
         return ChatMessageResponse(
-            response=response_text or "我是 AMA 评价助手，有什么可以帮你的吗？",
+            response=response_text or t("chat.default_response", "en"),
             agent="Portal"
         )
     
@@ -115,7 +117,7 @@ async def chat_message(request: ChatMessageRequest):
         logger.warning(f"Portal 调用失败: {e}")
         # 回退到简单响应
         return ChatMessageResponse(
-            response="我是 AMA，一个 AGREE-II 指南质量评价系统。你可以上传 PDF 文件开始评价，或者继续和我聊天。",
+            response=t("chat.fallback_response", "en"),
             agent="Portal"
         )
 
@@ -141,21 +143,23 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             if msg_type == "start":
                 task_id = data.get("task_id")
                 pdf_path = data.get("pdf_path")
+                lang = data.get("lang", "en")  # 默认英语
                 
                 if not task_id:
                     await manager.send_message(session_id, {
                         "type": "error",
-                        "content": "缺少 task_id"
+                        "content": t("error.missing_task_id", lang)
                     })
                     continue
                 
                 # 启动评价任务
-                await run_appraisal(session_id, task_id, pdf_path)
+                await run_appraisal(session_id, task_id, pdf_path, lang)
             
             elif msg_type == "cancel":
+                lang = data.get("lang", "en")
                 await manager.send_message(session_id, {
                     "type": "status",
-                    "content": "任务已取消"
+                    "content": t("status.task_cancelled", lang)
                 })
                 break
     
@@ -165,11 +169,17 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
         manager.disconnect(session_id)
 
 
-async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None):
+async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None, lang: str = "en"):
     """
     运行评价任务
     
     集成真实 Orchestrator
+    
+    Args:
+        session_id: WebSocket 会话 ID
+        task_id: 任务 ID
+        pdf_path: PDF 文件路径
+        lang: 语言代码 (zh/en)，默认英语
     """
     from pathlib import Path
     
@@ -185,14 +195,14 @@ async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None):
         if not pdf_file.exists():
             await manager.send_message(session_id, {
                 "type": "error",
-                "content": f"PDF 文件不存在: {pdf_file}"
+                "content": t("error.pdf_not_found", lang, path=str(pdf_file))
             })
             return
         
         # 发送开始状态
         await manager.send_message(session_id, {
             "type": "status",
-            "content": f"开始评价: {pdf_file.name}",
+            "content": t("status.starting_appraisal", lang, filename=pdf_file.name),
             "task_id": task_id
         })
         
@@ -203,18 +213,19 @@ async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None):
             await manager.send_message(session_id, msg)
         
         runner = AppraisalRunner(
-            on_status=lambda t, c: asyncio.get_event_loop().create_task(
-                send_msg({"type": t, "content": c})
+            on_status=lambda type_, content: asyncio.get_event_loop().create_task(
+                send_msg({"type": type_, "content": content})
             ),
-            on_agent=lambda a, c, p, t, prompt=None: asyncio.get_event_loop().create_task(
-                send_msg({"type": "agent", "agent": a, "content": c, "progress": p, "total": t, "prompt": prompt})
+            on_agent=lambda a, c, p, total, prompt=None: asyncio.get_event_loop().create_task(
+                send_msg({"type": "agent", "agent": a, "content": c, "progress": p, "total": total, "prompt": prompt})
             ),
             on_complete=lambda tid: asyncio.get_event_loop().create_task(
-                send_msg({"type": "complete", "content": "评价完成", "task_id": tid})
+                send_msg({"type": "complete", "content": t("status.appraisal_complete", lang), "task_id": tid})
             ),
             on_error=lambda e: asyncio.get_event_loop().create_task(
                 send_msg({"type": "error", "content": e})
             ),
+            lang=lang,
         )
         
         await runner.run(task_id, str(pdf_file))

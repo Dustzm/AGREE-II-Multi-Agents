@@ -3,21 +3,26 @@
  * 
  * 展示所有评价报告，支持查看详情
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye } from 'lucide-react'
+import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download } from 'lucide-react'
 import { api, type ReportSummary, type ReportDetail } from '@/services/api'
 import { cn } from '@/utils/cn'
 import { EvidenceViewer } from '@/components/EvidenceViewer'
+// import { exportToPdf } from '@/utils/exportPdf'
 
 export function Reports() {
+    const { t } = useTranslation()
     const [reports, setReports] = useState<ReportSummary[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null)
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
     const [detailTab, setDetailTab] = useState<'score' | 'evidence'>('score')
+    // const [exporting, setExporting] = useState(false)
+    const reportContentRef = useRef<HTMLDivElement>(null)
 
     // 加载报告列表
     const loadReports = useCallback(async () => {
@@ -70,6 +75,22 @@ export function Reports() {
         return "text-amber-600 bg-amber-50"
     }
 
+    /* 导出 PDF (暂不使用)
+    const handleExportPdf = async () => {
+        if (!reportContentRef.current || !selectedReport) return
+
+        setExporting(true)
+        try {
+            const filename = `${selectedReport.task_id}_${selectedReport.guideline_title}`
+            await exportToPdf(reportContentRef.current, filename)
+        } catch (e) {
+            console.error('导出 PDF 失败:', e)
+        } finally {
+            setExporting(false)
+        }
+    }
+    */
+
     // 报告详情视图
     if (selectedReport) {
         return (
@@ -77,7 +98,7 @@ export function Reports() {
                 {/* 返回按钮 */}
                 <Button variant="ghost" onClick={backToList} className="gap-2">
                     <ArrowLeft className="h-4 w-4" />
-                    返回列表
+                    {t('reports.backToList')}
                 </Button>
 
                 {/* 报告头部 */}
@@ -87,48 +108,63 @@ export function Reports() {
                             <p className="text-sm text-muted-foreground font-mono">{selectedReport.task_id}</p>
                             <h1 className="text-xl font-semibold mt-1">{selectedReport.guideline_title}</h1>
                             <p className="text-sm text-muted-foreground mt-2">
-                                评价日期: {selectedReport.evaluation_date} · {selectedReport.evaluator}
+                                {t('reports.detail.date')} {selectedReport.evaluation_date} · {selectedReport.evaluator}
                             </p>
                         </div>
+                        {/* 推荐结论 */}
                         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
                             {getRecommendationIcon(selectedReport.overall_assessment.recommendation)}
                             <span className="text-sm font-medium">
-                                {selectedReport.overall_assessment.recommendation || '未评估'}
+                                {selectedReport.overall_assessment.recommendation || t('reports.detail.notEvaluated')}
                             </span>
                         </div>
                     </div>
                 </div>
 
                 {/* Tab 切换 */}
-                <div className="flex items-center gap-2 p-1 bg-muted rounded-xl w-fit">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 p-1 bg-muted rounded-xl w-fit">
+                        <Button
+                            variant={detailTab === 'score' ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => setDetailTab('score')}
+                            className="gap-2"
+                        >
+                            <FileBarChart className="h-4 w-4" />
+                            {t('reports.tab.score')}
+                        </Button>
+                        <Button
+                            variant={detailTab === 'evidence' ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => setDetailTab('evidence')}
+                            className="gap-2"
+                        >
+                            <Eye className="h-4 w-4" />
+                            {t('reports.tab.evidence')}
+                        </Button>
+                    </div>
+                    {/* 导出按钮 (暂不使用)
                     <Button
-                        variant={detailTab === 'score' ? 'default' : 'ghost'}
+                        variant="outline"
                         size="sm"
-                        onClick={() => setDetailTab('score')}
+                        onClick={undefined}
+                        disabled={true}
                         className="gap-2"
                     >
-                        <FileBarChart className="h-4 w-4" />
-                        评分详情
+                        <_Download className="h-4 w-4" />
+                        {t('reports.export.pdf')}
                     </Button>
-                    <Button
-                        variant={detailTab === 'evidence' ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setDetailTab('evidence')}
-                        className="gap-2"
-                    >
-                        <Eye className="h-4 w-4" />
-                        证据池视图
-                    </Button>
+                    */}
                 </div>
 
                 {/* Tab 内容 */}
                 {detailTab === 'evidence' ? (
                     <EvidenceViewer taskId={selectedReport.task_id} />
                 ) : (
-                    <>
+                    <div ref={reportContentRef} className="space-y-6">
                         {/* 领域评分 */}
                         <div className="bg-card rounded-xl border p-6">
-                            <h2 className="text-lg font-semibold mb-4">领域评分</h2>
+                            <h2 className="text-lg font-semibold mb-4">{t('reports.detail.domainScores')}</h2>
                             <div className="space-y-3">
                                 {Object.entries(selectedReport.domain_scores).map(([key, domain]) => (
                                     <div key={key} className="flex items-center gap-4">
@@ -152,9 +188,7 @@ export function Reports() {
                                         )}>
                                             {domain.score !== null ? `${domain.score}%` : 'N/A'}
                                         </span>
-                                        <span className="text-xs text-muted-foreground w-16 text-right">
-                                            {domain.evaluated_count}/{domain.item_count} 项
-                                        </span>
+
                                     </div>
                                 ))}
                             </div>
@@ -166,7 +200,7 @@ export function Reports() {
                                 <div className="grid md:grid-cols-2 gap-4">
                                     {selectedReport.overall_assessment.strengths?.length > 0 && (
                                         <div className="bg-green-50 rounded-xl border border-green-100 p-6">
-                                            <h3 className="font-medium text-green-800 mb-3">优势</h3>
+                                            <h3 className="font-medium text-green-800 mb-3">{t('reports.detail.strengths')}</h3>
                                             <ul className="space-y-2">
                                                 {selectedReport.overall_assessment.strengths.map((s, i) => (
                                                     <li key={i} className="text-sm text-green-700">{s}</li>
@@ -176,7 +210,7 @@ export function Reports() {
                                     )}
                                     {selectedReport.overall_assessment.weaknesses?.length > 0 && (
                                         <div className="bg-red-50 rounded-xl border border-red-100 p-6">
-                                            <h3 className="font-medium text-red-800 mb-3">不足</h3>
+                                            <h3 className="font-medium text-red-800 mb-3">{t('reports.detail.weaknesses')}</h3>
                                             <ul className="space-y-2">
                                                 {selectedReport.overall_assessment.weaknesses.map((w, i) => (
                                                     <li key={i} className="text-sm text-red-700">{w}</li>
@@ -190,7 +224,7 @@ export function Reports() {
                         {/* 条目评价详情 */}
                         {selectedReport.item_evaluations?.length > 0 && (
                             <div className="bg-card rounded-xl border p-6">
-                                <h2 className="text-lg font-semibold mb-4">条目评价详情</h2>
+                                <h2 className="text-lg font-semibold mb-4">{t('reports.detail.itemDetails')}</h2>
                                 <div className="space-y-4">
                                     {[...selectedReport.item_evaluations]
                                         .sort((a, b) => {
@@ -216,13 +250,13 @@ export function Reports() {
                                                 <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-3">
                                                     {item.step1_locate && (
                                                         <div>
-                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">证据位置</h4>
+                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.evidenceLocation')}</h4>
                                                             <p className="text-sm">{item.step1_locate}</p>
                                                         </div>
                                                     )}
                                                     {item.step2_evidence && item.step2_evidence.length > 0 && (
                                                         <div>
-                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">引用证据</h4>
+                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.quotedEvidence')}</h4>
                                                             <ul className="space-y-1">
                                                                 {item.step2_evidence.map((e, i) => (
                                                                     <li key={i} className="text-sm text-muted-foreground bg-white/50 p-2 rounded border-l-2 border-primary/30">
@@ -234,13 +268,13 @@ export function Reports() {
                                                     )}
                                                     {item.step3_reasoning && (
                                                         <div>
-                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">评分理由</h4>
+                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.scoringReason')}</h4>
                                                             <p className="text-sm">{item.step3_reasoning}</p>
                                                         </div>
                                                     )}
                                                     {item.evaluated_at && (
                                                         <p className="text-xs text-muted-foreground/50 text-right">
-                                                            评价时间: {new Date(item.evaluated_at).toLocaleString()}
+                                                            {t('reports.detail.evaluatedAt')} {new Date(item.evaluated_at).toLocaleString()}
                                                         </p>
                                                     )}
                                                 </div>
@@ -249,7 +283,7 @@ export function Reports() {
                                 </div>
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
             </div>
         )
@@ -263,10 +297,10 @@ export function Reports() {
 
                 <div className="space-y-2">
                     <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600">
-                        评价报告
+                        {t('reports.title')}
                     </h2>
                     <p className="text-lg text-gray-600 max-w-2xl font-light">
-                        查看和管理所有的指南评价结果归档。
+                        {t('reports.description')}
                     </p>
                 </div>
 
@@ -308,7 +342,7 @@ export function Reports() {
                         className="h-10 px-4 bg-white border-emerald-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all text-gray-600 gap-2 rounded-xl shadow-sm"
                     >
                         <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                        刷新
+                        {t('reports.refresh')}
                     </Button>
                 </div>
             </header>
@@ -316,13 +350,13 @@ export function Reports() {
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-32 text-gray-400">
                     <Loader2 className="h-8 w-8 animate-spin mb-3 text-primary" />
-                    <span className="text-sm font-medium">加载数据中...</span>
+                    <span className="text-sm font-medium">{t('common.loadingData')}</span>
                 </div>
             ) : reports.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
                     <FileText className="h-16 w-16 mb-4 opacity-20" />
-                    <p className="text-lg font-medium text-gray-900">暂无评价报告</p>
-                    <p className="text-sm mt-2">完成评价任务后，报告将显示在这里</p>
+                    <p className="text-lg font-medium text-gray-900">{t('reports.empty.title')}</p>
+                    <p className="text-sm mt-2">{t('reports.empty.hint')}</p>
                 </div>
             ) : (
                 <>
@@ -331,12 +365,12 @@ export function Reports() {
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-500">
                                     <tr>
-                                        <th className="px-6 py-4 font-medium w-16">状态</th>
-                                        <th className="px-6 py-4 font-medium w-48">任务ID</th>
-                                        <th className="px-6 py-4 font-medium">指南标题</th>
-                                        <th className="px-6 py-4 font-medium w-32">时间</th>
-                                        <th className="px-6 py-4 font-medium w-32 text-center">综合得分</th>
-                                        <th className="px-6 py-4 font-medium w-40 text-center">推荐结论</th>
+                                        <th className="px-6 py-4 font-medium w-16">{t('reports.table.status')}</th>
+                                        <th className="px-6 py-4 font-medium w-48">{t('reports.table.taskId')}</th>
+                                        <th className="px-6 py-4 font-medium">{t('reports.table.title')}</th>
+                                        <th className="px-6 py-4 font-medium w-32">{t('reports.table.time')}</th>
+                                        <th className="px-6 py-4 font-medium w-32 text-center">{t('reports.table.score')}</th>
+                                        <th className="px-6 py-4 font-medium w-40 text-center">{t('reports.table.recommendation')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -382,7 +416,7 @@ export function Reports() {
                                                         <span className="text-gray-700">{report.recommendation}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-gray-400 text-xs">暂无结论</span>
+                                                    <span className="text-gray-400 text-xs">{t('reports.noConclusion')}</span>
                                                 )}
                                             </td>
                                         </tr>
@@ -444,7 +478,7 @@ export function Reports() {
                 <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
                     <div className="flex flex-col items-center gap-3">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span className="text-sm text-muted-foreground">加载报告详情...</span>
+                        <span className="text-sm text-muted-foreground">{t('reports.loading.detail')}</span>
                     </div>
                 </div>
             )}

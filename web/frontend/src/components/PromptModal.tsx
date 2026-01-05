@@ -3,6 +3,8 @@
  * 
  * 显示 Appraiser 评价时使用的完整提示词
  */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -12,7 +14,6 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Copy, Check } from 'lucide-react'
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface PromptModalProps {
@@ -23,6 +24,7 @@ interface PromptModalProps {
 }
 
 export function PromptModal({ isOpen, onClose, skillId, prompt }: PromptModalProps) {
+    const { t } = useTranslation()
     const [copied, setCopied] = useState(false)
 
     const handleCopy = async () => {
@@ -38,7 +40,7 @@ export function PromptModal({ isOpen, onClose, skillId, prompt }: PromptModalPro
             <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0 bg-white border border-gray-200/80 shadow-2xl sm:rounded-xl overflow-hidden ring-1 ring-black/5">
                 <div className="flex items-center px-6 py-4 border-b border-gray-200/50 bg-gray-50/80">
                     <div className="flex items-center gap-3">
-                        <DialogTitle className="text-base font-semibold text-gray-900">提示词上下文</DialogTitle>
+                        <DialogTitle className="text-base font-semibold text-gray-900">{t('prompt.title')}</DialogTitle>
                         {skillId && (
                             <Badge variant="secondary" className="font-mono text-xs font-medium text-gray-600 bg-white/80 border border-gray-200/50">
                                 {skillId}
@@ -49,7 +51,7 @@ export function PromptModal({ isOpen, onClose, skillId, prompt }: PromptModalPro
                             size="icon"
                             onClick={handleCopy}
                             className="h-6 w-6 rounded-full text-gray-400 hover:text-gray-900 hover:bg-black/5 transition-colors"
-                            title="复制提示词"
+                            title={t('prompt.copy')}
                         >
                             {copied ? (
                                 <Check className="h-3.5 w-3.5 text-emerald-600" />
@@ -75,7 +77,7 @@ export function PromptModal({ isOpen, onClose, skillId, prompt }: PromptModalPro
                             {prompt ? (
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{prompt}</ReactMarkdown>
                             ) : (
-                                <p className="text-muted-foreground italic">暂无提示词内容</p>
+                                <p className="text-muted-foreground italic">{t('prompt.empty')}</p>
                             )}
                         </div>
                     </div>

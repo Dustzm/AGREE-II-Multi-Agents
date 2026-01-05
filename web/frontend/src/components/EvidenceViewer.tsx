@@ -4,6 +4,7 @@
  * 以 PDF 页面为单位渲染，用不同颜色标注各语义类别区域
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -53,16 +54,8 @@ const DEFAULT_LABEL_COLORS: Record<string, string> = {
     Irrelevant: '#9CA3AF'
 }
 
-// 标签中文名
-const LABEL_NAMES: Record<string, string> = {
-    Overview: '概述',
-    Methodology: '方法学',
-    Clinical: '临床内容',
-    Independence: '独立性',
-    Irrelevant: '无关内容'
-}
-
 export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
+    const { t } = useTranslation()
     const [visualEvidence, setVisualEvidence] = useState<VisualEvidence | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -81,7 +74,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                 setLoading(true)
                 const response = await fetch(`/ama/api/reports/${taskId}/visual_evidence`)
                 if (!response.ok) {
-                    throw new Error('加载可视化证据失败')
+                    throw new Error(t('evidence.error.visualLoadFailed'))
                 }
                 const data = await response.json()
                 setVisualEvidence(data)
@@ -113,6 +106,18 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
         }
     }, [])
 
+    // 获取标签名称的国际化函数
+    const getLabelName = (label: string) => {
+        const labelKeyMap: Record<string, string> = {
+            'Overview': 'evidence.label.overview',
+            'Methodology': 'evidence.label.methodology',
+            'Clinical': 'evidence.label.clinical',
+            'Independence': 'evidence.label.independence',
+            'Irrelevant': 'evidence.label.irrelevant'
+        }
+        return labelKeyMap[label] ? t(labelKeyMap[label]) : label
+    }
+
     // 获取当前页的标注区域
     const currentPageData = visualEvidence?.pages[currentPage]
     const labelColors = visualEvidence?.label_colors || DEFAULT_LABEL_COLORS
@@ -141,7 +146,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
         return (
             <div className="flex items-center justify-center h-96">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2">加载证据池数据...</span>
+                <span className="ml-2">{t('evidence.loading')}</span>
             </div>
         )
     }
@@ -149,7 +154,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
     if (error) {
         return (
             <div className="flex items-center justify-center h-96 text-red-500">
-                <span>加载失败: {error}</span>
+                <span>{t('evidence.error.loadFailed', { error })}</span>
             </div>
         )
     }
@@ -159,9 +164,9 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
             {/* 左侧：PDF 视图 */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* 工具栏 */}
-                <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
+                <div className="flex items-center gap-4 px-4 py-2 bg-white border-b overflow-x-auto">
                     {/* 页码导航 */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         <Button
                             variant="outline"
                             size="sm"
@@ -170,8 +175,8 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <span className="text-sm font-medium px-3">
-                            第 {currentPage + 1} / {numPages} 页
+                        <span className="text-sm font-medium px-3 whitespace-nowrap min-w-[4rem] text-center">
+                            {t('evidence.pagination', { current: currentPage + 1, total: numPages })}
                         </span>
                         <Button
                             variant="outline"
@@ -184,26 +189,26 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                     </div>
 
                     {/* 缩放控制 */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         <Button variant="outline" size="sm" onClick={zoomOut}>
                             <ZoomOut className="h-4 w-4" />
                         </Button>
-                        <span className="text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
+                        <span className="text-sm w-12 text-center whitespace-nowrap">{Math.round(scale * 100)}%</span>
                         <Button variant="outline" size="sm" onClick={zoomIn}>
                             <ZoomIn className="h-4 w-4" />
                         </Button>
                     </div>
 
                     {/* 标签图例 */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 ml-auto min-w-0 overflow-x-auto scrollbar-hide">
                         {Object.entries(labelColors).map(([label, color]) => (
-                            <div key={label} className="flex items-center gap-1">
+                            <div key={label} className="flex items-center gap-1 flex-shrink-0">
                                 <div
                                     className="w-3 h-3 rounded"
                                     style={{ backgroundColor: color }}
                                 />
-                                <span className="text-xs text-gray-600">
-                                    {LABEL_NAMES[label] || label}
+                                <span className="text-xs text-gray-600 whitespace-nowrap">
+                                    {getLabelName(label)}
                                 </span>
                             </div>
                         ))}
@@ -291,14 +296,14 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
 
                         {/* 标签 */}
                         <div>
-                            <label className="text-xs text-gray-500 block mb-1">语义标签</label>
+                            <label className="text-xs text-gray-500 block mb-1">{t('evidence.detail.semanticLabel')}</label>
                             <div className="flex items-center gap-2">
                                 <div
                                     className="w-4 h-4 rounded"
                                     style={{ backgroundColor: labelColors[selectedRegion.label] }}
                                 />
                                 <span className="font-medium">
-                                    {LABEL_NAMES[selectedRegion.label] || selectedRegion.label}
+                                    {getLabelName(selectedRegion.label)}
                                 </span>
                             </div>
                         </div>
@@ -306,21 +311,21 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                         {/* 标题 */}
                         {selectedRegion.title && (
                             <div>
-                                <label className="text-xs text-gray-500 block mb-1">所属章节</label>
+                                <label className="text-xs text-gray-500 block mb-1">{t('evidence.detail.section')}</label>
                                 <p className="text-sm">{selectedRegion.title}</p>
                             </div>
                         )}
 
                         {/* 内容类型 */}
                         <div>
-                            <label className="text-xs text-gray-500 block mb-1">内容类型</label>
+                            <label className="text-xs text-gray-500 block mb-1">{t('evidence.detail.contentType')}</label>
                             <p className="text-sm">{selectedRegion.type}</p>
                         </div>
 
                         {/* 分类理由 */}
                         {selectedRegion.reasoning && (
                             <div>
-                                <label className="text-xs text-gray-500 block mb-1">分类理由</label>
+                                <label className="text-xs text-gray-500 block mb-1">{t('evidence.detail.reason')}</label>
                                 <p className="text-sm bg-gray-50 p-3 rounded-lg border">
                                     {selectedRegion.reasoning}
                                 </p>
@@ -330,7 +335,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                         {/* 内容预览 */}
                         {selectedRegion.text_preview && (
                             <div>
-                                <label className="text-xs text-gray-500 block mb-1">内容预览</label>
+                                <label className="text-xs text-gray-500 block mb-1">{t('evidence.detail.preview')}</label>
                                 <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border">
                                     {selectedRegion.text_preview}...
                                 </p>
@@ -339,8 +344,8 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                     </div>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                        <p className="text-sm">点击页面上的标注区域</p>
-                        <p className="text-sm">查看详细信息</p>
+                        <p className="text-sm">{t('evidence.detail.clickHint1')}</p>
+                        <p className="text-sm">{t('evidence.detail.clickHint2')}</p>
                     </div>
                 )}
             </div>

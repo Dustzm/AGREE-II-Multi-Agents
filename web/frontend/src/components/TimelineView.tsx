@@ -7,6 +7,7 @@
  * - Initiator、Appraiser（Orchestrator 子代理，缩进显示）
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/utils/cn'
 import { FileText, Bot, Sparkles, CheckCircle2, AlertCircle, Circle, Info, Database } from 'lucide-react'
 import { PromptModal } from './PromptModal'
@@ -65,6 +66,8 @@ interface TimelineViewProps {
 }
 
 export function TimelineView({ events, taskId }: TimelineViewProps) {
+    const { t } = useTranslation()
+
     // 提示词弹窗状态
     const [promptModal, setPromptModal] = useState<{ isOpen: boolean; skillId?: string; prompt?: string }>({
         isOpen: false
@@ -95,7 +98,7 @@ export function TimelineView({ events, taskId }: TimelineViewProps) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground/50">
                 <Sparkles className="h-12 w-12 mb-4 opacity-30" />
-                <p className="text-sm">选择一个 PDF 文件开始评价</p>
+                <p className="text-sm">{t('timeline.empty.hint')}</p>
             </div>
         )
     }
@@ -109,7 +112,7 @@ export function TimelineView({ events, taskId }: TimelineViewProps) {
                         <Sparkles className="h-5 w-5 text-primary" />
                         <div>
                             <p className="text-sm font-medium">{taskId}</p>
-                            <p className="text-xs text-muted-foreground">AGREE-II 评价任务</p>
+                            <p className="text-xs text-muted-foreground">{t('timeline.taskLabel')}</p>
                         </div>
                     </div>
                 )}

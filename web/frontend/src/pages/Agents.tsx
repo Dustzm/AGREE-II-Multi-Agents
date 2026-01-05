@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { promptsService } from '../services/prompts'
 import { motion } from 'framer-motion'
 import { Bot, Pencil, Check, AlertCircle, Loader2, Languages } from 'lucide-react'
@@ -56,6 +57,7 @@ const HighlightEditor = React.memo(({ content, onChange }: { content: string; on
 })
 
 export function Agents() {
+    const { t: _t } = useTranslation()
     const [agents, setAgents] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
