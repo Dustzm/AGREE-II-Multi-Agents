@@ -60,7 +60,6 @@ logs/
 
 #customize
 node_modules/
-package-lock.json
 .agent/
 .kiro/
 AGENTS.md
