@@ -67,5 +67,23 @@ export const skillsService = {
             throw new Error('Failed to update skill details')
         }
         return response.json()
+    },
+
+    /**
+     * 批量更新所有 skills 的启用状态
+     */
+    async batchUpdateStatus(enabled: boolean): Promise<Skill[]> {
+        const response = await fetch(`${API_BASE_URL}/skills/batch/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enabled }),
+        })
+        if (!response.ok) {
+            throw new Error('Failed to batch update skills')
+        }
+        return response.json()
     }
 }
+

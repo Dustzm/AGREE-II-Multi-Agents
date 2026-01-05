@@ -97,7 +97,8 @@ class IterativeEvaluator:
         
         # 3. 迭代遍历
         # 3. 迭代遍历 (使用 batch 加速)
-        batch_size = 5
+        # batch_size=15 可在 100K 上下文内安全处理，减少约 66% 的 LLM 调用
+        batch_size = 15
         iterator_list = list(iterator)
         
         for i in range(0, len(iterator_list), batch_size):
@@ -171,8 +172,8 @@ class IterativeEvaluator:
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.1,
-                max_tokens=4096, # Batch 模式下允许提取更多
+                temperature=0.3,  # 提高温度，增加灵活性，避免过度严格
+                max_tokens=8192, # Batch 模式下允许提取更多
                 response_format={"type": "json_object"}
             )
             
@@ -220,28 +221,62 @@ class IterativeEvaluator:
         prompt = render_scoring_prompt(
             item_id=self.skill_id,
             title=self.skill_config.get("title", ""),
+            criteria=self.skill_config.get("criteria", []),
             evidence_cache=self.evidence_cache,
             scoring_table=scoring_table,
             n_sources=len(self.evidence_sources),
         )
         
+        # 修改 prompt 以输出 JSON 格式
+        system_instruction = "You are a scoring assistant. Output JSON only."
+        api_prompt = prompt + "\n\nIMPORTANT: Return a JSON object with exactly two keys:\n1. 'analysis': brief explanation of which criteria are met\n2. 'score': integer 1-7\n\nExample: {\"analysis\": \"The evidence covers...\", \"score\": 5}"
+        
         try:
             response = litellm.completion(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": api_prompt}
+                ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
                 temperature=0.1,
-                max_tokens=2024, # 评分阶段不需要太长
+                max_tokens=4096,  # 给评分分析留足空间
+                response_format={"type": "json_object"}  # 强制 JSON 输出
             )
             
             content = response.choices[0].message.content.strip()
+            logger.debug(f"动态评分 JSON 输出: {content[:200]}...")
             
-            # 提取数字
+            # 解析 JSON
+            data = json.loads(content)
+            score = data.get("score", self.current_score)
+            
+            # 处理可能的范围格式如 "3-4"
+            if isinstance(score, str):
+                if "-" in score:
+                    # 取范围的较高值
+                    parts = score.split("-")
+                    score = int(parts[-1].strip())
+                else:
+                    score = int(score)
+            
+            if 1 <= score <= 7:
+                logger.info(f"从 JSON 提取到评分: {score}")
+                return score
+            else:
+                logger.warning(f"评分 {score} 超出范围，使用当前值: {self.current_score}")
+                return self.current_score
+            
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 解析失败: {e}, 尝试正则回退")
+            # 回退到正则匹配
             import re
-            match = re.search(r'\b([1-7])\b', content)
+            match = re.search(r'"score"\s*:\s*(\d)', content)
             if match:
-                return int(match.group(1))
+                score = int(match.group(1))
+                if 1 <= score <= 7:
+                    return score
             return self.current_score
             
         except Exception as e:
@@ -279,20 +314,44 @@ class IterativeEvaluator:
                 messages=[{"role": "user", "content": prompt}],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.2,
-                max_tokens=5096, # 最终报告需要生成详细的 CoT
+                temperature=0.3,  # 稍高温度以获得更丰富的推理
+                max_tokens=16384, # 最终报告需要生成详细的 CoT，证据多时需要更大空间
             )
             
             content = response.choices[0].message.content.strip()
+            logger.debug(f"LLM 原始输出: {content[:500]}...")
             
-            # 解析 JSON
-            if content.startswith("```"):
+            # 解析 JSON - 增强容错性
+            # 移除 markdown 代码块
+            if "```json" in content:
+                content = content.split("```json")[1]
+                if "```" in content:
+                    content = content.split("```")[0]
+            elif content.startswith("```"):
                 content = content.split("\n", 1)[1]
                 if content.endswith("```"):
                     content = content[:-3]
-                content = content.strip()
+            content = content.strip()
             
-            cot = json.loads(content)
+            # 尝试提取 JSON 对象
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                content = json_match.group(0)
+            
+            try:
+                cot = json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON 解析失败: {e}, 原始内容: {content[:200]}...")
+                # 尝试从文本中提取 reasoning
+                reasoning_match = re.search(r'step3_reasoning["\s:]+([^"]*"[^"]+"|[^\n,}]+)', content)
+                if reasoning_match:
+                    cot = {
+                        "step1_locate": f"证据来自以下章节: {', '.join(self.evidence_sources)}",
+                        "step3_reasoning": reasoning_match.group(1).strip().strip('"')
+                    }
+                else:
+                    raise e
             
             return {
                 "status": "success",
@@ -300,7 +359,7 @@ class IterativeEvaluator:
                 "domain": self.domain_id,
                 "title": self.skill_config.get("title", ""),
                 "chain_of_thought": {
-                    "step1_locate": cot.get("step1_locate", ""),
+                    "step1_locate": cot.get("step1_locate", f"证据来自以下章节: {', '.join(self.evidence_sources)}"),
                     "step2_evidence": self.evidence_cache,
                     "step3_reasoning": cot.get("step3_reasoning", ""),
                     "score": self.current_score,
@@ -319,6 +378,27 @@ class IterativeEvaluator:
     
     def _simple_report(self) -> Dict[str, Any]:
         """生成简化报告（LLM 调用失败时的回退）"""
+        # 尝试从评分标准中找到对应的条件描述
+        scoring_principles = self.skill_config.get("scoring_principle", [])
+        matched_condition = ""
+        for sp in scoring_principles:
+            score_range = sp.get("range", "")
+            # 处理范围格式如 "5-6" 或单个值 "7"
+            if "-" in str(score_range):
+                low, high = map(int, str(score_range).split("-"))
+                if low <= self.current_score <= high:
+                    matched_condition = sp.get("condition", sp.get("condition_zh", ""))
+                    break
+            elif str(score_range) == str(self.current_score):
+                matched_condition = sp.get("condition", sp.get("condition_zh", ""))
+                break
+        
+        reasoning = f"基于 {len(self.evidence_cache)} 条证据进行评价。"
+        if matched_condition:
+            reasoning += f" 根据评分标准，符合【{matched_condition}】条件，评分为 {self.current_score}。"
+        else:
+            reasoning += f" 评分为 {self.current_score}。"
+        
         return {
             "status": "success",
             "skill_id": self.skill_id,
@@ -327,7 +407,7 @@ class IterativeEvaluator:
             "chain_of_thought": {
                 "step1_locate": f"证据来自以下章节: {', '.join(self.evidence_sources)}",
                 "step2_evidence": self.evidence_cache,
-                "step3_reasoning": f"基于 {len(self.evidence_cache)} 条证据，评分为 {self.current_score}",
+                "step3_reasoning": reasoning,
                 "score": self.current_score,
             },
             "evidence_sources": self.evidence_sources,

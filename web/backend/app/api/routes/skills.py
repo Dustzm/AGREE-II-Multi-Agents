@@ -38,3 +38,18 @@ async def update_item_details(skill_id: str, details: SkillUpdateDetails):
         raise HTTPException(status_code=404, detail="Skill not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/skills/batch/status", response_model=List[dict])
+async def batch_update_skills(data: SkillUpdate):
+    """
+    批量更新所有 skills 的启用状态
+    
+    - enabled: true 全部启用，false 全部禁用
+    """
+    from web.backend.app.services.skills_service import update_all_skills_status
+    try:
+        return update_all_skills_status(data.enabled)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -5,6 +5,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { Toast, type ToastType } from '@/components/Toast'
 import {
     Folder, FileText, Play, Square, RefreshCw, Loader2,
     CheckCircle2, XCircle, Clock, AlertCircle, ChevronRight, ChevronDown,
@@ -33,11 +34,22 @@ interface PdfWithFolder extends PdfInfo {
     folder: string
 }
 
+// Toast 提示信息
+interface ToastMessage {
+    id: number
+    type: ToastType
+    message: string
+}
+
 export function Batch() {
     // 文件夹列表
     const [folders, setFolders] = useState<FolderInfo[]>([])
     const [loadingFolders, setLoadingFolders] = useState(true)
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+
+    // Toast 提示列表
+    const [toasts, setToasts] = useState<ToastMessage[]>([])
+    const toastIdRef = useRef(0)
 
     // PDF 列表 (每个文件夹)
     const [folderPdfs, setFolderPdfs] = useState<Record<string, PdfInfo[]>>({})
@@ -149,6 +161,15 @@ export function Batch() {
         setSelectedPdfs(new Set())
     }, [])
 
+    // 显示 Toast 提示
+    const showToast = useCallback((
+        message: string,
+        type: ToastType = 'info'
+    ) => {
+        const id = toastIdRef.current++
+        setToasts(prev => [...prev, { id, type, message }])
+    }, [])
+
     // 处理文件夹上传
     const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files
@@ -205,9 +226,13 @@ export function Batch() {
             wsRef.current = createBatchWebSocket(
                 sessionIdRef.current,
                 (task) => {
+                    console.log('收到任务更新:', task)
                     // 更新单个任务
                     setBatchStatus(prev => {
-                        if (!prev) return prev
+                        if (!prev) {
+                            console.warn('收到任务更新但 batchStatus 为空')
+                            return prev
+                        }
                         const tasks = prev.tasks.map(t =>
                             t.id === task.id ? task : t
                         )
@@ -218,9 +243,27 @@ export function Batch() {
                     })
                 },
                 (status) => {
+                    console.log('收到批量状态更新:', status)
                     setBatchStatus(status)
+                },
+                (error) => {
+                    console.error('WebSocket 错误:', error)
+                    // WebSocket错误时降级到轮询
+                    const interval = setInterval(async () => {
+                        try {
+                            const latestStatus = await batchApi.getStatus()
+                            setBatchStatus(latestStatus)
+                        } catch (e) {
+                            console.error('轮询状态失败:', e)
+                        }
+                    }, 3000)
+
+                    // 清理定时器（当组件卸载或任务完成时）
+                    wsRef.current?.addEventListener('close', () => clearInterval(interval), { once: true })
                 }
             )
+
+            console.log('WebSocket 已创建，sessionId:', sessionIdRef.current)
         } catch (e) {
             alert(e instanceof Error ? e.message : '启动失败')
         }
@@ -228,13 +271,26 @@ export function Batch() {
 
     // 停止批量任务
     const handleStop = useCallback(async () => {
+        if (!batchStatus?.is_running) {
+            showToast('当前没有正在运行的批量任务', 'warning')
+            return
+        }
+
         try {
             await batchApi.stop()
             await loadStatus()
+
+            showToast(
+                '批量任务已停止，正在等待当前步骤完成...',
+                'success'
+            )
         } catch (e) {
-            alert(e instanceof Error ? e.message : '停止失败')
+            showToast(
+                e instanceof Error ? e.message : '停止失败',
+                'error'
+            )
         }
-    }, [loadStatus])
+    }, [batchStatus, loadStatus, showToast])
 
     // 初始化
     useEffect(() => {
@@ -545,6 +601,18 @@ export function Batch() {
                     )}
                 </div>
             </div>
+
+            {/* Toast 提示列表 */}
+            {toasts.map(toast => (
+                <Toast
+                    key={toast.id}
+                    type={toast.type}
+                    message={toast.message}
+                    onClose={() => {
+                        setToasts(prev => prev.filter(t => t.id !== toast.id))
+                    }}
+                />
+            ))}
         </div>
     )
 }

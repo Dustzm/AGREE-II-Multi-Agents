@@ -43,6 +43,18 @@ export interface BatchStatus {
     tasks: BatchTask[]
 }
 
+export interface SessionInfo {
+    session_id: string
+    created_at: string
+    last_updated: string
+    total_tasks: number
+    done: number
+    error: number
+    running: number
+    pending: number
+    is_completed: boolean
+}
+
 // ===== API 函数 =====
 
 export const batchApi = {
@@ -125,6 +137,46 @@ export const batchApi = {
         }
         return res.json()
     },
+
+    /**
+     * 列出所有历史会话
+     */
+    async listSessions(): Promise<SessionInfo[]> {
+        const res = await fetch(`${API_BASE}/batch/sessions`)
+        if (!res.ok) {
+            throw new Error('获取会话列表失败')
+        }
+        const data = await res.json()
+        return data.sessions
+    },
+
+    /**
+     * 恢复指定会话
+     */
+    async restoreSession(sessionId: string): Promise<{ message: string; session_id: string; status: BatchStatus }> {
+        const res = await fetch(`${API_BASE}/batch/restore/${encodeURIComponent(sessionId)}`, {
+            method: 'POST',
+        })
+        if (!res.ok) {
+            const data = await res.json()
+            throw new Error(data.detail || '恢复会话失败')
+        }
+        return res.json()
+    },
+
+    /**
+     * 删除指定会话
+     */
+    async deleteSession(sessionId: string): Promise<{ message: string }> {
+        const res = await fetch(`${API_BASE}/batch/sessions/${encodeURIComponent(sessionId)}`, {
+            method: 'DELETE',
+        })
+        if (!res.ok) {
+            const data = await res.json()
+            throw new Error(data.detail || '删除会话失败')
+        }
+        return res.json()
+    },
 }
 
 // ===== WebSocket 连接 =====
@@ -138,6 +190,13 @@ export function createBatchWebSocket(
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${protocol}//${window.location.host}/ama/api/batch/ws/${sessionId}`)
 
+    // 心跳定时器：每30秒发送一次ping
+    const heartbeatInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }))
+        }
+    }, 30000)
+
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data)
@@ -148,6 +207,9 @@ export function createBatchWebSocket(
             } else if (data.type === 'status') {
                 // 初始状态
                 onComplete(data.status)
+            } else if (data.type === 'pong') {
+                // 心跳响应，无需处理
+                console.debug('收到心跳响应')
             }
         } catch (e) {
             console.error('WebSocket 消息解析失败:', e)
@@ -160,6 +222,7 @@ export function createBatchWebSocket(
 
     ws.onclose = () => {
         console.log('批量任务 WebSocket 已断开')
+        clearInterval(heartbeatInterval)
     }
 
     return ws

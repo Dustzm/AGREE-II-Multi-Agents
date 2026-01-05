@@ -119,8 +119,19 @@ async def list_reports():
             continue
         
         # 计算平均分数（只计算有评分的领域）
+        # 兼容旧版本和新版本的数据格式
         domain_scores = data.get("domain_scores", {})
-        valid_scores = [d.get("score") for d in domain_scores.values() if d.get("score") is not None]
+        valid_scores = []
+        for d in domain_scores.values():
+            # 新版本：字典格式 {"name": "...", "score": 5.5, ...}
+            if isinstance(d, dict):
+                score = d.get("score")
+                if score is not None:
+                    valid_scores.append(score)
+            # 旧版本：直接是数值
+            elif isinstance(d, (int, float)):
+                valid_scores.append(d)
+        
         avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
         
         # 获取推荐结论

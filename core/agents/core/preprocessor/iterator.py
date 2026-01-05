@@ -30,6 +30,16 @@ class EvidenceIterator:
         # 获取该领域允许的语义标签
         relevant_labels = DOMAIN_LABEL_MAPPING.get(domain_id, [])
         
+        # 调试：打印第一个 chunk 的 label 信息
+        if chunks:
+            first_chunk = chunks[0]
+            logger.debug(
+                f"调试 - 第一个 chunk: label={first_chunk.label!r}, "
+                f"type={type(first_chunk.label).__name__}, "
+                f"relevant_labels={relevant_labels}, "
+                f"in_check={first_chunk.label in relevant_labels}"
+            )
+        
         # 过滤：只保留相关标签的 chunks，保持原始顺序
         self.chunks = [
             c for c in chunks

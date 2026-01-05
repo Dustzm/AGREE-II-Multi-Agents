@@ -235,8 +235,42 @@ class DocumentChunker:
                     elif isinstance(list_item, dict):
                         texts.append(f"- {list_item.get('text', '')}")
             elif item_type == "table":
-                # 表格暂时忽略或简化处理
-                texts.append("[TABLE]")
+                # 提取表格完整内容（caption + body + footnote）
+                table_parts = []
+
+                # 1. 表格标题
+                captions = item.get("table_caption", [])
+                if captions and isinstance(captions, list):
+                    caption_text = "\n".join(str(c).strip() for c in captions if c)
+                    if caption_text:
+                        table_parts.append(f"**Table:** {caption_text}")
+
+                # 2. 表格主体 (HTML 格式)
+                table_body = item.get("table_body", "").strip()
+                if table_body:
+                    # 超大表格截断（防止 token 溢出）
+                    MAX_TABLE_LENGTH = 5000
+                    if len(table_body) > MAX_TABLE_LENGTH:
+                        logger.warning(
+                            f"表格过大 ({len(table_body)} 字符)，截断为 {MAX_TABLE_LENGTH} 字符"
+                        )
+                        table_body = table_body[:MAX_TABLE_LENGTH] + "..."
+
+                    table_parts.append(table_body)
+                else:
+                    # 空表格警告
+                    logger.warning(f"检测到空表格: page={item.get('page_idx', 'unknown')}")
+                    table_parts.append("[EMPTY TABLE]")
+
+                # 3. 表格注释
+                footnotes = item.get("table_footnote", [])
+                if footnotes and isinstance(footnotes, list):
+                    footnote_text = "\n".join(str(f).strip() for f in footnotes if f)
+                    if footnote_text:
+                        table_parts.append(f"**Note:** {footnote_text}")
+
+                # 拼接并添加到文本列表
+                texts.append("\n\n".join(table_parts))
             elif item_type == "image":
                 # 图片添加占位符
                 caption = item.get("image_caption", [])

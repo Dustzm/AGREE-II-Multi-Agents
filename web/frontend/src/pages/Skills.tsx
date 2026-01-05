@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { skillsService, Skill, SkillUpdateDetails } from '../services/skills'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Layers, Check, X, AlertCircle, Pencil, Loader2 } from 'lucide-react'
+import { Layers, Check, X, AlertCircle, Pencil, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import {
     Dialog,
@@ -15,6 +15,7 @@ export function Skills() {
     const [skills, setSkills] = useState<Skill[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [batchUpdating, setBatchUpdating] = useState(false)
 
     // Edit State
     const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
@@ -92,6 +93,19 @@ export function Skills() {
         }
     }
 
+    // 批量更新所有条目状态
+    const batchToggle = async (enabled: boolean) => {
+        setBatchUpdating(true)
+        try {
+            const updatedSkills = await skillsService.batchUpdateStatus(enabled)
+            setSkills(updatedSkills)
+        } catch (err) {
+            console.error('Batch update failed', err)
+        } finally {
+            setBatchUpdating(false)
+        }
+    }
+
     const openEditDialog = (skill: Skill) => {
         skipSaveRef.current = true // Prevent auto-save on open
         setEditingSkill(skill)
@@ -160,12 +174,38 @@ export function Skills() {
         <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 p-8 space-y-10" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
             <header className="mb-12 relative z-10">
                 <div className="absolute top-0 left-0 w-64 h-64 bg-blue-400/20 rounded-full blur-[100px] -z-10 pointer-events-none" />
-                <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 mb-2">
-                    评价条目配置
-                </h2>
-                <p className="text-lg text-gray-600 max-w-2xl font-light">
-                    管理 AGREE-II 评价体系的各个维度和具体条目，定制您的评价标准。
-                </p>
+                <div className="flex items-start justify-between">
+                    <div>
+                        <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 mb-2">
+                            评价条目配置
+                        </h2>
+                        <p className="text-lg text-gray-600 max-w-2xl font-light">
+                            管理 AGREE-II 评价体系的各个维度和具体条目，定制您的评价标准。
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => batchToggle(true)}
+                            disabled={batchUpdating}
+                            className="gap-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+                        >
+                            {batchUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ToggleRight className="h-4 w-4" />}
+                            全部启用
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => batchToggle(false)}
+                            disabled={batchUpdating}
+                            className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                        >
+                            {batchUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ToggleLeft className="h-4 w-4" />}
+                            全部禁用
+                        </Button>
+                    </div>
+                </div>
             </header>
 
             {domains.map(domain => {

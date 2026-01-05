@@ -100,3 +100,28 @@ def update_skill_details(skill_id: str, details: SkillUpdateDetails) -> Dict[str
         
     updated_config = _load_skill_config_raw(skill_id)
     return _format_skill_response(updated_config, skill_id)
+
+
+def update_all_skills_status(enabled: bool) -> List[Dict[str, Any]]:
+    """
+    批量更新所有 skills 的启用状态
+    
+    Args:
+        enabled: True 全部启用，False 全部禁用
+    
+    Returns:
+        更新后的所有 skills 列表
+    """
+    skill_ids = list_available_skills(enabled_only=False)
+    updated_skills = []
+    
+    for skill_id in skill_ids:
+        try:
+            updated = update_skill_status(skill_id, enabled)
+            updated_skills.append(updated)
+        except Exception as e:
+            print(f"Error updating skill {skill_id}: {e}")
+            continue
+    
+    return updated_skills
+

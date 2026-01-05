@@ -15,20 +15,32 @@ EVIDENCE_EXTRACTION_PROMPT = """# Evidence Extraction Task
 ## Current Item
 - Item ID: {item_id}
 - Title: {title}
-- Evaluation Criteria:
+- Evaluation Criteria (use as reference for what to look for):
 {criteria_list}
 
 ## Content to Analyze
 {chunk_content}
 
-## Task
-Extract verbatim text fragments from the content above that are relevant to the evaluation criteria listed.
+## Your Task
+Extract **exact text fragments** from "Content to Analyze" that help answer the evaluation criteria.
+
+**What to Extract:**
+- Direct quotes from the document that describe relevant facts, data, or statements
+- Content that addresses the criteria items listed above
+
+**What NOT to Extract:**
+- The criteria labels themselves (e.g., don't copy "Health content" or "Target population" as evidence)
+- Your own interpretations or summaries
+
+**Example:**
+- ✓ GOOD: "The target patient population comprises all adults with type 2 diabetes"
+- ✗ BAD: "Target population"
 
 ## Output Format
-Return a JSON array of exact quotes from the source text:
+Return a JSON array of exact quotes:
 ["quote 1", "quote 2", ...]
 
-If no relevant content is found, return an empty array: []
+Return empty array [] if no relevant content found.
 """
 
 
@@ -41,6 +53,8 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 ## Current Item
 - Item ID: {item_id}
 - Title: {title}
+- Evaluation Criteria:
+{criteria_list}
 
 ## Accumulated Evidence (from {n_sources} sections)
 {evidence_cache}
@@ -51,10 +65,18 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 {scoring_table}
 
 ## Task
-Based on the accumulated evidence and scoring rubric above, provide the current score (integer 1-7).
+Based on the accumulated evidence, determine which scoring condition is best matched.
+
+**Scoring Steps**:
+1. Review the evidence and identify which evaluation criteria are addressed
+2. Compare the evidence coverage against each scoring condition
+3. Select the score range that best matches the evidence
 
 ## Output Format
-Return only a single integer, e.g.: 5
+Provide your analysis and score in the following format:
+
+Analysis: [Brief explanation of which criteria are met and which scoring condition matches]
+Score: [integer 1-7]
 """
 
 
@@ -89,16 +111,21 @@ FINAL_REPORT_PROMPT = """# Final Evaluation Report
 Generate a complete Chain-of-Thought (CoT) evaluation report with the following structure:
 
 1. **Location Information** (step1_locate): Describe which sections/chapters the evidence came from
-2. **Evidence Summary** (step2_evidence): Compile all extracted verbatim quotes
-3. **Reasoning Process** (step3_reasoning): Explain why this score was assigned based on the evidence and rubric
+2. **Evidence Summary** (step2_evidence): List the key quotes extracted as evidence
+3. **Reasoning Process** (step3_reasoning): Provide a detailed explanation that includes:
+   - Which evaluation criteria are addressed by the evidence
+   - How the evidence matches (or fails to match) each scoring condition
+   - Why the final score was chosen over other possible scores
 
 ## Output Format
 Return a JSON object:
 {{
-    "step1_locate": "...",
-    "step2_evidence": "...",
-    "step3_reasoning": "..."
+    "step1_locate": "Description of evidence locations...",
+    "step2_evidence": ["quote1", "quote2", ...],
+    "step3_reasoning": "Detailed explanation: The evidence addresses [criteria X, Y] by showing [specific content]. According to the scoring rubric, this matches the condition for score [N] because [reason]. Score [N-1] was not chosen because [missing element]."
 }}
+
+IMPORTANT: The step3_reasoning must explicitly reference the scoring rubric conditions and explain which condition best matches the evidence.
 """
 
 
@@ -136,6 +163,7 @@ def render_extraction_prompt(
 def render_scoring_prompt(
     item_id: str,
     title: str,
+    criteria: List[str],
     evidence_cache: List[str],
     scoring_table: str,
     n_sources: int
@@ -146,6 +174,7 @@ def render_scoring_prompt(
     Args:
         item_id: 条目 ID
         title: 评价标题
+        criteria: 评价要素列表
         evidence_cache: 累积的证据列表
         scoring_table: 评分表格 (markdown)
         n_sources: 证据来源数量
@@ -153,10 +182,12 @@ def render_scoring_prompt(
     Returns:
         渲染后的提示词
     """
+    criteria_list = "\n".join(f"  - {c}" for c in criteria)
     evidence_text = "\n".join(f"- {e}" for e in evidence_cache) if evidence_cache else "No evidence collected yet."
     return DYNAMIC_SCORING_PROMPT.format(
         item_id=item_id,
         title=title,
+        criteria_list=criteria_list,
         evidence_cache=evidence_text,
         scoring_table=scoring_table,
         n_sources=n_sources,

@@ -61,6 +61,7 @@ class EvidencePool:
                 if chunk.label in labels:
                     index[domain].append(chunk.chunk_id)
         
+        logger.debug(f"Domain index built: {[(k, len(v)) for k, v in index.items()]}")
         return index
     
     def get_evidence_for_domain(self, domain_id: int) -> str:

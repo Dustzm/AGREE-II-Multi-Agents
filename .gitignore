@@ -59,8 +59,10 @@ logs/
 *.egg-info
 
 #customize
+node_modules/
 package-lock.json
 .agent/
+.kiro/
 AGENTS.md
 CLAUDE.md
 GEMINI.md

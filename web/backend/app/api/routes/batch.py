@@ -2,8 +2,10 @@
 批量任务 API 路由
 
 提供批量执行 PDF 评价任务的接口
+支持状态持久化和会话恢复
 """
 import asyncio
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -97,14 +99,16 @@ class BatchConnectionManager:
     
     async def broadcast(self, message: dict):
         """广播消息到所有连接"""
+        logger.debug(f"广播消息到 {len(self.active_connections)} 个连接: {message.get('type')}")
         disconnected = []
         for session_id, ws in self.active_connections.items():
             try:
                 await ws.send_json(message)
+                logger.debug(f"消息已发送到 {session_id}")
             except Exception as e:
                 logger.warning(f"发送消息失败 ({session_id}): {e}")
                 disconnected.append(session_id)
-        
+
         # 清理断开的连接
         for session_id in disconnected:
             self.disconnect(session_id)
@@ -217,10 +221,11 @@ async def start_batch(request: StartBatchRequest):
         raise HTTPException(status_code=400, detail=f"文件夹中没有 PDF 文件: {request.folder}")
     
     # 创建回调函数
-    async def on_update(task: BatchTask):
+    # 注意：使用 task_dict 而不是 task 对象，避免异步延迟导致状态被覆盖
+    async def on_update_dict(task_dict: dict):
         await batch_manager.broadcast({
             "type": "task_update",
-            "task": task.to_dict(),
+            "task": task_dict,
         })
     
     async def on_complete(status: dict):
@@ -232,11 +237,15 @@ async def start_batch(request: StartBatchRequest):
     # 包装同步回调为异步
     def sync_on_update(task: BatchTask):
         try:
+            # 关键修复：在创建异步任务前先序列化为字典（创建快照）
+            # 避免异步任务执行时 task 对象已被后续更新覆盖
+            task_dict = task.to_dict()
+            logger.info(f"准备广播任务更新: {task_dict['id']}, step: {task_dict['current_step']}")
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                asyncio.create_task(on_update(task))
+                asyncio.create_task(on_update_dict(task_dict))
             else:
-                loop.run_until_complete(on_update(task))
+                loop.run_until_complete(on_update_dict(task_dict))
         except Exception as e:
             logger.warning(f"广播任务更新失败: {e}")
     
@@ -288,10 +297,11 @@ async def start_selected(request: StartSelectedRequest):
         raise HTTPException(status_code=400, detail="未选择任何 PDF 文件")
     
     # 创建回调函数
-    async def on_update(task: BatchTask):
+    # 注意：使用 task_dict 而不是 task 对象，避免异步延迟导致状态被覆盖
+    async def on_update_dict(task_dict: dict):
         await batch_manager.broadcast({
             "type": "task_update",
-            "task": task.to_dict(),
+            "task": task_dict,
         })
     
     async def on_complete(status: dict):
@@ -303,11 +313,15 @@ async def start_selected(request: StartSelectedRequest):
     # 包装同步回调为异步
     def sync_on_update(task: BatchTask):
         try:
+            # 关键修复：在创建异步任务前先序列化为字典（创建快照）
+            # 避免异步任务执行时 task 对象已被后续更新覆盖
+            task_dict = task.to_dict()
+            logger.info(f"准备广播任务更新: {task_dict['id']}, step: {task_dict['current_step']}")
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                asyncio.create_task(on_update(task))
+                asyncio.create_task(on_update_dict(task_dict))
             else:
-                loop.run_until_complete(on_update(task))
+                loop.run_until_complete(on_update_dict(task_dict))
         except Exception as e:
             logger.warning(f"广播任务更新失败: {e}")
     
@@ -337,23 +351,90 @@ async def start_selected(request: StartSelectedRequest):
 async def get_batch_status():
     """
     获取当前批量任务状态
+
+    优先返回内存中的活跃任务状态
+    如果无活跃任务，尝试从 latest.json 加载历史状态
     """
     runner = get_batch_runner()
-    
-    if not runner:
-        return BatchStatusResponse(
-            is_running=False,
-            total=0,
-            concurrency=2,
-            pending=0,
-            running=0,
-            done=0,
-            error=0,
-            cancelled=0,
-            tasks=[],
-        )
-    
-    return BatchStatusResponse(**runner.get_status())
+
+    # 情况1：内存中有活跃任务
+    if runner and (runner.is_running or len(runner._tasks) > 0):
+        return BatchStatusResponse(**runner.get_status())
+
+    # 情况2：内存无任务，尝试从文件恢复
+    state_dir = Path("output/batch_state")
+    latest_file = state_dir / "latest.json"
+
+    if latest_file.exists():
+        try:
+            with open(latest_file, 'r', encoding='utf-8') as f:
+                latest = json.load(f)
+                session_id = latest.get("session_id")
+
+            if session_id:
+                state_file = state_dir / f"{session_id}.json"
+                if state_file.exists():
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        state = json.load(f)
+
+                    # 关键修复：检测并处理服务重启导致中断的任务
+                    # 如果任务状态为 running 但服务已重启（内存无 runner），说明任务被中断
+                    state_modified = False
+                    for task in state["tasks"]:
+                        if task["status"] == "running":
+                            task["status"] = "error"
+                            task["error"] = "服务重启，任务中断"
+                            task["current_step"] = "服务重启，任务已中断"
+                            task["end_time"] = datetime.now().isoformat()
+                            state_modified = True
+                            logger.info(f"标记中断任务: {task['id']}")
+
+                    # 更新全局状态
+                    if state_modified:
+                        state["status"]["running"] = False
+                        # 持久化变更到文件
+                        try:
+                            with open(state_file, 'w', encoding='utf-8') as f:
+                                json.dump(state, f, indent=2, ensure_ascii=False)
+                            logger.info(f"已更新中断任务状态到文件: {state_file}")
+                        except Exception as e:
+                            logger.warning(f"更新状态文件失败: {e}")
+
+                    # 返回历史状态
+                    status_counts = {
+                        "pending": 0,
+                        "running": 0,
+                        "done": 0,
+                        "error": 0,
+                        "cancelled": 0,
+                    }
+                    for task in state["tasks"]:
+                        status = task["status"]
+                        status_counts[status] = status_counts.get(status, 0) + 1
+
+                    response = BatchStatusResponse(
+                        is_running=False,  # 历史状态不标记为运行中
+                        total=len(state["tasks"]),
+                        concurrency=state["config"]["concurrency"],
+                        **status_counts,
+                        tasks=state["tasks"],
+                    )
+                    return response
+        except Exception as e:
+            logger.warning(f"加载历史状态失败: {e}")
+
+    # 情况3：无任何状态
+    return BatchStatusResponse(
+        is_running=False,
+        total=0,
+        concurrency=2,
+        pending=0,
+        running=0,
+        done=0,
+        error=0,
+        cancelled=0,
+        tasks=[],
+    )
 
 
 @router.post("/batch/stop")
@@ -400,3 +481,104 @@ async def batch_websocket(websocket: WebSocket, session_id: str):
                 break
     finally:
         batch_manager.disconnect(session_id)
+
+
+# ===== 状态持久化相关端点 =====
+
+@router.get("/batch/sessions")
+async def list_batch_sessions():
+    """
+    列出所有历史会话
+
+    返回每个会话的基本信息和统计
+    """
+    state_dir = Path("output/batch_state")
+    if not state_dir.exists():
+        return {"sessions": []}
+
+    sessions = []
+    for state_file in state_dir.glob("batch_*.json"):
+        try:
+            with open(state_file, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+
+            # 统计各状态数量
+            status_counts = {}
+            for task in state["tasks"]:
+                status = task["status"]
+                status_counts[status] = status_counts.get(status, 0) + 1
+
+            sessions.append({
+                "session_id": state["metadata"]["session_id"],
+                "created_at": state["metadata"]["created_at"],
+                "last_updated": state["metadata"]["last_updated"],
+                "total_tasks": len(state["tasks"]),
+                "done": status_counts.get("done", 0),
+                "error": status_counts.get("error", 0),
+                "running": status_counts.get("running", 0),
+                "pending": status_counts.get("pending", 0),
+                "is_completed": status_counts.get("done", 0) == len(state["tasks"]),
+            })
+        except Exception as e:
+            logger.warning(f"读取会话文件失败 {state_file}: {e}")
+
+    # 按创建时间倒序排列
+    sessions.sort(key=lambda x: x["created_at"], reverse=True)
+    return {"sessions": sessions}
+
+
+@router.post("/batch/restore/{session_id}")
+async def restore_batch_session(session_id: str):
+    """
+    恢复指定会话
+
+    将历史会话加载到内存的 BatchRunner 中
+    """
+    runner = get_batch_runner()
+    if not runner:
+        raise HTTPException(status_code=400, detail="无活跃批量任务实例")
+
+    # 加载状态
+    state = runner._load_state(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
+
+    # 恢复状态
+    runner.restore_from_state(state)
+
+    # 通知所有WebSocket连接
+    try:
+        await batch_manager.broadcast({
+            "type": "status",
+            "status": runner.get_status(),
+        })
+    except Exception as e:
+        logger.warning(f"广播恢复状态失败: {e}")
+
+    return {
+        "message": "会话已恢复",
+        "session_id": session_id,
+        "status": runner.get_status()
+    }
+
+
+@router.delete("/batch/sessions/{session_id}")
+async def delete_batch_session(session_id: str):
+    """
+    删除指定会话的状态文件
+
+    用于清理历史会话数据
+    """
+    state_dir = Path("output/batch_state")
+    state_file = state_dir / f"{session_id}.json"
+
+    if not state_file.exists():
+        raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
+
+    try:
+        state_file.unlink()
+        logger.info(f"已删除会话文件: {state_file}")
+        return {"message": f"会话 {session_id} 已删除"}
+    except Exception as e:
+        logger.error(f"删除会话文件失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除会话失败: {str(e)}")
