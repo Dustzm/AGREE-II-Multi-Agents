@@ -67,6 +67,20 @@ class IterativeEvaluator:
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
     
+    def _clean_thinking_content(self, content: str) -> str:
+        """
+        移除内容中的 <think>...</think> 标签及其内容
+        
+        Args:
+            content: 原始内容
+            
+        Returns:
+            清理后的内容
+        """
+        import re
+        # 使用 DOTALL 模式匹配跨行的 think 标签
+        return re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+    
     def evaluate(self) -> Dict[str, Any]:
         """
         执行迭代评价
@@ -178,6 +192,7 @@ class IterativeEvaluator:
             )
             
             content = response.choices[0].message.content.strip()
+            content = self._clean_thinking_content(content)
             
             # 解析 JSON
             try:
@@ -246,6 +261,7 @@ class IterativeEvaluator:
             )
             
             content = response.choices[0].message.content.strip()
+            content = self._clean_thinking_content(content)
             logger.debug(f"动态评分 JSON 输出: {content[:200]}...")
             
             # 解析 JSON
@@ -319,6 +335,7 @@ class IterativeEvaluator:
             )
             
             content = response.choices[0].message.content.strip()
+            content = self._clean_thinking_content(content)
             logger.debug(f"LLM 原始输出: {content[:500]}...")
             
             # 解析 JSON - 增强容错性
@@ -342,7 +359,7 @@ class IterativeEvaluator:
             try:
                 cot = json.loads(content)
             except json.JSONDecodeError as e:
-                logger.warning(f"JSON 解析失败: {e}, 原始内容: {content[:200]}...")
+                logger.warning(f"JSON 解析失败: {e}, 原始内容: {content}...")
                 # 尝试从文本中提取 reasoning
                 reasoning_match = re.search(r'step3_reasoning["\s:]+([^"]*"[^"]+"|[^\n,}]+)', content)
                 if reasoning_match:
