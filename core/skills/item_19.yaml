@@ -5,32 +5,42 @@ domain_name: Applicability
 domain_name_zh: 适用性
 title: The guideline provides advice and/or tools on how the recommendations can be
   put into practice.
-title_zh: 指南提供了如何将推荐意见付诸实践的建议和/或工具。
-description: "Provision of implementation section, tools/resources, \nand guidance\
-  \ on how to access and use them.\n"
-description_zh: '提供实施章节、工具/资源，以及如何获取和使用它们的指导。
-
-  '
-locating_info: 'Tools, Resources, Implementation, Appendices.
-
-  '
-locating_info_zh: '查看工具、资源、实施、附录章节。
-
-  '
+title_zh: 指南提供应用推荐意见的意见和/或工具。
+description: 'For a guideline to be effective it needs to be disseminated and implemented
+  with additional materials. '
+description_zh: "要使一个指南更为有效，需要一些附加的材料使之易于推广实施。 \n"
+locating_info: Check Recommendation ,  Implementation, Appendices sections.
+locating_info_zh: 查看推荐意见、实施、附录章节。
 criteria:
-- Implementation section included (包含实施章节)
-- Tools/resources provided (checklists, algorithms, patient brochures) (提供工具/资源：清单、算法、患者手册)
-- Guidance on how to access tools (如何获取工具的指导)
+- 例如，这些附加的材料可能包括：一个简介，一个快速参考手册，教具，来自于探索试验的结果，病人活页，计算机支持，以及提供任何和指南一起的附加材料。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-4
-  condition: Implementation section or paragraph exists
-  condition_zh: 存在实施章节或段落
+  condition: 'If the guideline includes a standalone implementation section or chapter:
+    the presence of an implementation section alone'
+  condition_zh: 若指南含有独立实施部分或章节
 - range: 5-6
-  condition: Implementation section + Tools/resources provided
-  condition_zh: 实施章节 + 提供工具/资源
+  condition: 'If the guideline includes a standalone implementation section or chapter:
+    the implementation section plus provision of tools or resources'
+  condition_zh: 若指南含有独立实施部分或章节，且提供了工具/资源
 - range: '7'
-  condition: Implementation section + Tools provided + Usage guidance
-  condition_zh: 实施章节 + 提供工具 + 使用指导
+  condition: 'If the guideline includes a standalone implementation section or chapter:
+    provision of tools or resources together with clear instructions or steps for
+    their use'
+  condition_zh: 若指南含有独立实施部分或章节，且提供了工具/资源，且提供工具/资源的使用说明或步骤
+- range: 2-3
+  condition: 'If the guideline does not include a standalone implementation section
+    or chapter: provision of one tool or resource without instructions for use'
+  condition_zh: 若指南没有独立实施部分或章节，提供一个工具/资源，但未说明如何使用
+- range: 4-5
+  condition: 'If the guideline does not include a standalone implementation section
+    or chapter: provision of two or more tools or resources without instructions for
+    use'
+  condition_zh: 若指南没有独立实施部分或章节，提供两个及以上工具/资源，但未说明如何使用
+- range: 6-7
+  condition: 'If the guideline does not include a standalone implementation section
+    or chapter: provision of tools or resources together with instructions or steps
+    for their use'
+  condition_zh: 若指南没有独立实施部分或章节，提供了工具/资源且提供使用说明或步骤

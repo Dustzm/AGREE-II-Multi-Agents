@@ -4,33 +4,37 @@ domain: 5
 domain_name: Applicability
 domain_name_zh: 适用性
 title: The guideline presents monitoring and/or auditing criteria.
-title_zh: 指南呈现了监测和/或审计标准。
-description: "Identification of standards for implementation/compliance, \nimpact\
-  \ evaluation, frequency/intervals, and measurement methods.\n"
-description_zh: '识别实施/合规标准、影响评估、频率/间隔和测量方法。
+title_zh: 指南提供了监督和/或审计标准。
+description: 'Measuring the application of guideline recommendations can facilitate
+  their ongoing use. This requires clearly defined criteria that are derived from
+  the key recommendations in the guideline. The criteria may include process measures,
+  behavioural measures, clinical or health outcome measures. '
+description_zh: '测量指南推荐建议的应用有助于推荐建议的持续使用，这要求有清晰确定的并源自于指南中重要推荐建议的标准。标准可以是过程测量、行为测量、临床或健康结局的测量。
 
   '
-locating_info: 'Recommendations, Quality Indicators, Auditing Standards.
-
-  '
-locating_info_zh: '查看推荐意见、质量指标、审计标准章节。
-
-  '
+locating_info: Check Recommendation, Implementation sections.
+locating_info_zh: 查看推荐意见、实施章节。
 criteria:
-- Identification of standards for implementation/compliance (实施/合规标准的识别)
-- Standards for impact evaluation (影响评估标准)
-- Frequency/intervals (频率/间隔)
-- Description of how to measure (如何测量的描述)
+- '譬如下面监督和审计标准： HbA1c应小于8.0%。 '
+- '舒张压应小于95mmHg。 '
+- '80%的＞50岁人群将接受使用粪便潜血试验作结肠直肠癌筛查评估。 '
+- 如果急性中耳炎的症状持续3天以上应该使用阿莫西林。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: 2-4
-  condition: Provision of indicators/standards
-  condition_zh: 提供指标/标准
+- range: '2'
+  condition: Vaguely mentioned without clear detail
+  condition_zh: 模糊提及
+- range: 3-4
+  condition: Provided indicators or evaluation standards, or information on measurement
+    frequency or intervals
+  condition_zh: 提供了指标/评估标准，或关于测量频率/间隔的信息
 - range: 5-6
-  condition: Provision of indicators + Frequency/Intervals
-  condition_zh: 提供指标 + 频率/间隔
+  condition: Provided indicators or evaluation standards together with information
+    on measurement frequency or intervals
+  condition_zh: 提供了指标/评估标准，并提供了关于测量频率/间隔的信息
 - range: '7'
-  condition: Provision of indicators + Frequency + Measurement description
-  condition_zh: 提供指标 + 频率 + 测量描述
+  condition: Provided indicators or evaluation standards, specified measurement frequency
+    or intervals, and described how the measurements should be conducted
+  condition_zh: 提供了指标/评估标准、测量频率/间隔以及如何测量的描述

@@ -4,39 +4,34 @@ domain: 3
 domain_name: Rigor of Development
 domain_name_zh: 制定严谨性
 title: Systematic methods were used to search for evidence.
-title_zh: 使用了系统的方法来搜索证据。
-description: "Description of the systematic process for searching evidence, \nincluding\
-  \ databases, time span, and search terms.\n"
-description_zh: '描述搜索证据的系统过程，包括数据库、时间范围和检索词。
-
-  '
-locating_info: 'Methodology, Literature Search Strategy, Appendices.
-
-  '
-locating_info_zh: '查看方法学、文献检索策略、附录章节。
-
-  '
-criteria:
-- Search of known electronic databases (MEDLINE, EMBASE, etc.) (搜索已知电子数据库)
-- Time span of search (检索时间范围)
-- Search terms used (使用的检索词)
-- Complete search strategy provided (提供完整的检索策略)
+title_zh: 应用系统方法检索证据。
+description: "Details of the strategy used to search for evidence should be provided\
+  \ including search terms used, sources consulted, and dates of the literature covered.\
+  \ The search strategy should be as comprehensive as possible and executed in a manner\
+  \ free from potential biases and sufficiently detailed to be replicated. \n"
+description_zh: 应提供检索证据的详细策略，包括使用的检索词、信息来源、文献涵盖的时间。检索策略应尽可能地便于理解和消除偏倚，并十分详尽，以便重复。
+locating_info: Check Method, Literature Search Strategy, Appendices.
+locating_info_zh: 查看方法、文献检索策略、附录章节。
+criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: '2'
-  condition: Mention of search databases without specific info
-  condition_zh: 提及搜索数据库但无具体信息
+  condition: Mention of database searching without providing specific details, for
+    example, stating that “databases were searched”
+  condition_zh: 提及了检索数据库但未提供具体信息，例：检索数据库
 - range: '3'
-  condition: Identification of databases without specific search info
-  condition_zh: 列出数据库但无具体检索信息
+  condition: explicit identification of the databases searched without detailed search
+    information, for example, PubMed, CNKI, etc.
+  condition_zh: 明确指出了数据库但未提供具体的检索信息，例：检索数据库Pubmed，CNKI等
 - range: '4'
-  condition: Clear database AND search terms
-  condition_zh: 明确的数据库和检索词
+  condition: explicit identification of the databases and the search terms used
+  condition_zh: 明确指出了数据库及检索词
 - range: '5'
-  condition: Clear database, search time, AND search terms
-  condition_zh: 明确的数据库、检索时间和检索词
+  condition: explicit identification of the databases, search dates, and search terms
+  condition_zh: 明确指出了数据库、检索时间、检索词
 - range: 6-7
-  condition: Clear database, search time, search terms, AND complete search strategy
-  condition_zh: 明确的数据库、检索时间、检索词和完整检索策略
+  condition: explicit identification of the databases, search dates, and search terms,
+    with a complete and reproducible search strategy provided
+  condition_zh: 明确指出了数据库、检索时间、检索词，并给出完整的检索策略

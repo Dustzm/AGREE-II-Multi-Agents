@@ -5,36 +5,33 @@ domain_name: Editorial Independence
 domain_name_zh: 编辑独立性
 title: Competing interests of guideline development group members have been recorded
   and addressed.
-title_zh: 指南制定小组成员的利益冲突已被记录和处理。
-description: "Description of types of interests considered, methodology for collection,\
-  \ \ndescription of interests, and description of influence on process.\n"
-description_zh: '描述考虑的利益类型、收集方法、利益描述以及对过程的影响描述。
-
-  '
-locating_info: 'Methodology, Competing Interests, Guideline Group.
-
-  '
-locating_info_zh: '查看方法学、利益冲突、指南小组章节。
-
-  '
-criteria:
-- Types of interests considered (考虑的利益类型)
-- Methodology for collection (收集方法)
-- Description of interests (利益描述)
-- Description of influence on process (对过程影响的描述)
+title_zh: 指南开发小组成员的利益冲突要记载并公布。
+description: 'There should be an explicit statement that all group members have declared
+  whether they have any competing interests. '
+description_zh: 必须明确指出参与指南开发小组的所有成员都应声明他们是否存在利益冲突。
+locating_info: Check Competing Interests, Guideline Group sectons.
+locating_info_zh: 查看利益冲突、指南小组章节。
+criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: 3-4
-  condition: Mention of collection method OR interests (but no conflict indication)
-  condition_zh: 提及收集方法或利益（但无冲突说明）
-- range: '5'
-  condition: Statement of no competing interests without collection method
-  condition_zh: 声明无利益冲突但无收集方法
-- range: '6'
-  condition: Collection method + Report + Description of potential influence
-  condition_zh: 收集方法 + 报告 + 潜在影响描述
+- range: 2-4
+  condition: Competing interests are mentioned, but the information is incomplete
+    (e.g., only the collection method is reported, or only the presence or absence
+    of conflicts is stated)
+  condition_zh: 提及了利益冲突，但信息不完整（如仅说明有收集方法或仅说明有/无冲突）
 - range: '7'
-  condition: Collection method + Report + Description of NO influence
-  condition_zh: 收集方法 + 报告 + 无影响描述
+  condition: Competing interests are fully reported and it is stated that no conflicts
+    exist
+  condition_zh: 完整报告了利益冲突，并说明无冲突
+- range: 5-6
+  condition: Competing interests are fully reported (including collection methods
+    and specific conflicts), but when conflicts are present, no information is provided
+    on their influence or management
+  condition_zh: 完整报告了利益冲突（包括收集方法、具体冲突情况），但在有冲突的情况下未说明其影响或处理方式
+- range: '7'
+  condition: Competing interests are fully reported, conflicts are declared, and it
+    is described how these conflicts did or did not influence the guideline development
+    process and the resulting recommendations
+  condition_zh: 完整报告了利益冲突，说明有冲突，且描述了其如何（或如何未）影响指南开发及推荐

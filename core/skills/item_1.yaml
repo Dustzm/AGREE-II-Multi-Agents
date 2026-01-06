@@ -4,27 +4,40 @@ domain: 1
 domain_name: Scope and Purpose
 domain_name_zh: 范围内和目的
 title: The overall objective(s) of the guideline is (are) specifically described.
-title_zh: 指南的总体目标被具体描述。
-description: "The guideline should detail objectives, potential health impacts, \n\
-  and benefits tailored to specific clinical issues \n(e.g., preventing complications,\
-  \ screening strategies).\n"
-description_zh: 指南应详细说明针对特定临床问题的目标、潜在的健康影响和益处（如预防并发症、筛查策略等）。
-locating_info: Check Introduction, Scope, Purpose, or Objectives sections.
-locating_info_zh: 查看引言、范围、目的或目标章节。
+title_zh: 明确描述指南的总目的。
+description: "This deals with the potential health impact of a guideline on society\
+  \ and populations of patients or individuals. \nThe overall objective(s) of the\
+  \ guideline should be described in detail and the expected health benefits from\
+  \ the guideline should be specific to the clinical problem or health topic."
+description_zh: '此条目涉及指南对患者群体及社会的潜在健康影响。
+
+  应详细描述指南的总目的，并明确针对具体临床问题或健康主题的预期健康效益。'
+locating_info: Check Abstract, Introduction, Methodology (Scope, Purpose, or Objectives)
+  sections.
+locating_info_zh: 查看摘要、引言、方法学（范围、目的、目标）章节。
 criteria:
-- Health content (健康内容)
-- Expected benefits/outcomes (预期收益/结果)
-- Target population (目标人群)
+- 《二甲双胍临床应用专家共识》仅提及二甲双胍，为2-3分
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: 3-4
-  condition: Only disease described (no population/outcomes)
-  condition_zh: 仅描述了疾病（未提及人群/结果）
-- range: 5-6
-  condition: Disease and population described (no expected outcomes)
-  condition_zh: 描述了疾病和人群（未提及预期结果）
+- range: 2-3
+  condition: Mentions only the disease/drug/technology topic, without specifying the
+    target population or expected outcomes
+  condition_zh: 仅提及疾病/药物/技术等主题，未说明目标人群和预期结果
+- range: 4-5
+  condition: 'Based on the disease/drug/technology topic, mentions one of the following:
+    (1) health intent(s) (i.e., prevention, screening, diagnosis, treatment, etc.)
+    ; (2)expected benefit or outcomes; (3) target(s) (e.g., patient population, society) '
+  condition_zh: 在疾病/药物/技术等主题的基础上，提及①健康内容（预防、筛查、诊断、治疗等）；②预期的益处或结果；③目标人群（患者、社会群体），提到1个（4-5分）
+- range: '6'
+  condition: 'Based on the disease/drug/technology topic, mentions two of the following:
+    (1) health intent(s) (i.e., prevention, screening, diagnosis, treatment, etc.)
+    ; (2)expected benefit or outcomes; (3) target(s) (e.g., patient population, society) '
+  condition_zh: 在疾病/药物/技术等主题的基础上，提及①健康内容（预防、筛查、诊断、治疗等）；②预期的益处或结果；③目标人群（患者、社会群体），提到2个（6分）
 - range: '7'
-  condition: Comprehensive description (Disease + Population + Outcomes)
-  condition_zh: 全面描述（疾病 + 人群 + 结果）
+  condition: 'Based on the disease/drug/technology topic, mentions all three of the
+    following: (1) health intent(s) (i.e., prevention, screening, diagnosis, treatment,
+    etc.) ; (2)expected benefit or outcomes; (3) target(s) (e.g., patient population,
+    society) '
+  condition_zh: 在疾病/药物/技术等主题的基础上，提及①健康内容（预防、筛查、诊断、治疗等）；②预期的益处或结果；③目标人群（患者、社会群体），以上均提及

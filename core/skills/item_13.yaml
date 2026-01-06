@@ -4,37 +4,33 @@ domain: 3
 domain_name: Rigor of Development
 domain_name_zh: 制定严谨性
 title: The guideline has been externally reviewed by experts prior to its publication.
-title_zh: 指南在发布前已由专家进行外部审查。
-description: "Description of the external review process, \nincluding purpose, methodology,\
-  \ reviewers, and outcomes.\n"
-description_zh: '描述外部审查过程，包括目的、方法、审稿人和结果。
-
-  '
-locating_info: 'Outcomes, Interpretation, Acknowledgments.
-
-  '
-locating_info_zh: '查看结果、解读、致谢章节。
-
-  '
-criteria:
-- Purpose of external review (外部审查目的)
-- Methodology (方法学)
-- Description of reviewers (number, type, institution) (审稿人描述：数量、类型、机构)
-- Outcomes/Information collected (收集的结果/信息)
-- Description of how info was used (信息如何使用的描述)
+title_zh: 指南在发布前经过外部专家评审。
+description: "A guideline should be reviewed externally before it is published. Reviewers\
+  \ should not have been involved in the guideline development group. Reviewers should\
+  \ include experts in the clinical area as well as some methodological experts. Target\
+  \ population (patients, public) representatives may also be included. A description\
+  \ of the methodology used to conduct the external review should be presented, which\
+  \ may include a \nlist of the reviewers and their affiliation. \n"
+description_zh: "指南在发表前应经过专家的外部评审。评审人员不应该是指南开发小组成员，评审人员应包括临床领域的专家、方法学专家，目标人群代表（患者，公众等）也\n\
+  可以包括在内，并对外部评审的方法学进行描述，包括评审人员名单和他们的机构。 \n"
+locating_info: Check Method, Acknowledgments, Appendices sections.
+locating_info_zh: 查看方法、致谢、附件章节。
+criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Mention of review without additional info
-  condition_zh: 提及审查但无额外信息
+  condition: Mentioned external guideline review without providing additional information
+  condition_zh: 仅提及指南外部审查但未提供其他信息
 - range: '4'
-  condition: Provided reviewer names/group
-  condition_zh: 提供审稿人姓名/小组
+  condition: Provided the names of external reviewers or review groups
+  condition_zh: 提供了外部审查者/小组的名称
 - range: '5'
-  condition: Described review method/process/results AND reviewers
-  condition_zh: 描述审查方法/过程/结果和审稿人
+  condition: Described the external review methods/processes/results and identified
+    the reviewers or review groups
+  condition_zh: 描述了外部审查方法/过程/结果以及审查者/小组
 - range: 6-7
-  condition: Described review purpose, method/process/results AND reviewers
-  condition_zh: 描述审查目的、方法/过程/结果和审稿人
+  condition: Described the purpose, methods/processes, and results of the external
+    review, and provided the names of the external reviewers or review groups
+  condition_zh: 描述了外部审查目的、方法/过程/结果以及外部审查者/小组的名称

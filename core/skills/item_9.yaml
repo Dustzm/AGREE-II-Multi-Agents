@@ -4,35 +4,32 @@ domain: 3
 domain_name: Rigor of Development
 domain_name_zh: 制定严谨性
 title: The strengths and limitations of the body of evidence are clearly described.
-title_zh: 证据体的优势和局限性被清晰描述。
-description: "Description of how to determine bias in the body of evidence and \n\
-  overall framework description.\n"
-description_zh: '描述如何确定证据体的偏倚以及总体框架描述。
+title_zh: 清楚描述证据的强度和局限性。
+description: "Statements highlighting the strengths and limitations of the evidence\
+  \ should be provided. This ought to include explicit descriptions - using informal\
+  \ or formal tools/methods - to assess and describe the risk of bias for individual\
+  \ studies and/or for specific outcomes and/or explicit commentary of the body of\
+  \ evidence aggregated \nacross all studies."
+description_zh: '应该明确说明证据强度和局限性，使用正式的或非正式的工具/方法去评估单个研究偏倚产生的风险和/或特殊的结局，和/或评价合并所有研究的证据体。
 
   '
-locating_info: 'Methodology (Risk of bias), Evidence tables, Interpretation.
-
-  '
-locating_info_zh: '查看方法学（偏倚风险）、证据表、解读章节。
-
-  '
-criteria:
-- Description of how to determine bias (如何确定偏倚的描述)
-- Study design assessment (研究设计评估)
-- Methodological defects (blinding/sample size) (方法学缺陷：盲法/样本量)
-- Consistency of results (结果一致性)
-- Direction of results (结果方向)
-- Benefit/harm balance (利弊平衡)
+locating_info: Check Method, Recommendation sections.
+locating_info_zh: 查看方法、推荐意见章节。
+criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: '2'
-  condition: Only study design mentioned
-  condition_zh: 仅提及研究设计
-- range: 3-4
-  condition: Design + bias tool mentioned
-  condition_zh: 设计 + 提及偏倚评估工具
-- range: 5-7
-  condition: Comprehensive framework with multiple criteria met
-  condition_zh: 全面的框架，满足多个标准
+- range: 2-7
+  condition: 'Meets the following criteria, with each criterion scoring 1 point and
+    a maximum total of 7 points: (1) description of the methods used to assess the
+    certainty or quality of evidence, such as the GRADE approach; (2) assignment of
+    an explicit level or certainty rating to each body of evidence; (3) specification
+    of the study design underlying the evidence; (4) assessment of methodological
+    limitations of the studies, including sample size, blinding, allocation concealment,
+    and analytical methods; (5) consideration of the appropriateness and relevance
+    of primary and secondary outcomes; (6) consistency of results across all included
+    studies; (7) direction of effects across all included studies; (8) comparison
+    of the magnitude of benefits versus harms; and (9) applicability of the evidence
+    to the practice context.'
+  condition_zh: 符合以下标准，每个标准计1分，满分7分，①描述评价证据的方法，如GRADE方法；②每条证据给出具体的证据等级；③证据的研究设计；④研究的方法学缺陷（样本量，盲法，分配隐藏，分析方法）；⑤考虑初始和继发结局的适当性/相关性；⑥所有研究结果的一致性；⑦所有研究结果的方向；⑧收益/伤害的程度对比；⑨实践背景的可应用性

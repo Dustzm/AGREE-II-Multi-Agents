@@ -4,29 +4,37 @@ domain: 4
 domain_name: Clarity of Presentation
 domain_name_zh: 表达清晰性
 title: The recommendations are specific and unambiguous.
-title_zh: 推荐意见是具体且明确的。
-description: "Recommendations should be clearly identified with specific \npurpose/intent\
-  \ and relevant population.\n"
-description_zh: '推荐意见应被明确识别，具有具体的目的/意图和相关人群。
+title_zh: 推荐意见明确，不含糊。
+description: 'A recommendation should provide a concrete and precise description of
+  which option is appropriate in which situation and in what population group.
 
   '
-locating_info: 'Recommendations, Implementation Procedures Summary.
+description_zh: '指南应具体精确地描述推荐建议是在什么情况下、针
+
+  对何种人群的。
 
   '
-locating_info_zh: '查看推荐意见、实施程序摘要章节。
-
-  '
+locating_info: Check Recommendations, Executive Summary sections.
+locating_info_zh: 查看推荐意见、执行摘要章节。
 criteria:
-- Statement on formation (关于形成的声明)
-- Identification of purpose/intent (目的/意图的识别)
-- Identification of relevant population (and exceptions) (相关人群的识别（含例外情况））
+- '一个明确推荐建议的例子是：诊断为急性中耳炎的二岁大或更大年龄的儿童，如果疼痛经历多于三天时间或在就诊时给予了足量的止痛剂后疼痛仍加剧的情况下，应给予抗生素治疗。在一些情况下，阿莫西林将给7天量（剂量计划供给量） '
+- 一个含糊的推荐建议的例子是：抗生素应用于异常或复杂情况下的病例。
 scoring_principle:
 - range: '1'
-  condition: Vague and unclear if it is a recommendation
-  condition_zh: 模糊不清，不确定是否为推荐意见
-- range: 2-4
-  condition: Clearly identified as a recommendation (using terms like 'should', 'recommend')
-  condition_zh: 明确识别为推荐意见（使用'应该'、'建议'等术语）
-- range: 5-7
-  condition: Clearly identified + states purpose AND/OR population
-  condition_zh: 明确识别 + 说明目的和/或人群
+  condition: Recommendation statements are vague and unclear, making it difficult
+    to determine whether they constitute a recommendation
+  condition_zh: 推荐意见表述模糊不清，无法明确是否为推荐意见
+- range: 2-3
+  condition: Clearly identified as recommendations, either by specifying the population
+    (P) and intervention (I) or by using directive verbs such as “recommend” or “should”
+  condition_zh: 明确指出为推荐意见，包含P和I，或使用诸如“建议”、“应当”等动词术语
+- range: 4-5
+  condition: Clearly identified as recommendations, specifying both the population
+    (P) and intervention (I), and using directive verbs such as “recommend” or “should”
+  condition_zh: 明确指出为推荐意见，包含P和I，并使用诸如“建议”、“应当”等动词术语
+- range: 6-7
+  condition: Clearly identified as recommendations, specifying the population (P)
+    and intervention (I), using directive verbs such as “recommend” or “should,” and
+    further stating the purpose, clinical context, or details such as dosage and treatment
+    duration
+  condition_zh: 明确指出为推荐意见，包含P和I，使用诸如“建议”、“应当”等动词术语，并阐明目的或使用场景或剂量疗程等

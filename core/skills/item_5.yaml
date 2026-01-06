@@ -5,34 +5,33 @@ domain_name: Stakeholder Involvement
 domain_name_zh: 利益相关者参与
 title: The views and preferences of the target population (patients, public, etc.)
   have been sought.
-title_zh: 已征求目标人群（患者、公众等）的意见和偏好。
-description: 'Consideration of patient experiences and views.
-
-  '
-description_zh: '考虑患者的体验和意见。
-
-  '
-locating_info: 'Methods, External Review, Target Population Views.
-
-  '
-locating_info_zh: '查看方法、外部审查、目标人群意见章节。
-
-  '
+title_zh: 收集目标人群（患者，公众等）的观点和选择意愿。
+description: Information about target population experiences and expectations of health
+  care should inform the development of guidelines. There should be evidence that
+  some process has taken place and that stakeholders’ views have been considered.
+description_zh: 临床指南的开发应考虑目标人群对卫生服务的体验和期望。应当有证据表明采取了某些举措并考虑了目标人群的观点。
+locating_info: Check Introduction and Method sections.
+locating_info_zh: 查看引言、方法章节。
 criteria:
-- Methods used to obtain views (获取意见的方法)
-- How views were collected (surveys, focus groups) (如何收集意见：问卷、焦点小组)
-- Outcomes obtained (获得的结果)
-- How information influenced the guideline (信息如何影响指南)
+- 例如，通过正式的患者/公众咨询来决定优先项目；让目标人群参与指南开发小组；或参与指南初稿的外部评审；通过访谈目标人群或者对有关目标人群的价值观念、选择意愿及体验进行文献综述来获得相关信息。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: '2'
-  condition: Considered patient preferences only (no method)
-  condition_zh: 仅考虑了患者偏好（无方法说明）
-- range: 3-4
-  condition: Provided methods for collecting preferences
-  condition_zh: 提供了收集偏好的方法
-- range: 5-7
-  condition: Provided methods + Summarized outcomes + Used for recommendations
-  condition_zh: 提供方法 + 总结结果 + 用于形成推荐意见
+- range: 2-3
+  condition: States only that patient/public preferences were considered
+  condition_zh: 仅陈述了考虑患者/公众偏好
+- range: '4'
+  condition: Provides simple methods for collecting and eliciting patient/public preferences,
+    such as consultations or questionnaires
+  condition_zh: 提供了简单收集和获取患者/公众偏好的方法，如咨询、问卷
+- range: '5'
+  condition: Provides more comprehensive methods for collecting and eliciting patient/public
+    preferences, such as the in-depth involvement of patient representatives in guideline
+    development
+  condition_zh: 提供了复杂的收集和获取患者/公众偏好的方法，如患者代表深度参与指南制订
+- range: 6-7
+  condition: Provides explicit methods for collecting and eliciting patient/public
+    preferences, and summarizes how these inputs were incorporated into the guideline
+    development process and/or informed the formulation of recommendations
+  condition_zh: 提供了收集和获取患者/公众偏好的方法，并总结后用于指南开发过程和/或产生推荐意见

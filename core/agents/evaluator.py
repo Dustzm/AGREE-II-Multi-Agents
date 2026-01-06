@@ -158,10 +158,17 @@ class IterativeEvaluator:
         
         full_text = "\n\n".join(combined_content)
 
+        # 格式化评分表格 (作为提取依据)
+        scoring_rows = []
+        for sp in self.skill_config.get("scoring_principle", []):
+            condition = sp.get("condition", sp.get("condition_zh", ""))
+            scoring_rows.append(f"| {sp['range']} | {condition} |")
+        scoring_table = "\n".join(scoring_rows)
+
         prompt = render_extraction_prompt(
             item_id=self.skill_id,
             title=self.skill_config.get("title", ""),
-            criteria=self.skill_config.get("criteria", []),
+            scoring_table=scoring_table,
             chunk_content=full_text,
         )
         

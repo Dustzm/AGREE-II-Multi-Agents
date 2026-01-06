@@ -3,31 +3,30 @@ enabled: true
 domain: 2
 domain_name: Stakeholder Involvement
 domain_name_zh: 利益相关者参与
-title: The guideline development group includes individuals from all relevant professional groups.
-title_zh: 指南制定小组包括来自所有相关专业群体的成员。
-description: "Includes the research team and those forming recommendations (excluding external reviewers).\n"
-description_zh: '包括研究团队和参与形成建议的人员（不包括外部审稿人）。'
-locating_info: 'Methods, Group Members List, Acknowledgments.'
-locating_info_zh: '查看方法、小组成员名单、致谢章节。'
+title: The guideline development group includes individuals from all relevant professional
+  groups.
+title_zh: 指南开发小组包括了所有相关专业的人员。
+description: 'This item refers to the professionals who were involved at some stage
+  of the development process. This item excludes individuals who have externally reviewed
+  the guideline. This item excludes target population representation. Information
+  about the composition, discipline, and relevant expertise of the guideline development
+  group should be provided. '
+description_zh: 该条目是关于指南开发过程中涉及到的专业人员，但不包括对指南进行外部审查的个人和目标人群代表；同时，应提供指南开发小组的组成、原则和有关专家经验方面的信息。
+locating_info: Check Methods, Group Members List, Acknowledgments and Appendices.
+locating_info_zh: 查看方法、指南小组成员名单、致谢和附件章节。
 criteria:
-- Name (姓名)
-- Discipline/Profession (学科/专业)
-- Institution (机构)
-- Geographic Location (地理位置)
-- Role (角色)
+- 指南小组成员分组包含：起草人、执笔人、指南指导委员会、临床专家组、系统评价组、秘书组、外部评审组、共识专家组、指南制订工作组等。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: 2-3
-  condition: Rough description or names only
-  condition_zh: 仅有粗略描述或仅列出姓名
-- range: '4'
-  condition: Names + Disciplines
-  condition_zh: 姓名 + 学科
-- range: '5'
-  condition: Names + Disciplines + Institutions
-  condition_zh: 姓名 + 学科 + 机构
-- range: 6-7
-  condition: Names + Disciplines + Institutions + Roles + Geography
-  condition_zh: 姓名 + 学科 + 机构 + 角色 + 地理位置
+- range: '2'
+  condition: rough description of the group or names only
+  condition_zh: 仅对群体或人员名称进行粗略描述
+- range: 3-7
+  condition: In addition to listing names, provides detailed information on content
+    expertise/discipline, content expertise, geographical location, a description
+    of the member’s role in the guideline development group, and the multidisciplinary
+    team (e.g., methodologists, clinicians, nurses, etc.), with 1 point awarded for
+    each point reported.
+  condition_zh: 提供人员名称的基础上，提供专业/学科、机构、地理位置、成员在指南开发小组中的角色、提及所有领域角色（如方法学家、临床医生、护理人员等），每个1分

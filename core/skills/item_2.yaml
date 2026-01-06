@@ -4,36 +4,62 @@ domain: 1
 domain_name: Scope and Purpose
 domain_name_zh: 范围和目的
 title: The health question(s) covered by the guideline is (are) specifically described.
-title_zh: 指南涵盖的健康问题被具体描述。
-description: "Detailed health issues, ideally in PICO format \n(Population, Intervention,\
-  \ Comparator, Outcome).\n"
-description_zh: '详细的健康问题，理想情况下采用 PICO 格式
-
-  （人群、干预、对照、结局）。
+title_zh: 明确描述指南涵盖的卫生问题。
+description: 'A detailed description of the health questions covered by the guideline
+  should be provided, although they need not be phrased as questions.
 
   '
-locating_info: 'Check Introduction, Scope, or Objectives.
-
-  '
-locating_info_zh: '查看引言、范围或目标章节。
-
-  '
+description_zh: 涉及指南所涵盖的卫生问题，即使没有必要以提问的形式来表达，也必须详细描述有关的卫生问题。
+locating_info: Check Abstract, Introduction, Methodology (Scope, Purpose, or Objectives)
+  sections.
+locating_info_zh: 查看摘要、引言、方法学（范围、目的、目标）章节。
 criteria:
-- Target population (目标人群)
-- Interventions (干预措施)
-- Comparators (对照措施)
-- Outcomes (结局指标)
-- Healthcare setting (医疗场景)
+- PICO原则：P - Patient/Population/Problem (患者/人群/问题)，I - Intervention (干预措施)，C - Comparison
+  (对照措施)，O - Outcome (结局指标)，S - Study design (研究类型)。
+- 指南的临床问题分为背景和前景问题。背景问题是指与特定疾病、患者群体、干预措施或指南主题相关的一般性知识问题。背景问题通常涉及疾病的定义、病因、病理生理机制、流行病学特征等。前景问题是指南制订过程中应解决的核心问题，需要基于当前最佳证据形成推荐意见。通常采用PICO框架明确其涵盖的关键要素，以便后续证据检索与系统评价过程的开展。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: 3-4
-  condition: Rough description only
-  condition_zh: 仅有粗略描述
-- range: '5'
-  condition: Detailed PIC (Population, Intervention, Comparison) but lacking Outcomes/Settings
-  condition_zh: 详细的 PIC（人群、干预、对照）但缺少结局/场景
+- range: 2-4
+  condition: If the health question is framed as a background question, the P or I
+    component is described
+  condition_zh: 若卫生问题为背景问题，对P或I进行描述
+- range: 5-7
+  condition: If the health question is framed as a background question, the P and
+    I component is described
+  condition_zh: 若卫生问题为背景问题，对P和I均描述
+- range: 2-3
+  condition: If the health question is framed as a foreground question, two PICOS
+    elements are described
+  condition_zh: 若卫生问题为前景问题，PICOS元素，描述2个
+- range: 4-5
+  condition: If the health question is framed as a foreground question, three PICOS
+    elements are described
+  condition_zh: 若卫生问题为前景问题，PICOS元素，描述3个（4-5分）
+- range: '6'
+  condition: If the health question is framed as a foreground question, four PICOS
+    elements are described
+  condition_zh: 若卫生问题为前景问题，PICOS元素，描述4个
+- range: '7'
+  condition: If the health question is framed as a foreground question, all PICOS
+    elements are described
+  condition_zh: 若卫生问题为前景问题，PICOS元素，全部描述
+- range: 2-3
+  condition: If the guideline does not explicitly state a health question, the relevant
+    elements should still be described in detail—specifically, atwo PICO elements
+    should be reported in the early sections of the guideline (e.g., the abstract,
+    introduction, or methods)
+  condition_zh: 若指南无卫生问题，也须详细描述有关的元素，即在指南的开始部分（如摘要、引言、方法学）描述相关的PICO元素，描述2个
+- range: 4-5
+  condition: If the guideline does not explicitly state a health question, the relevant
+    elements should still be described in detail—specifically, three PICO elements
+    should be reported in the early sections of the guideline (e.g., the abstract,
+    introduction, or methods)
+  condition_zh: 若指南无卫生问题，也须详细描述有关的元素，即在指南的开始部分（如摘要、引言、方法学）描述相关的PICO元素，描述3个
 - range: 6-7
-  condition: Detailed PICOS (All elements present)
-  condition_zh: 详细的 PICOS（所有要素齐全）
+  condition: If the guideline does not explicitly state a health question, the relevant
+    elements should still be described in detail—specifically, all PICO elements should
+    be reported in the early sections of the guideline (e.g., the abstract, introduction,
+    or methods).
+  condition_zh: 若指南无卫生问题，也须详细描述有关的元素，即在指南的开始部分（如摘要、引言、方法学）描述相关的PICO元素，全部描述

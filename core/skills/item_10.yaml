@@ -4,36 +4,36 @@ domain: 3
 domain_name: Rigor of Development
 domain_name_zh: 制定严谨性
 title: The methods for formulating the recommendations are clearly described.
-title_zh: 形成推荐意见的方法被清晰描述。
-description: "Description of the process for generating recommendations, \nincluding\
-  \ consensus methods, voting, and outcomes.\n"
-description_zh: '描述形成推荐意见的过程，包括共识方法、投票和结果。
+title_zh: 清楚描述形成推荐意见的方法。
+description: 'A description of the methods used to formulate the recommendations and
+  how final decisions were arrived at should be provided. For example, methods may
+  include a voting system, informal consensus, and formal consensus techniques (e.g.,
+  Delphi, Glaser techniques). Areas of disagreement and methods of resolving them
+  should be specified. '
+description_zh: '应当描述形成推荐建议的方法和如何得出最终的决定。方法很多，比如投票法、非正式共识法、正式共识会议（如特尔菲法，Glaser方法），还应该说明有争议
+
+  的地方和解决争议的方法。
 
   '
-locating_info: 'Methodology, Guideline Development Process.
-
-  '
-locating_info_zh: '查看方法学、指南制定过程章节。
-
-  '
-criteria:
-- Description of the process (e.g., Delphi, voting) (过程描述：德尔菲法、投票等)
-- Results of the process (e.g., consensus levels) (过程结果：共识程度等)
-- Description of how the process affected final recommendations (过程如何影响最终推荐的描述)
+locating_info: Check Method section.
+locating_info_zh: 查看方法章节。
+criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: '2'
-  condition: Provided recommendation generation method name only
-  condition_zh: 仅提供推荐意见生成方法名称
-- range: 3-4
-  condition: Provided method and described specific process/results, but no method
-    process details
-  condition_zh: 提供方法并描述具体过程/结果，但无方法过程细节
-- range: 5-6
-  condition: Described generation process AND provided results
-  condition_zh: 描述生成过程并提供结果
-- range: '7'
-  condition: Comprehensive description of process, results, AND impact on final recommendations
-  condition_zh: 全面描述过程、结果和对最终推荐的影响
+- range: 2-3
+  condition: Mentioned the methods used to formulate recommendations but without further
+    detail (e.g., merely stating the use of the Delphi method, consensus processes,
+    or voting)
+  condition_zh: 提及了形成推荐意见的方法，但无细节，如仅说明用德尔菲、共识、投票等
+- range: 4-5
+  condition: Described the specific process of recommendation development (e.g., steps
+    of the Delphi method, reference to the Evidence-to-Decision [EtD] framework) or
+    reported the outcomes of the process (e.g., level of consensus achieved)
+  condition_zh: 描述了形成推荐的具体过程（如德尔菲法步骤、参考ETD框架等）或给出了过程的结果（如共识度）
+- range: 6-7
+  condition: Provided a detailed description of the recommendation development process,
+    reported the results, and explained how this process informed or influenced the
+    final recommendations
+  condition_zh: 既详细描述了形成推荐的过程，也说明了结果，并阐述了该过程如何影响最终推荐意见

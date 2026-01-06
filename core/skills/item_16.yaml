@@ -5,28 +5,31 @@ domain_name: Clarity of Presentation
 domain_name_zh: 表达清晰性
 title: The different options for management of the condition or health issue are clearly
   presented.
-title_zh: 清晰呈现了管理疾病或健康问题的不同选择。
-description: "Description of different treatment/management options and \nthe most\
-  \ suitable population/clinical status for each option.\n"
-description_zh: '描述不同的治疗/管理选择以及每个选择最适合的人群/临床状态。
+title_zh: 明确列出不同的选择或卫生问题。
+description: 'A guideline that targets the management of a disease should consider
+  the different possible options for screening, prevention, diagnosis or treatment
+  of the condition it covers. These possible options should be clearly presented in
+  the guideline. '
+description_zh: '目标为一种疾病管理的指南将考虑临床筛查、预防、诊断或治疗存在各种不同的选择，在指南中应该明确提到这些可能的选择。
 
   '
-locating_info: 'Recommendations, Discussion, Treatment Options.
-
-  '
-locating_info_zh: '查看推荐意见、讨论、治疗选择章节。
-
-  '
+locating_info: Check Executive summary，Recommendations, conclusion sections.
+locating_info_zh: 查看执行摘要、推荐意见、结论章节。
 criteria:
-- Description of options (e.g., drug A vs B, therapy) (选项描述：如药物A vs B、治疗方法）
-- Description of most suitable population/clinical status for each option (每个选项最适合的人群/临床状态描述)
+- '例如，对抑郁症管理的推荐建议可能包括下列治疗选择： a． TCA治疗 b． SSRI治疗 c． 心理治疗 d． 药理心理联合疗法 '
 scoring_principle:
-- range: 1-2
-  condition: Only one option mentioned
-  condition_zh: 仅提及一种选择
-- range: 3-4
-  condition: Multiple options for the same issue
-  condition_zh: 同一问题有多种选择
-- range: 5-7
-  condition: Multiple options + Description of suitable populations/clinical status
-  condition_zh: 多种选择 + 适合人群/临床状态的描述
+- range: '1'
+  condition: Only a single option is mentioned
+  condition_zh: 未提及，即仅有一种方案
+- range: 2-3
+  condition: Multiple options are presented for the same clinical issue
+  condition_zh: 针对同一问题存在多个方案
+- range: 4-5
+  condition: Multiple options are presented for the same clinical issue, with descriptions
+    of the applicable populations or clinical conditions
+  condition_zh: 针对同一问题存在多个方案，且对适用人群或临床状况进行描述
+- range: 6-7
+  condition: Multiple options are presented for the same clinical issue, with descriptions
+    of the applicable populations or clinical conditions, and with an explicit order
+    of preference or criteria for option selection
+  condition_zh: 针对同一问题存在多个方案，对适用人群或临床状况进行描述，且存在推荐顺序或选择依据

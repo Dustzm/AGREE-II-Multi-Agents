@@ -15,21 +15,24 @@ EVIDENCE_EXTRACTION_PROMPT = """# Evidence Extraction Task
 ## Current Item
 - Item ID: {item_id}
 - Title: {title}
-- Evaluation Criteria (use as reference for what to look for):
-{criteria_list}
+
+## Scoring Rubric (Use these conditions to identify relevant evidence)
+| Score Range | Condition |
+|-------------|-----------|
+{scoring_table}
 
 ## Content to Analyze
 {chunk_content}
 
 ## Your Task
-Extract **exact text fragments** from "Content to Analyze" that help answer the evaluation criteria.
+Extract **exact text fragments** from "Content to Analyze" that help determine the score according to the Scoring Rubric.
 
 **What to Extract:**
-- Direct quotes from the document that describe relevant facts, data, or statements
-- Content that addresses the criteria items listed above
+- Direct quotes from the document that describe relevant facts, data, or statements related to the scoring conditions
+- Content that proves or disproves any of the conditions in the rubric
 
 **What NOT to Extract:**
-- The criteria labels themselves (e.g., don't copy "Health content" or "Target population" as evidence)
+- The rubric text itself
 - Your own interpretations or summaries
 
 **Example:**
@@ -53,8 +56,6 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 ## Current Item
 - Item ID: {item_id}
 - Title: {title}
-- Evaluation Criteria:
-{criteria_list}
 
 ## Accumulated Evidence (from {n_sources} sections)
 {evidence_cache}
@@ -68,14 +69,14 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 Based on the accumulated evidence, determine which scoring condition is best matched.
 
 **Scoring Steps**:
-1. Review the evidence and identify which evaluation criteria are addressed
+1. Review the evidence against the scoring rubric
 2. Compare the evidence coverage against each scoring condition
 3. Select the score range that best matches the evidence
 
 ## Output Format
 Provide your analysis and score in the following format:
 
-Analysis: [Brief explanation of which criteria are met and which scoring condition matches]
+Analysis: [Brief explanation of which scoring condition matches and why]
 Score: [integer 1-7]
 """
 
@@ -90,8 +91,6 @@ FINAL_REPORT_PROMPT = """# Final Evaluation Report
 - Item ID: {item_id}
 - Domain: {domain_name}
 - Title: {title}
-- Evaluation Criteria:
-{criteria_list}
 
 ## Scoring Rubric
 | Score Range | Condition |
@@ -113,7 +112,6 @@ Generate a complete Chain-of-Thought (CoT) evaluation report with the following 
 1. **Location Information** (step1_locate): Describe which sections/chapters the evidence came from
 2. **Evidence Summary** (step2_evidence): List the key quotes extracted as evidence
 3. **Reasoning Process** (step3_reasoning): Provide a detailed explanation that includes:
-   - Which evaluation criteria are addressed by the evidence
    - How the evidence matches (or fails to match) each scoring condition
    - Why the final score was chosen over other possible scores
 
@@ -122,7 +120,7 @@ Return a JSON object:
 {{
     "step1_locate": "Description of evidence locations...",
     "step2_evidence": ["quote1", "quote2", ...],
-    "step3_reasoning": "Detailed explanation: The evidence addresses [criteria X, Y] by showing [specific content]. According to the scoring rubric, this matches the condition for score [N] because [reason]. Score [N-1] was not chosen because [missing element]."
+    "step3_reasoning": "Detailed explanation: The evidence addresses the scoring rubric by showing [specific content]. This matches the condition for score [N] because [reason]. Score [N-1] was not chosen because [missing element]."
 }}
 
 IMPORTANT: The step3_reasoning must explicitly reference the scoring rubric conditions and explain which condition best matches the evidence.
@@ -136,7 +134,7 @@ IMPORTANT: The step3_reasoning must explicitly reference the scoring rubric cond
 def render_extraction_prompt(
     item_id: str,
     title: str,
-    criteria: List[str],
+    scoring_table: str,
     chunk_content: str
 ) -> str:
     """
@@ -145,17 +143,16 @@ def render_extraction_prompt(
     Args:
         item_id: 条目 ID
         title: 评价标题
-        criteria: 评价要素列表
+        scoring_table: 评分表格 (用于指导提取)
         chunk_content: 待分析的 chunk 内容
     
     Returns:
         渲染后的提示词
     """
-    criteria_list = "\n".join(f"  - {c}" for c in criteria)
     return EVIDENCE_EXTRACTION_PROMPT.format(
         item_id=item_id,
         title=title,
-        criteria_list=criteria_list,
+        scoring_table=scoring_table,
         chunk_content=chunk_content,
     )
 
@@ -163,7 +160,7 @@ def render_extraction_prompt(
 def render_scoring_prompt(
     item_id: str,
     title: str,
-    criteria: List[str],
+    criteria: List[str],  # 保持参数兼容性但忽略
     evidence_cache: List[str],
     scoring_table: str,
     n_sources: int
@@ -174,7 +171,7 @@ def render_scoring_prompt(
     Args:
         item_id: 条目 ID
         title: 评价标题
-        criteria: 评价要素列表
+        criteria: (已废弃/Deprecated) 评价要素列表
         evidence_cache: 累积的证据列表
         scoring_table: 评分表格 (markdown)
         n_sources: 证据来源数量
@@ -182,12 +179,10 @@ def render_scoring_prompt(
     Returns:
         渲染后的提示词
     """
-    criteria_list = "\n".join(f"  - {c}" for c in criteria)
     evidence_text = "\n".join(f"- {e}" for e in evidence_cache) if evidence_cache else "No evidence collected yet."
     return DYNAMIC_SCORING_PROMPT.format(
         item_id=item_id,
         title=title,
-        criteria_list=criteria_list,
         evidence_cache=evidence_text,
         scoring_table=scoring_table,
         n_sources=n_sources,
@@ -198,7 +193,7 @@ def render_final_report_prompt(
     item_id: str,
     domain_name: str,
     title: str,
-    criteria: List[str],
+    criteria: List[str], # 保持参数兼容性但忽略
     scoring_table: str,
     evidence_cache: List[str],
     evidence_sources: List[str],
@@ -211,7 +206,7 @@ def render_final_report_prompt(
         item_id: 条目 ID
         domain_name: 领域名称
         title: 评价标题
-        criteria: 评价要素列表
+        criteria: (已废弃/Deprecated) 评价要素列表
         scoring_table: 评分表格 (markdown)
         evidence_cache: 累积的证据列表
         evidence_sources: 证据来源 chunk_id 列表
@@ -220,7 +215,6 @@ def render_final_report_prompt(
     Returns:
         渲染后的提示词
     """
-    criteria_list = "\n".join(f"  - {c}" for c in criteria)
     evidence_text = "\n".join(f"- {e}" for e in evidence_cache) if evidence_cache else "No evidence collected."
     sources_text = ", ".join(evidence_sources) if evidence_sources else "None"
     
@@ -228,7 +222,6 @@ def render_final_report_prompt(
         item_id=item_id,
         domain_name=domain_name,
         title=title,
-        criteria_list=criteria_list,
         scoring_table=scoring_table,
         evidence_cache=evidence_text,
         evidence_sources=sources_text,

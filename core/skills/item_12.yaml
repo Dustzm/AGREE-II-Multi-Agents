@@ -5,32 +5,32 @@ domain_name: Rigor of Development
 domain_name_zh: 制定严谨性
 title: There is an explicit link between the recommendations and the supporting evidence.
 title_zh: 推荐意见与支持证据之间有明确联系。
-description: "Description of how each recommendation is linked to the \nsupporting\
-  \ evidence.\n"
-description_zh: '描述每条推荐意见如何与支持证据相关联。
-
-  '
-locating_info: 'Recommendations section, Key Evidence descriptions.
-
-  '
-locating_info_zh: '查看推荐意见章节、关键证据描述。
-
-  '
-criteria:
-- Description of how evidence was used to generate recommendations (描述证据如何用于生成推荐意见)
-- Each recommendation linked to key evidence/references (每条推荐意见关联关键证据/参考文献)
-- Recommendations linked to evidence summaries/tables (推荐意见关联证据摘要/表格)
+description: 'An explicit link between the recommendations and the evidence on which
+  they are based should be included in the guideline. The guideline user should be
+  able to identify the components of the body of evidence relevant to each recommendation. '
+description_zh: "指南中推荐意见和支持证据之间应当有明确的联系。指南用户能识别与每个推荐意见相关的证据。 \n"
+locating_info: Check Recommendations section.
+locating_info_zh: 查看推荐意见章节。
+criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Description of how evidence led to recommendations OR only references
-    provided
-  condition_zh: 描述证据如何导出推荐意见或仅提供参考文献
+  condition: Described how the guideline development group linked and used evidence
+    to formulate recommendations
+  condition_zh: 描述指南开发小组是如何联系和如何使用证据产生推荐意见
 - range: 4-5
-  condition: Description of link AND references provided
-  condition_zh: 描述关联并提供参考文献
+  condition: Linked some recommendations to corresponding evidence descriptions or
+    evidence tables/figures, with multiple recommendations mapped to multiple evidence
+    description sections
+  condition_zh: 一些推荐意见与一些证据描述或证据图表相联系，即多条推荐意见对应多条推荐意见的证据描述段落
 - range: 6-7
-  condition: Clear description of relationship, references, AND evidence summaries/tables
-  condition_zh: 清晰描述关系、参考文献和证据摘要/表格
+  condition: Clearly linked each recommendation to its corresponding evidence description,
+    reference list, or evidence tables/figures, such that one recommendation is explicitly
+    supported by one or more specific bodies of evidence
+  condition_zh: 每个推荐意见与对应的证据描述或参考文献目录或证据图表相联系，即一条推荐意见准确对应一条或多条推荐意见的证据描述
+- range: 3-5
+  condition: When evidence is limited or recommendations are consensus-based, explicit
+    statements or descriptions may be scored according to their level of detail
+  condition_zh: 如果缺乏证据或推荐意见是基于共识得出的，可根据详细程度给予明确陈述或描述相应的分数

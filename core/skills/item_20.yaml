@@ -5,33 +5,33 @@ domain_name: Applicability
 domain_name_zh: 适用性
 title: The potential resource implications of applying the recommendations have been
   considered.
-title_zh: 已考虑应用推荐意见的潜在资源影响。
-description: "Consideration of cost information, economic evaluations, \nand how this\
-  \ information was used in formulating recommendations.\n"
-description_zh: '考虑成本信息、经济评估，以及这些信息如何用于形成推荐意见。
+title_zh: 指南考虑了推荐意见应用时潜在的相关资源。
+description: 'The recommendations may require additional resources in order to be
+  applied. These may have cost implications for health care budgets. There should
+  be a discussion in the guideline of the potential impact of the recommendations
+  on resources. '
+description_zh: '推荐意见可能需要应用额外的资源。这可能与卫生预算费用相关，将在推荐意见可能对资源影响的指南中讨论。
 
   '
-locating_info: 'Methodology, Cost-Use, Cost-Effectiveness, Budget.
-
-  '
-locating_info_zh: '查看方法学、成本效用、成本效益、预算章节。
-
-  '
+locating_info: Check Method, Recommendation, Implementation, Appendices sections.
+locating_info_zh: 查看方法、推荐意见、实施、附录章节。
 criteria:
-- Consideration of cost info types (economic eval, drug costs) (考虑成本信息类型：经济评估、药物成本)
-- Methodology for collecting cost info (economist involved) (收集成本信息的方法：经济学家参与)
-- Survey info (调查信息)
-- Description of how info was used in formulation (信息如何用于形成的描述)
+- 例如，可能需要一个更专业的团队，新的设备，昂贵的药物治疗。通常在指南中标示为：成本利用、成本有效率、采集费用、相关预
+- 算等相关的信息。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: 3-4
-  condition: Mention of cost/economic issues only
-  condition_zh: 仅提及成本/经济问题
-- range: 5-6
-  condition: Specific survey information provided
-  condition_zh: 提供具体的调查信息
-- range: '7'
-  condition: Survey information provided AND how it was used in formulation
-  condition_zh: 提供调查信息及其如何用于形成
+- range: 2-3
+  condition: Vaguely mentioned without clear detail
+  condition_zh: 模糊提及
+- range: 4-5
+  condition: Mentioned costs, economic considerations, or proposals for economic evaluation,
+    or provided specific survey or economic data
+  condition_zh: 提及成本/经济问题/提出经济评估建议等，或提供了具体的调查信息
+- range: 6-7
+  condition: Provided information on costs or economic considerations, proposed economic
+    evaluation, or presented specific survey data, and clearly described how this
+    information was used in the development of the guideline and/or formulation of
+    recommendations
+  condition_zh: 提供成本/经济问题/提出经济评估建议等，或提供了具体的调查信息，并说明其如何在指南/推荐意见的形成过程中被运用
