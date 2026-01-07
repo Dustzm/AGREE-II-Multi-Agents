@@ -128,6 +128,15 @@ class AppSettings(BaseSettings):
         description="输出目录 (任务结果存放位置)"
     )
     
+    # 评价并发配置
+    appraisal_max_concurrency: int = Field(
+        default=5,
+        alias="APPRAISAL_MAX_CONCURRENCY",
+        description="条目评价最大并发数",
+        ge=1,
+        le=20
+    )
+    
     # 数据存储根目录 (向后兼容，实际使用 dir_output)
     @property
     def data_root(self) -> str:

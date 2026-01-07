@@ -8,13 +8,13 @@ Explorer (搬运工)
 """
 from google.adk.agents import LlmAgent
 
-from .core import get_model
-from .core import (
+from .base import get_model
+from .base import (
     read_source_document,
     read_guide_map,
     write_to_context_buffer,
 )
-from .core.schemas import ExplorerInput
+from .base.schemas import ExplorerInput
 
 
 def create_explorer_agent() -> LlmAgent:

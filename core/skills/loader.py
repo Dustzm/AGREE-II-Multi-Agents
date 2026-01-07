@@ -152,21 +152,26 @@ def get_enabled_skills_info(lang: Optional[str] = None) -> list[dict]:
     return skills_info
 
 
-def get_skill_summary(skill_id: str) -> Optional[str]:
+def get_skill_summary(skill_id: str, lang: Optional[str] = None) -> Optional[str]:
     """
     获取条目的简短摘要（用于显示）
     
     Args:
         skill_id: 条目 ID
+        lang: 语言 (en/zh)，默认中文
     
     Returns:
-        str: 条目摘要（中文标题）
+        str: 条目摘要（标题）
     """
     try:
         config = _load_skill_config_raw(skill_id)
         if not config.get("enabled", False):
             return None
-        return config.get("title_zh", config.get("title", skill_id))
+        
+        if lang == "en":
+            return config.get("title", config.get("title_zh", skill_id))
+        else:
+            return config.get("title_zh", config.get("title", skill_id))
     except FileNotFoundError:
         return None
 

@@ -7,7 +7,7 @@
         }
     },
     "nav": {
-        "chat": "对话",
+        "chat": "评价",
         "batch": "批量",
         "reports": "报告",
         "skills": "条目",
@@ -239,7 +239,10 @@
             "hint": "选择一个 PDF 文件开始评价"
         },
         "taskLabel": "AGREE-II 评价任务",
-        "viewPrompt": "查看提示词"
+        "viewPrompt": "查看提示词",
+        "evaluating": "正在评价 {{title}}...",
+        "evaluated": "{{title}}",
+        "evaluateFailed": "{{title}} 失败"
     },
     "evidence": {
         "label": {

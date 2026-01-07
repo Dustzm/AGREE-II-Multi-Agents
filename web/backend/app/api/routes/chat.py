@@ -228,6 +228,27 @@ async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None, lan
             lang=lang,
         )
         
+        # 设置并发评价进度回调
+        async def send_item_progress(skill_id: str, title: str, status: str, duration: float = None):
+            await manager.send_message(session_id, {
+                "type": "item_progress",
+                "skill_id": skill_id,
+                "title": title,
+                "item_status": status,
+                "duration": duration
+            })
+        
+        async def send_batch_summary(total: int, completed: int, elapsed: float):
+            await manager.send_message(session_id, {
+                "type": "batch_summary",
+                "total": total,
+                "completed_count": completed,
+                "elapsed": elapsed
+            })
+        
+        runner._send_item_progress = send_item_progress
+        runner._send_batch_summary = send_batch_summary
+        
         await runner.run(task_id, str(pdf_file))
     
     except Exception as e:

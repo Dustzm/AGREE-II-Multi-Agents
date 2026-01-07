@@ -110,21 +110,90 @@ body {
   border-left: 2px solid hsl(var(--border));
 }
 
-/* 时序图项目动画入场 */
+/* 时序图项目动画入场 - 从下往上滑入 + 淡入 */
 @keyframes timeline-enter {
   from {
     opacity: 0;
-    transform: translateX(-8px);
+    transform: translateY(16px);
+    max-height: 0;
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
+    max-height: 80px;
   }
 }
 
 .timeline-item {
-  animation: timeline-enter 0.3s ease-out forwards;
+  animation: timeline-enter 0.4s ease-out forwards;
+}
+
+/* 新条目渐入动画（更明显） */
+@keyframes slide-in-new {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.95);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.timeline-item.is-new {
+  animation: slide-in-new 0.5s ease-out forwards;
+}
+
+/* 进行中条目左侧进度条动画 */
+.timeline-item.is-running {
+  position: relative;
+}
+
+.timeline-item.is-running::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: linear-gradient(180deg, #8b5cf6, #a855f7, #8b5cf6);
+  background-size: 100% 200%;
+  border-radius: 2px;
+  animation: gradient-flow 1.5s ease-in-out infinite;
+}
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 0% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* 完成条目弹入效果 */
+@keyframes pop-complete {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.timeline-item.just-completed {
+  animation: pop-complete 0.3s ease-out;
 }
 
 /* Milkdown Editor Customizations */

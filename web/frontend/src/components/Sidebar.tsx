@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, FileText, Settings, Sparkles, Bot, PlayCircle } from 'lucide-react'
+import { MessageSquare, FileText, Settings, Bot, PlayCircle } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { LanguageSwitch } from './LanguageSwitch'
 
@@ -21,12 +21,12 @@ export function Sidebar() {
 
             <div className="relative p-6 border-b border-white/20">
                 <div className="flex items-center gap-3 mb-1">
-                    <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white shadow-lg shadow-blue-500/30">
-                        <Sparkles className="h-5 w-5" />
+                    <div className="rounded-xl overflow-hidden shadow-lg shadow-blue-500/20">
+                        <img src="/ama/logo.png" alt="AMA Logo" className="h-10 w-10" />
                     </div>
                     <div>
                         <h1 className="text-xl font-bold tracking-tight text-gray-800">AMA</h1>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{t('sidebar.subtitle')}</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">AGREE-II-Multi-Agents</p>
                     </div>
                 </div>
             </div>
@@ -77,7 +77,7 @@ export function Sidebar() {
                     </div>
                 </div>
             </div>
-        </aside>
+        </aside >
     )
 }
 

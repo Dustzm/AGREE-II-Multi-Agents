@@ -9,9 +9,10 @@ from typing import Optional
 from google.adk.agents import LlmAgent
 from google.adk.tools import AgentTool, FunctionTool
 
-from .core import get_model
+from .base import get_model
 from .tools import read_plan, update_plan_item
 from .tools.appraiser_tool_factory import create_appraiser_tool
+from .tools.appraiser_batch import create_appraise_all_tool
 from .initiator import create_initiator_agent
 from .reporter import create_reporter_agent
 from core.prompts import load_prompt
@@ -31,6 +32,8 @@ def create_orchestrator(lang: Optional[str] = None) -> LlmAgent:
     改进（方案 A - 预创建模式）：
     使用 FunctionTool 包装 IterativeEvaluator 替代 LlmAgent Appraiser
     工具名格式：Appraiser_item_1, Appraiser_item_2, ...
+    
+    新增 appraise_all 工具：并发评价所有条目，提升效率
     """
     # 创建 Initiator 和 Reporter 实例
     initiator = create_initiator_agent(lang)
@@ -42,6 +45,9 @@ def create_orchestrator(lang: Optional[str] = None) -> LlmAgent:
     for skill_id in enabled_skills:
         tool_fn = create_appraiser_tool(skill_id, lang)
         appraiser_tools.append(FunctionTool(tool_fn))
+    
+    # 创建批量评价工具
+    appraise_all_tool = FunctionTool(create_appraise_all_tool(lang))
     
     # 使用 AgentTool 封装 Initiator 和 Reporter
     initiator_agent = AgentTool(agent=initiator)
@@ -57,7 +63,8 @@ def create_orchestrator(lang: Optional[str] = None) -> LlmAgent:
         instruction=instruction,
         tools=[
             initiator_agent,
-            *appraiser_tools,  # 展开所有 Appraiser 工具（现在是 FunctionTool）
+            appraise_all_tool,  # 批量评价工具（推荐使用）
+            *appraiser_tools,   # 单条目工具（降级/重试使用）
             reporter_agent,
             read_plan,
             update_plan_item,

@@ -57,6 +57,10 @@ ZH_MESSAGES = {
     "agent.appraising_item": "正在评价 {skill_id}...",
     "agent.processing": "{agent} 正在处理...",
     "agent.report_done": "报告生成完成",
+    "agent.initiator_done": "评价计划已生成",
+    "agent.batch_appraise_start": "开始并发评价所有条目...",
+    "agent.batch_appraise_done": "所有条目评价完成",
+    "agent.reporter_done": "报告生成完成",
     
     # === chat.py ===
     "chat.default_response": "我是 AMA 评价助手，有什么可以帮你的吗？",
@@ -99,6 +103,10 @@ EN_MESSAGES = {
     "agent.appraising_item": "Appraising {skill_id}...",
     "agent.processing": "{agent} processing...",
     "agent.report_done": "Report generated",
+    "agent.initiator_done": "Appraisal plan generated",
+    "agent.batch_appraise_start": "Starting concurrent evaluation of all items...",
+    "agent.batch_appraise_done": "All items evaluated",
+    "agent.reporter_done": "Report generated",
     
     # === chat.py ===
     "chat.default_response": "I'm AMA evaluation assistant, how can I help you?",

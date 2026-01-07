@@ -6,13 +6,13 @@ Extractor (领域专家)
 """
 from google.adk.agents import LlmAgent
 
-from .core import get_model
-from .core import (
+from .base import get_model
+from .base import (
     list_context_buffers,
     read_context_buffer,
     save_extracted_triples,
 )
-from .core.schemas import ExtractorInput
+from .base.schemas import ExtractorInput
 
 
 def create_extractor_agent() -> LlmAgent:

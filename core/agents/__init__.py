@@ -8,7 +8,7 @@ AMA (AGREE-Multi-Agents) 智能体模块
   - portal          门户智能体 (用户交互)
   - orchestrator    智能编排器
   - initiator       规划师
-  - appraiser       评价专家
+  - appraiser       迭代评价器 (LiteLLM)
   - reporter        报告员
 - agents/tools/     工具函数
   - public_tools    公共工具
@@ -16,18 +16,17 @@ AMA (AGREE-Multi-Agents) 智能体模块
   - orchestrator_tools Orchestrator 工具
   - appraiser_tools Appraiser 工具
   - reporter_tools  Reporter 工具
-- agents/core/      核心支持模块
+- agents/base/      核心支持模块
   - model_config    模型配置
-  - communication   通信管理
   - schemas         数据模型
-  - preprocessor    文档预处理模块
+  - task_context    任务上下文管理
+- preprocessor/     文档预处理模块 (已移至 core 根目录)
 """
 from .portal import create_portal_agent, list_input_pdfs, check_extraction_intent
 from .orchestrator import create_orchestrator
 from .initiator import create_initiator_agent
-from .appraiser import create_appraiser_agent
 from .reporter import create_reporter_agent
-from .core import get_model
+from .base import get_model
 from .tools import init_task_directory
 
 
@@ -40,7 +39,6 @@ __all__ = [
     "create_orchestrator",
     # AMA 核心智能体
     "create_initiator_agent",
-    "create_appraiser_agent",
     "create_reporter_agent",
     # 核心模块
     "get_model",

@@ -6,12 +6,12 @@ Validator (质检员)
 """
 from google.adk.agents import LlmAgent
 
-from .core import get_model
-from .core import (
+from .base import get_model
+from .base import (
     read_extracted_triples,
     save_final_kg,
 )
-from .core.schemas import ValidatorInput
+from .base.schemas import ValidatorInput
 
 
 def create_validator_agent() -> LlmAgent:

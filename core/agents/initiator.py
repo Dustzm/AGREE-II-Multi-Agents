@@ -11,9 +11,9 @@ from typing import Optional
 
 from google.adk.agents import LlmAgent
 
-from .core import get_model
+from .base import get_model
 from .tools import read_source_document, save_plan, get_enabled_skills_for_plan
-from .core.schemas import InitiatorInput
+from .base.schemas import InitiatorInput
 from core.prompts import load_prompt
 
 

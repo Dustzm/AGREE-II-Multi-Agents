@@ -21,6 +21,8 @@ export interface TimelineEvent {
     detail?: string  // 例如 Appraiser 的 item_id
     timestamp: Date
     prompt?: string  // Appraiser 的提示词内容
+    isNew?: boolean  // 是否新添加（用于渐入动画）
+    duration?: number  // 完成耗时（秒）
 }
 
 // Agent 颜色配置
@@ -63,9 +65,14 @@ function getIcon(type: TimelineEvent['type'], status: TimelineEvent['status']) {
 interface TimelineViewProps {
     events: TimelineEvent[]
     taskId?: string
+    batchSummary?: {  // 并发评价汇总
+        total: number
+        completed: number
+        elapsed: number
+    }
 }
 
-export function TimelineView({ events, taskId }: TimelineViewProps) {
+export function TimelineView({ events, taskId, batchSummary }: TimelineViewProps) {
     const { t } = useTranslation()
 
     // 提示词弹窗状态
@@ -110,10 +117,30 @@ export function TimelineView({ events, taskId }: TimelineViewProps) {
                 {taskId && (
                     <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-muted/30 rounded-lg border border-border/50">
                         <Sparkles className="h-5 w-5 text-primary" />
-                        <div>
+                        <div className="flex-1">
                             <p className="text-sm font-medium">{taskId}</p>
                             <p className="text-xs text-muted-foreground">{t('timeline.taskLabel')}</p>
                         </div>
+                        {/* 并发进度汇总 */}
+                        {batchSummary && batchSummary.total > 0 && (
+                            <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-primary">
+                                        {batchSummary.completed}/{batchSummary.total}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {Math.floor(batchSummary.elapsed / 60)}:{String(Math.floor(batchSummary.elapsed % 60)).padStart(2, '0')}
+                                    </p>
+                                </div>
+                                {/* 进度条 */}
+                                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
+                                        style={{ width: `${(batchSummary.completed / batchSummary.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -129,7 +156,9 @@ export function TimelineView({ events, taskId }: TimelineViewProps) {
                                 key={event.id}
                                 className={cn(
                                     "timeline-item flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all",
-                                    isChild && "timeline-indent ml-6"
+                                    isChild && "timeline-indent ml-6",
+                                    event.isNew && "is-new",
+                                    isRunning && "is-running"
                                 )}
                             >
                                 {/* 呼吸灯图标 */}
@@ -176,9 +205,12 @@ export function TimelineView({ events, taskId }: TimelineViewProps) {
                                     </button>
                                 )}
 
-                                {/* 时间戳 */}
+                                {/* 时间戳/耗时 */}
                                 <span className="text-[10px] text-muted-foreground/40 shrink-0">
-                                    {event.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                    {event.duration
+                                        ? `${event.duration.toFixed(1)}s`
+                                        : event.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                    }
                                 </span>
                             </div>
                         )

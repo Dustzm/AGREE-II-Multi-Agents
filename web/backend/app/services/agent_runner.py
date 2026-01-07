@@ -14,7 +14,8 @@ from typing import Callable, Optional
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.agents.core.preprocessor import process_content_list
+from core.preprocessor import process_content_list
+from core.agents.tools.appraiser_batch import register_progress_callbacks, clear_progress_callbacks
 from web.backend.app.i18n import t, get_language
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,10 @@ class AppraisalRunner:
         self.lang = get_language(lang)
         
         self._cancelled = False
+        
+        # 用于 WebSocket 发送的回调（在 run 中设置）
+        self._on_item_progress = None
+        self._on_batch_summary = None
     
     def cancel(self):
         """取消当前任务"""
@@ -211,6 +216,27 @@ class AppraisalRunner:
             self.on_status("status", t("status.starting_agents", self.lang))
             self.on_agent("Orchestrator", t("agent.orchestrator_start", self.lang), 0, 4)
             
+            # 注册并发评价进度回调
+            async def on_item_progress(skill_id: str, title: str, status: str, duration: float = None):
+                """单条目进度回调"""
+                try:
+                    # 通过 on_agent 发送 item_progress 类型的消息
+                    # 这里复用 on_agent 回调，但传递特殊的 agent 名称以区分
+                    if hasattr(self, '_send_item_progress') and self._send_item_progress:
+                        await self._send_item_progress(skill_id, title, status, duration)
+                except Exception as e:
+                    logger.warning(f"发送条目进度失败: {e}")
+            
+            async def on_batch_summary(total: int, completed: int, elapsed: float):
+                """汇总进度回调"""
+                try:
+                    if hasattr(self, '_send_batch_summary') and self._send_batch_summary:
+                        await self._send_batch_summary(total, completed, elapsed)
+                except Exception as e:
+                    logger.warning(f"发送汇总进度失败: {e}")
+            
+            register_progress_callbacks(on_item_progress, on_batch_summary)
+            
             orchestrator = create_orchestrator()
             runner = runners.InMemoryRunner(
                 agent=orchestrator,
@@ -317,6 +343,11 @@ class AppraisalRunner:
                                     
                             elif 'reporter' in tool_name.lower():
                                 agent_name = "Reporter"
+                            elif 'appraise_all' in tool_name.lower():
+                                # 批量评价工具开始
+                                agent_name = "Appraiser"
+                                custom_message = t("agent.batch_appraise_start", self.lang)
+                                logger.info("开始批量评价所有条目")
                             
                             # 发送子代理状态更新
                             if agent_name:
@@ -332,8 +363,20 @@ class AppraisalRunner:
                         
                         # 2. 检测函数响应（工具返回）
                         elif hasattr(part, 'function_response') and part.function_response:
-                            # 函数执行完成，可以在这里添加额外的状态更新
-                            pass
+                            response = part.function_response
+                            tool_name = response.name if hasattr(response, 'name') else ""
+                            logger.info(f"工具完成: {tool_name}")
+                            
+                            # 根据工具名称发送完成状态
+                            if 'initiator' in tool_name.lower():
+                                self.on_agent("Initiator", t("agent.initiator_done", self.lang), 1, 4)
+                                logger.info("Initiator 完成，plan.md 已生成")
+                            elif 'appraise_all' in tool_name.lower():
+                                self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 2, 4)
+                                logger.info("批量评价完成")
+                            elif 'reporter' in tool_name.lower():
+                                self.on_agent("Reporter", t("agent.reporter_done", self.lang), 3, 4)
+                                logger.info("Reporter 完成")
                         
                         # 3. 处理文本输出
                         elif hasattr(part, 'text') and part.text:
@@ -365,3 +408,7 @@ class AppraisalRunner:
         except Exception as e:
             logger.exception(f"评价任务失败: {e}")
             self.on_error(str(e))
+        
+        finally:
+            # 清理全局进度回调
+            clear_progress_callbacks()

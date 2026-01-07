@@ -9,7 +9,7 @@ from google.adk.agents import LlmAgent
 from pathlib import Path
 from typing import Optional
 
-from .core import get_model
+from .base import get_model
 from core.config import get_settings
 
 

@@ -34,6 +34,11 @@ export function Chat() {
     // 时序图事件
     const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
 
+    // 并发评价汇总
+    const [batchSummary, setBatchSummary] = useState<{ total: number; completed: number; elapsed: number }>(
+        { total: 0, completed: 0, elapsed: 0 }
+    )
+
     // 添加或更新事件
     const upsertEvent = useCallback((
         id: string,
@@ -58,11 +63,11 @@ export function Chat() {
             if (existingIndex >= 0) {
                 // 更新现有事件
                 const updated = [...prev]
-                updated[existingIndex] = { ...updated[existingIndex], ...newEvent }
+                updated[existingIndex] = { ...updated[existingIndex], ...newEvent, isNew: false }
                 return updated
             } else {
-                // 添加新事件
-                return [...prev, newEvent]
+                // 添加新事件，标记为新
+                return [...prev, { ...newEvent, isNew: true }]
             }
         })
     }, [])
@@ -108,8 +113,8 @@ export function Chat() {
             await api.uploadPdfToInput(file)
             await loadPdfFiles()  // 刷新文件列表
         } catch (error) {
-            console.error('上传失败:', error)
-            alert(error instanceof Error ? error.message : '上传失败')
+            console.error('Upload failed:', error)
+            alert(error instanceof Error ? error.message : t('chat.error.uploadFailed'))
         } finally {
             setIsUploading(false)
         }
@@ -146,7 +151,7 @@ export function Chat() {
 
             await loadPdfFiles()  // 刷新文件列表
         } catch (error) {
-            console.error('文件夹上传失败:', error)
+            console.error('Folder upload failed:', error)
             alert(error instanceof Error ? error.message : t('chat.error.folderUploadFailed'))
         } finally {
             setIsUploadingFolder(false)
@@ -196,7 +201,7 @@ export function Chat() {
 
             if (msg.type === 'agent') {
                 const eventType = agentToType(msg.agent)
-                const content = msg.content || `${msg.agent} 正在处理...`
+                const content = msg.content || t('chat.status.processing', { agent: msg.agent })
 
                 // 解析 Appraiser 的 item_id
                 let eventId: string = eventType
@@ -216,24 +221,13 @@ export function Chat() {
                     const updated = prev.map(e => {
                         // 如果是不同类型的代理切换，标记前一个为完成
                         if (e.status === 'running' && e.type !== eventType) {
-                            let doneMessage = e.message
-                            if (e.message.includes('正在')) {
-                                doneMessage = e.message.replace('正在', '').replace('...', ' 已完成')
-                            } else if (e.message.endsWith('...')) {
-                                doneMessage = e.message.replace('...', ' 已完成')
-                            }
+                            // 移除消息末尾的 "..."
+                            const doneMessage = e.message.endsWith('...')
+                                ? e.message.replace(/\.\.\.$/, '')
+                                : e.message
                             return { ...e, status: 'done' as const, message: doneMessage }
                         }
-                        // 如果是同类型（Appraiser）但不同 item，标记前一个 item 为完成
-                        if (e.status === 'running' && e.type === 'appraiser' && eventType === 'appraiser' && e.id !== eventId) {
-                            let doneMessage = e.message
-                            if (e.message.includes('正在')) {
-                                doneMessage = e.message.replace('正在', '').replace('...', ' 已完成')
-                            } else if (e.message.endsWith('...')) {
-                                doneMessage = e.message.replace('...', ' 已完成')
-                            }
-                            return { ...e, status: 'done' as const, message: doneMessage }
-                        }
+                        // 如果是同类型（Appraiser）但不同 item，保持运行（并发模式下多个可同时运行）
                         return e
                     })
                     return updated
@@ -264,7 +258,7 @@ export function Chat() {
                 }
                 // 检测 Orchestrator 启动
                 else if (content.includes('智能体') || content.includes('启动')) {
-                    upsertEvent('orchestrator', 'orchestrator', 'running', '协调评价任务...')
+                    upsertEvent('orchestrator', 'orchestrator', 'running', t('chat.status.orchestrating'))
                 }
                 // 检测任务 ID
                 else if (content.includes('任务')) {
@@ -273,43 +267,88 @@ export function Chat() {
 
             } else if (msg.type === 'complete') {
                 setIsLoading(false)
-                // 标记所有运行中的事件为完成，并修改消息文字
+                // 标记所有运行中的事件为完成
                 setTimelineEvents(prev => prev.map(e => {
                     if (e.status === 'running') {
-                        // 将"正在xxx"改为"xxx已完成"
+                        // 移除消息末尾的 "..."
                         let doneMessage = e.message
-                        if (e.message.includes('正在')) {
-                            doneMessage = e.message.replace('正在', '').replace('...', ' 已完成')
-                        } else if (e.message.endsWith('...')) {
-                            doneMessage = e.message.replace('...', ' 已完成')
+                        if (e.message.endsWith('...')) {
+                            doneMessage = e.message.replace(/\.\.\.$/, '')
                         }
                         return { ...e, status: 'done' as const, message: doneMessage }
                     }
                     return e
                 }))
-                upsertEvent('complete', 'complete', 'done', '评价完成')
+                upsertEvent('complete', 'complete', 'done', t('chat.status.complete'))
 
             } else if (msg.type === 'error') {
                 setIsLoading(false)
-                upsertEvent('error', 'error', 'error', msg.content || '发生错误')
+                upsertEvent('error', 'error', 'error', msg.content || t('chat.error.occurred'))
+
+            } else if (msg.type === 'item_progress') {
+                // 并发评价单条目进度
+                const { skill_id, title, item_status, duration } = msg
+                if (!skill_id) return
+
+                const eventId = `appraiser_${skill_id}`
+
+                if (item_status === 'started') {
+                    // 新条目开始，添加事件（带渐入动画）
+                    setTimelineEvents(prev => {
+                        const existing = prev.find(e => e.id === eventId)
+                        if (existing) return prev  // 已存在则不重复添加
+                        return [...prev, {
+                            id: eventId,
+                            type: 'appraiser',
+                            status: 'running',
+                            message: t('timeline.evaluating', { title: title || skill_id }),
+                            detail: skill_id,
+                            timestamp: new Date(),
+                            isNew: true
+                        }]
+                    })
+                } else if (item_status === 'completed') {
+                    // 条目完成（不显示"已完成"文字）
+                    setTimelineEvents(prev => prev.map(e =>
+                        e.id === eventId
+                            ? { ...e, status: 'done' as const, message: t('timeline.evaluated', { title: title || skill_id }), duration, isNew: false }
+                            : e
+                    ))
+                } else if (item_status === 'failed') {
+                    // 条目失败
+                    setTimelineEvents(prev => prev.map(e =>
+                        e.id === eventId
+                            ? { ...e, status: 'error' as const, message: t('timeline.evaluateFailed', { title: title || skill_id }), isNew: false }
+                            : e
+                    ))
+                }
+
+            } else if (msg.type === 'batch_summary') {
+                // 并发评价汇总进度
+                setBatchSummary({
+                    total: msg.total || 0,
+                    completed: msg.completed_count || 0,
+                    elapsed: msg.elapsed || 0
+                })
             }
         },
         onError: () => {
             setIsLoading(false)
-            upsertEvent('error', 'error', 'error', '连接断开')
+            upsertEvent('error', 'error', 'error', t('chat.error.disconnected'))
         },
     })
 
     const handleSelectPdf = async (pdfFile: PdfFile) => {
         if (isLoading) return
 
-        // 重置时序图
+        // 重置时序图和汇总
         setTimelineEvents([])
+        setBatchSummary({ total: 0, completed: 0, elapsed: 0 })
         setCurrentFile(pdfFile.name)
         setIsLoading(true)
 
         // 添加初始解析事件
-        upsertEvent('parsing', 'parsing', 'running', '正在解析 PDF...')
+        upsertEvent('parsing', 'parsing', 'running', t('chat.status.parsing'))
 
         try {
             const result = await api.startTask(pdfFile.path)
@@ -324,7 +363,7 @@ export function Chat() {
             }, 500)
 
         } catch (error) {
-            upsertEvent('error', 'error', 'error', `启动失败: ${error}`)
+            upsertEvent('error', 'error', 'error', t('chat.error.startFailed', { error: String(error) }))
             setIsLoading(false)
         }
     }
@@ -540,6 +579,7 @@ export function Chat() {
                     <TimelineView
                         events={timelineEvents}
                         taskId={currentTaskId || undefined}
+                        batchSummary={batchSummary.total > 0 ? batchSummary : undefined}
                     />
                 </div>
             </div>

@@ -26,7 +26,7 @@ class SemanticLabeler:
             model: LLM 模型实例，默认从配置获取
             lang: Prompt 语言（zh/en）
         """
-        from core.agents.core import get_model
+        from core.agents.base import get_model
         
         self.model = model or get_model()
         self.lang = lang
@@ -107,7 +107,7 @@ Output only one label name: Overview / Methodology / Clinical / Independence / I
         try:
             import litellm
             from core.config import get_settings
-            from core.agents.core.schemas import SemanticLabelOutput
+            from core.agents.base.schemas import SemanticLabelOutput
             
             settings = get_settings()
             model_name = f"openai/{settings.llm.model_name}"

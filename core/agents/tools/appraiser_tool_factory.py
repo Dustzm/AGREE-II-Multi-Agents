@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import Callable, Dict, Any, Coroutine
 
-from core.agents.evaluator import run_iterative_evaluation
+from core.agents.appraiser import run_iterative_evaluation
 from core.agents.tools.appraiser_tools import save_item_evaluation
 
 logger = logging.getLogger(__name__)

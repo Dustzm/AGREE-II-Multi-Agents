@@ -2,13 +2,20 @@ import { useCallback, useRef, useState } from 'react'
 import { WS_URL } from '@/config'
 
 export interface ChatMessage {
-    type: 'status' | 'agent' | 'progress' | 'complete' | 'error'
+    type: 'status' | 'agent' | 'progress' | 'complete' | 'error' | 'item_progress' | 'batch_summary'
     content?: string
     agent?: string
     progress?: number
     total?: number
     task_id?: string
     prompt?: string  // Appraiser 的提示词内容
+    // 并发进度相关字段
+    skill_id?: string      // 条目 ID (item_progress)
+    title?: string         // 条目标题 (item_progress)
+    item_status?: 'started' | 'completed' | 'failed'  // 条目状态 (item_progress)
+    duration?: number      // 完成耗时秒数 (item_progress)
+    completed_count?: number  // 已完成数 (batch_summary)
+    elapsed?: number       // 已用时间秒数 (batch_summary)
 }
 
 interface UseWebSocketOptions {

@@ -7,7 +7,7 @@
         }
     },
     "nav": {
-        "chat": "Chat",
+        "chat": "Appraisal",
         "batch": "Batch",
         "reports": "Reports",
         "skills": "Items",
@@ -239,7 +239,10 @@
             "hint": "Select a PDF file to start evaluation"
         },
         "taskLabel": "AGREE-II Evaluation Task",
-        "viewPrompt": "View Prompt"
+        "viewPrompt": "View Prompt",
+        "evaluating": "Evaluating {{title}}...",
+        "evaluated": "{{title}}",
+        "evaluateFailed": "{{title}} failed"
     },
     "evidence": {
         "label": {

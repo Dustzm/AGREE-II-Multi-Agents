@@ -7,12 +7,12 @@ KG-Weaver Core Package
 - prompts: 提示词模板
 - skills: 技能配置
 - config: 配置管理
+- preprocessor: 文档预处理模块
 """
 from .agents import (
     create_portal_agent,
     create_orchestrator,
     create_initiator_agent,
-    create_appraiser_agent,
     create_reporter_agent,
     list_input_pdfs,
     check_extraction_intent,
@@ -27,7 +27,6 @@ __all__ = [
     "create_portal_agent",
     "create_orchestrator",
     "create_initiator_agent",
-    "create_appraiser_agent",
     "create_reporter_agent",
     "list_input_pdfs",
     "check_extraction_intent",

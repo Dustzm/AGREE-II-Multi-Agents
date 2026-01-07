@@ -12,9 +12,9 @@ from typing import Optional
 
 from google.adk.agents import LlmAgent
 
-from .core import get_model
+from .base import get_model
 from .tools import load_all_evaluations, generate_appraisal_report
-from .core.schemas import ReporterInput
+from .base.schemas import ReporterInput
 from core.prompts import load_prompt
 
 

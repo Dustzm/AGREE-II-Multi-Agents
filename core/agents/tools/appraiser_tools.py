@@ -37,7 +37,7 @@ def load_source_to_cache(task_id: str, skill_id: str) -> dict:
         }
     """
     # 从证据池加载相关上下文
-    from core.agents.core.preprocessor import load_evidence_for_skill
+    from core.preprocessor import load_evidence_for_skill
     
     result = load_evidence_for_skill(task_id, skill_id)
     
