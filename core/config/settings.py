@@ -91,6 +91,59 @@ class MinerUSettings(BaseSettings):
     )
 
 
+class ASRSettings(BaseSettings):
+    """ASR 语音识别服务配置 (OpenAI Whisper 兼容格式)"""
+    
+    model_config = SettingsConfigDict(
+        env_prefix="ASR_",
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    # ASR 服务地址 (包含 /v1)
+    server_url: str = Field(
+        default="http://127.0.0.1:8000/v1",
+        description="ASR 服务地址"
+    )
+    
+    # 模型名称
+    model_name: str = Field(
+        default="whisper-large-v3",
+        description="ASR 模型名称"
+    )
+    
+    # API Key
+    api_key: str = Field(
+        default="",
+        description="ASR 服务 API Key (可选)"
+    )
+    
+    # 请求超时时间
+    timeout: int = Field(
+        default=80,
+        description="请求超时时间 (秒)"
+    )
+    
+    # 音频分片时长 (秒)
+    chunk_duration: int = Field(
+        default=60,
+        description="音频分片时长 (秒)"
+    )
+    
+    # 分片重叠时长 (秒)
+    chunk_overlap: int = Field(
+        default=5,
+        description="分片重叠时长 (秒)"
+    )
+    
+    # 最大并发请求数
+    max_concurrency: int = Field(
+        default=1,
+        description="ASR 最大并发请求数"
+    )
+
+
 class AppSettings(BaseSettings):
     """应用配置"""
     
@@ -171,6 +224,7 @@ class Settings(BaseSettings):
     
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mineru: MinerUSettings = Field(default_factory=MinerUSettings)
+    asr: ASRSettings = Field(default_factory=ASRSettings)
     app: AppSettings = Field(default_factory=AppSettings)
 
 

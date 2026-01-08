@@ -21,13 +21,21 @@ class DocumentChunker:
     def __init__(self):
         self.ignored_types = {"header", "footer", "page_number"}
     
-    def parse(self, content_list_path: str, docindex_path: str = None) -> List[TitleContentBlock]:
+    async def parse(
+        self, 
+        content_list_path: str, 
+        docindex_path: str = None,
+        source_pdf_path: str = None,
+        include_attachments: bool = True
+    ) -> List[TitleContentBlock]:
         """
         解析 content_list.json，构造标题-内容块列表
         
         Args:
             content_list_path: content_list.json 文件路径
             docindex_path: docindex.json 文件路径（可选，提供更精确的 cluster_level）
+            source_pdf_path: 原始 PDF 文件路径（用于附件检测）
+            include_attachments: 是否包含附件内容（默认 True）
             
         Returns:
             标题-内容块列表
@@ -126,7 +134,19 @@ class DocumentChunker:
                 section=current_section
             ))
         
-        logger.info(f"解析完成：{len(chunks)} 个标题-内容块")
+        logger.info(f"正文解析完成：{len(chunks)} 个标题-内容块")
+        
+        # 处理附件（如果启用）
+        if include_attachments and source_pdf_path:
+            attachment_blocks = await self._process_attachments(
+                source_pdf_path=source_pdf_path,
+                prep_dir=content_list_path.parent,
+            )
+            if attachment_blocks:
+                chunks.extend(attachment_blocks)
+                logger.info(f"附件处理完成：添加了 {len(attachment_blocks)} 个内容块")
+        
+        logger.info(f"解析完成：共 {len(chunks)} 个标题-内容块")
         return chunks
     
     def _build_section_paths(self, title_infos: List[Dict[str, Any]]) -> List[str]:
@@ -208,6 +228,58 @@ class DocumentChunker:
         except Exception as e:
             logger.warning(f"加载 docindex 失败: {e}")
             return {}
+    
+    async def _process_attachments(
+        self, 
+        source_pdf_path: str, 
+        prep_dir: Path
+    ) -> List[TitleContentBlock]:
+        """
+        处理附件文件，返回附件内容块
+        
+        Args:
+            source_pdf_path: 原始 PDF 文件路径
+            prep_dir: 预处理输出目录
+            
+        Returns:
+            附件内容块列表
+        """
+        try:
+            from core.attachment import AttachmentProcessor
+            
+            processor = AttachmentProcessor()
+            results = await processor.process(
+                source_path=Path(source_pdf_path),
+                prep_dir=prep_dir,
+            )
+            
+            blocks = []
+            for result in results:
+                if result.error:
+                    logger.warning(f"附件处理失败: {result.source_file}, error={result.error}")
+                    continue
+                
+                # 将 ParsedContent 转换为 TitleContentBlock
+                for content in result.contents:
+                    block = TitleContentBlock(
+                        title=content.title,
+                        title_page_idx=content.page_idx,
+                        contents=[{
+                            "type": content.content_type,
+                            "text": content.content,
+                            "source": "attachment",
+                            "attachment_file": str(result.source_file),
+                        }],
+                        raw_text=content.content,
+                        section=f"[附件: {result.source_file.stem}]",
+                    )
+                    blocks.append(block)
+            
+            return blocks
+            
+        except Exception as e:
+            logger.error(f"附件处理异常: {e}", exc_info=True)
+            return []
     
     def _extract_raw_text(self, contents: List[Dict[str, Any]]) -> str:
         """

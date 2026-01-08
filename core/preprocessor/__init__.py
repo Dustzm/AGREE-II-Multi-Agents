@@ -25,7 +25,8 @@ async def process_content_list(
     output_path: str,
     pdf_path: str = None,
     model=None,
-    lang: str = "zh"
+    lang: str = "zh",
+    include_attachments: bool = True
 ) -> Dict[str, Any]:
     """
     处理 content_list.json，生成语义证据池
@@ -33,9 +34,10 @@ async def process_content_list(
     Args:
         content_list_path: content_list.json 文件路径
         output_path: 输出的 evidence_pool.json 文件路径
-        pdf_path: 原始 PDF 路径（用于 docindex 字体分析，可选）
+        pdf_path: 原始 PDF 路径（用于 docindex 字体分析和附件检测）
         model: LLM 模型实例（可选）
         lang: Prompt 语言（zh/en）
+        include_attachments: 是否处理附件（默认 True）
         
     Returns:
         处理结果字典
@@ -63,9 +65,14 @@ async def process_content_list(
         else:
             logger.info("未提供 PDF 路径，跳过 docindex 构建")
         
-        # Step 1: 构造标题-内容块
+        # Step 1: 构造标题-内容块（包含附件处理）
         chunker = DocumentChunker()
-        title_content_blocks = chunker.parse(content_list_path, docindex_path=docindex_path)
+        title_content_blocks = await chunker.parse(
+            content_list_path, 
+            docindex_path=docindex_path,
+            source_pdf_path=pdf_path,
+            include_attachments=include_attachments
+        )
         
         # Step 2: LLM 语义标签分类
         labeler = SemanticLabeler(model=model, lang=lang)
