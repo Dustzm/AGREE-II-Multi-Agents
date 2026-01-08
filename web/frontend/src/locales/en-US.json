@@ -14,7 +14,7 @@
         "agents": "Agents"
     },
     "sidebar": {
-        "subtitle": "Evaluation System",
+        "subtitle": "Appraisal System",
         "status": {
             "online": "Online",
             "offline": "Offline"
@@ -32,7 +32,7 @@
             "clickHint": "or click the button above to select"
         },
         "progress": {
-            "title": "Evaluation Progress",
+            "title": "Appraisal Progress",
             "processing": "Processing",
             "completed": "Completed",
             "ready": "Ready"
@@ -40,7 +40,7 @@
         "status": {
             "parsing": "Parsing PDF...",
             "orchestrating": "Coordinating evaluation...",
-            "complete": "Evaluation complete",
+            "complete": "Appraisal complete",
             "processing": "{{agent}} is processing...",
             "done": "{{text}} completed"
         },
@@ -109,7 +109,7 @@
         }
     },
     "reports": {
-        "title": "Evaluation Reports",
+        "title": "Appraisal Reports",
         "description": "View and manage all guideline evaluation results.",
         "refresh": "Refresh",
         "backToList": "Back to list",
@@ -122,13 +122,15 @@
             "recommendation": "Recommendation"
         },
         "detail": {
-            "date": "Evaluation Date:",
+            "date": "Appraisal Date:",
             "notEvaluated": "Not evaluated",
+            "qualityScore": "Overall Quality Score",
+            "totalScore": "Total Score",
             "domainScores": "Domain Scores",
             "items": "items",
             "strengths": "Strengths",
             "weaknesses": "Weaknesses",
-            "itemDetails": "Item Evaluation Details",
+            "itemDetails": "Item Appraisal Details",
             "evidenceLocation": "Location Info",
             "quotedEvidence": "Supporting Text",
             "scoringReason": "Scoring Rationale",
@@ -152,7 +154,7 @@
         }
     },
     "skills": {
-        "title": "Evaluation Item Configuration",
+        "title": "Appraisal Item Configuration",
         "description": "Manage AGREE-II evaluation dimensions and specific items, customize your evaluation criteria.",
         "button": {
             "enableAll": "Enable All",
@@ -238,7 +240,7 @@
         "empty": {
             "hint": "Select a PDF file to start evaluation"
         },
-        "taskLabel": "AGREE-II Evaluation Task",
+        "taskLabel": "AGREE-II Appraisal Task",
         "viewPrompt": "View Prompt",
         "evaluating": "Evaluating {{title}}...",
         "evaluated": "{{title}}",

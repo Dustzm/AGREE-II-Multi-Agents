@@ -124,6 +124,8 @@
         "detail": {
             "date": "评价日期:",
             "notEvaluated": "未评估",
+            "qualityScore": "整体质量评分",
+            "totalScore": "总分",
             "domainScores": "领域评分",
             "items": "项",
             "strengths": "优势",
