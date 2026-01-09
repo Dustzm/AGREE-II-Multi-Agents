@@ -16,7 +16,8 @@ description_zh: '目标为一种疾病管理的指南将考虑临床筛查、预
 locating_info: Check Executive summary，Recommendations, conclusion sections.
 locating_info_zh: 查看执行摘要、推荐意见、结论章节。
 criteria:
-- '例如，对抑郁症管理的推荐建议可能包括下列治疗选择： a． TCA治疗 b． SSRI治疗 c． 心理治疗 d． 药理心理联合疗法 '
+- '例如，对抑郁症管理包括下列治疗选择：a.TCA治疗;b.SSRI治疗;c.心理治疗;d.药理心理联合疗法。 '
+- 推荐顺序可表述为当血糖控制不达标（HbA₁₆>7.0%）时，单药治疗可选二甲双胍，二线治疗为二甲双胍+钠-葡萄糖共转运蛋白2抑制剂或胰岛素；也可直接表述为推荐二甲双胍做为一线用药或首选用药。
 scoring_principle:
 - range: '1'
   condition: Only a single option is mentioned

@@ -67,7 +67,7 @@ def load_skill_config(skill_id: str, check_enabled: bool = True, lang: Optional[
             "title": config.get("title_zh", config.get("title", "")),
             "description": config.get("description_zh", config.get("description", "")),
             "locating_info": config.get("locating_info_zh", config.get("locating_info", "")),
-            "criteria": config.get("criteria", []),
+            "shots": config.get("shots", config.get("criteria", [])),  # 兼容旧字段名 criteria
             "scoring_principle": config.get("scoring_principle", []),
         }
     elif lang == "en":
@@ -79,7 +79,7 @@ def load_skill_config(skill_id: str, check_enabled: bool = True, lang: Optional[
             "title": config.get("title", ""),
             "description": config.get("description", ""),
             "locating_info": config.get("locating_info", ""),
-            "criteria": config.get("criteria", []),
+            "shots": config.get("shots", config.get("criteria", [])),  # 兼容旧字段名 criteria
             "scoring_principle": config.get("scoring_principle", []),
         }
     

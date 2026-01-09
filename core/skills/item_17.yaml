@@ -37,5 +37,6 @@ scoring_principle:
     font, larger font size, or underlining
   condition_zh: 推荐意见以加粗字体、大小字体、下划线的形式突出显示
 - range: '7'
-  condition: Recommendations are prominently presented in boxes, tables, or flowcharts
-  condition_zh: 推荐意见以方框、表格或流程图的形式突出显示
+  condition: Recommendations are prominently presented in boxes, tables, lowcharts
+    or executive summary
+  condition_zh: 推荐意见以方框、表格、流程图或执行摘要的形式突出显示

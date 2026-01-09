@@ -15,7 +15,10 @@ description_zh: '应该明确说明证据强度和局限性，使用正式的或
   '
 locating_info: Check Method, Recommendation sections.
 locating_info_zh: 查看方法、推荐意见章节。
-criteria: []
+criteria:
+- 证据的研究设计：如一项随机对照研究、观察性研究、病例对照研究、META分析、系统评价等，提到即给分。
+- 研究的方法学（样本量，盲法，分配隐藏，分析方法）：如一项随机、双盲、双模拟、平行对照研究，一项招募了25436人的队列研究显示，等，样本量、盲法、分配隐藏、分析方法提到一个即给分。
+- 所有研究结果的一致性及所有研究结果的方向：可表述为有14项临床研究评价了二甲双胍对非酒精性脂肪肝患者肝脏组织学、血清酶学等指标的改善情况。所有研究均显示，血清酶学指标明显改善；也可表述为研究1随访显示，使用二甲双胍治疗带来的大血管并发症及死亡风险的获益具有延续效应，且其降低死亡和心肌梗死的作用优于磺脲类和胰岛素。研究2结果提示二甲双胍治疗２年，全因死亡相对风险下降24％。研究3结果提示，二甲双胍联合胰岛素比单用胰岛素可以减少大血管事件风险。
 scoring_principle:
 - range: '1'
   condition: Not mentioned
@@ -26,10 +29,10 @@ scoring_principle:
     certainty or quality of evidence, such as the GRADE approach; (2) assignment of
     an explicit level or certainty rating to each body of evidence; (3) specification
     of the study design underlying the evidence; (4) assessment of methodological
-    limitations of the studies, including sample size, blinding, allocation concealment,
-    and analytical methods; (5) consideration of the appropriateness and relevance
-    of primary and secondary outcomes; (6) consistency of results across all included
-    studies; (7) direction of effects across all included studies; (8) comparison
-    of the magnitude of benefits versus harms; and (9) applicability of the evidence
-    to the practice context.'
-  condition_zh: 符合以下标准，每个标准计1分，满分7分，①描述评价证据的方法，如GRADE方法；②每条证据给出具体的证据等级；③证据的研究设计；④研究的方法学缺陷（样本量，盲法，分配隐藏，分析方法）；⑤考虑初始和继发结局的适当性/相关性；⑥所有研究结果的一致性；⑦所有研究结果的方向；⑧收益/伤害的程度对比；⑨实践背景的可应用性
+    studies, including sample size, blinding, allocation concealment, and analytical
+    methods; (5) consideration of the appropriateness and relevance of primary and
+    secondary outcomes; (6) consistency of results across all included studies; (7)
+    direction of effects across all included studies; (8) comparison of the magnitude
+    of benefits versus harms; and (9) applicability of the evidence to the practice
+    context.'
+  condition_zh: 符合以下标准，每个标准计1分，满分7分，①描述评价证据的方法，如GRADE方法；②每条证据给出具体的证据等级；③证据的研究设计；④研究的方法学（样本量，盲法，分配隐藏，分析方法）；⑤考虑初始和继发结局的适当性/相关性；⑥所有研究结果的一致性；⑦所有研究结果的方向；⑧收益/伤害的程度对比；⑨实践背景的可应用性

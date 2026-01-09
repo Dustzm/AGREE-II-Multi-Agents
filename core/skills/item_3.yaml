@@ -13,7 +13,9 @@ description_zh: 对指南涵盖的人群（患者，公众等）应有明确描�
 locating_info: Check Abstract, Introduction, Methodology (Target Population, Patient  population,
   Scope, Purpose, or Objectives) sections.
 locating_info_zh: 查看摘要、引言、方法学（目标人群、患者人群、范围、目的、目标）章节。
-criteria: []
+criteria:
+- 例如，本共识结合国内外证据,对那格列奈的研究结果进行了系统回顾与总结,对如何临床合理有效应用那格列奈提出指导性建议,供临床医师参考。该篇指南的适用人群为临床医师。
+- 例如，为了便于使用者全面和快速地了解此类药物的基本知识以及在我国的临床研究和应用情况，该篇指南的适用人群为药物使用者。
 scoring_principle:
 - range: '1'
   condition: Not mentioned

@@ -17,6 +17,7 @@ criteria:
 - PICO原则：P - Patient/Population/Problem (患者/人群/问题)，I - Intervention (干预措施)，C - Comparison
   (对照措施)，O - Outcome (结局指标)，S - Study design (研究类型)。
 - 指南的临床问题分为背景和前景问题。背景问题是指与特定疾病、患者群体、干预措施或指南主题相关的一般性知识问题。背景问题通常涉及疾病的定义、病因、病理生理机制、流行病学特征等。前景问题是指南制订过程中应解决的核心问题，需要基于当前最佳证据形成推荐意见。通常采用PICO框架明确其涵盖的关键要素，以便后续证据检索与系统评价过程的开展。
+- 无临床问题时，即可在概述/引言/方法学部分寻找与本篇指南相关的PICO。
 scoring_principle:
 - range: '1'
   condition: Not mentioned

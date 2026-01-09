@@ -25,8 +25,8 @@ scoring_principle:
   condition_zh: 仅对群体或人员名称进行粗略描述
 - range: 3-7
   condition: In addition to listing names, provides detailed information on content
-    expertise/discipline, content expertise, geographical location, a description
+    expertise/discipline/Department, content expertise, geographical location, a description
     of the member’s role in the guideline development group, and the multidisciplinary
     team (e.g., methodologists, clinicians, nurses, etc.), with 1 point awarded for
     each point reported.
-  condition_zh: 提供人员名称的基础上，提供专业/学科、机构、地理位置、成员在指南开发小组中的角色、提及所有领域角色（如方法学家、临床医生、护理人员等），每个1分
+  condition_zh: 提供人员名称的基础上，提供专业/学科/科室、机构、地理位置、成员在指南开发小组中的角色、提及所有领域角色（如方法学家、临床医生、护理人员等），每个1分
