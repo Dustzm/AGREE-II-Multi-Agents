@@ -58,7 +58,7 @@ export interface ReportSummary {
     task_id: string
     title: string
     date: string
-    score: number | null
+    quality_score: number | null  // 总体质量评分 (1-7)
     recommendation: string | null
 }
 
@@ -104,6 +104,8 @@ export interface ReportDetail {
         recommendation: string
     }
     item_evaluations: ItemEvaluation[]
+    total_raw_score?: number  // 总分（所有条目原始分数总和）
+    overall_quality_score?: number  // 总体质量评分 (1-7)
 }
 
 export const api = {

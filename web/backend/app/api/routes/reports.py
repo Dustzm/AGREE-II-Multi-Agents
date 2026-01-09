@@ -20,7 +20,7 @@ class ReportSummary(BaseModel):
     task_id: str
     title: str
     date: str
-    score: Optional[float]  # 平均分数
+    quality_score: Optional[int]  # 总体质量评分 (1-7)
     recommendation: Optional[str]
 
 
@@ -58,6 +58,8 @@ class ReportDetail(BaseModel):
     domain_scores: Dict[str, DomainScore]
     overall_assessment: Dict[str, Any]
     item_evaluations: List[ItemEvaluation]
+    total_raw_score: Optional[int] = None  # 总分（所有条目原始分数总和）
+    overall_quality_score: Optional[int] = None  # 总体质量评分 (1-7)
 
 
 def get_output_dir() -> Path:
@@ -118,30 +120,31 @@ async def list_reports():
         if not data:
             continue
         
-        # 计算平均分数（只计算有评分的领域）
-        # 兼容旧版本和新版本的数据格式
-        domain_scores = data.get("domain_scores", {})
-        valid_scores = []
-        for d in domain_scores.values():
-            # 新版本：字典格式 {"name": "...", "score": 5.5, ...}
-            if isinstance(d, dict):
-                score = d.get("score")
-                if score is not None:
-                    valid_scores.append(score)
-            # 旧版本：直接是数值
-            elif isinstance(d, (int, float)):
-                valid_scores.append(d)
+        # 获取质量评分（优先使用新字段，兼容旧格式）
+        quality_score = data.get("overall_quality_score")
         
-        avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
+        if quality_score is None:
+            # 旧格式：计算平均分数转换为质量评分
+            domain_scores = data.get("domain_scores", {})
+            valid_scores = []
+            for d in domain_scores.values():
+                if isinstance(d, dict):
+                    score = d.get("score")
+                    if score is not None:
+                        valid_scores.append(score)
+                elif isinstance(d, (int, float)):
+                    valid_scores.append(d)
+            avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
+            quality_score = round(avg_score / 14.3) if avg_score else None  # 100/7 ≈ 14.3
         
         # 获取推荐结论
         recommendation = data.get("overall_assessment", {}).get("recommendation")
         
         reports.append(ReportSummary(
             task_id=data.get("task_id", task_dir.name),
-            title=data.get("guideline_title", "未命名指南")[:50],  # 截断过长标题
+            title=data.get("guideline_title", "未命名指南")[:50],
             date=data.get("evaluation_date", ""),
-            score=round(avg_score, 1) if avg_score else None,
+            quality_score=quality_score,
             recommendation=recommendation
         ))
     
@@ -167,15 +170,35 @@ async def get_report(task_id: str):
     if not data:
         raise HTTPException(status_code=500, detail="解析报告失败")
     
-    # 转换领域评分
+    # 转换领域评分 - 兼容两种格式
+    # 新格式: {"1": {"name": "...", "score": 66.7, ...}}
+    # 旧格式: {"1": 66.7}
     domain_scores = {}
+    domain_names = {
+        "1": "Scope and Purpose",
+        "2": "Stakeholder Involvement", 
+        "3": "Rigour of Development",
+        "4": "Clarity of Presentation",
+        "5": "Applicability",
+        "6": "Editorial Independence",
+    }
     for key, domain in data.get("domain_scores", {}).items():
-        domain_scores[key] = DomainScore(
-            name=domain.get("name", f"Domain {key}"),
-            score=domain.get("score"),
-            item_count=domain.get("item_count", 0),
-            evaluated_count=domain.get("evaluated_count", 0)
-        )
+        if isinstance(domain, dict):
+            # 新格式
+            domain_scores[key] = DomainScore(
+                name=domain.get("name", domain_names.get(key, f"Domain {key}")),
+                score=domain.get("score"),
+                item_count=domain.get("item_count", 0),
+                evaluated_count=domain.get("evaluated_count", 0)
+            )
+        else:
+            # 旧格式 - domain 直接是分数
+            domain_scores[key] = DomainScore(
+                name=domain_names.get(key, f"Domain {key}"),
+                score=domain if isinstance(domain, (int, float)) else None,
+                item_count=0,
+                evaluated_count=0
+            )
     
     # 从 evaluations 目录加载条目评价详情
     evaluations = load_evaluations(task_dir)
@@ -201,7 +224,9 @@ async def get_report(task_id: str):
         evaluator=data.get("evaluator", ""),
         domain_scores=domain_scores,
         overall_assessment=data.get("overall_assessment", {}),
-        item_evaluations=item_evaluations
+        item_evaluations=item_evaluations,
+        total_raw_score=data.get("total_raw_score"),
+        overall_quality_score=data.get("overall_quality_score")
     )
 
 

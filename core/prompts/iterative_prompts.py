@@ -65,6 +65,9 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 |-------------|-----------|
 {scoring_table}
 
+## Scoring Reference Examples
+The following are reference examples showing how similar guidelines were scored. Use these as behavioral guidance for applying the scoring rubric, not as direct templates:
+{shots_section}
 ## Task
 Based on the accumulated evidence, determine which scoring condition is best matched.
 
@@ -160,8 +163,8 @@ def render_extraction_prompt(
 def render_scoring_prompt(
     item_id: str,
     title: str,
-    criteria: List[str],  # 保持参数兼容性但忽略
-    evidence_cache: List[str],
+    shots: list[str],  # 评分示例列表
+    evidence_cache: list[str],
     scoring_table: str,
     n_sources: int
 ) -> str:
@@ -171,7 +174,7 @@ def render_scoring_prompt(
     Args:
         item_id: 条目 ID
         title: 评价标题
-        criteria: (已废弃/Deprecated) 评价要素列表
+        shots: 评分示例列表（用于 few-shot 指导）
         evidence_cache: 累积的证据列表
         scoring_table: 评分表格 (markdown)
         n_sources: 证据来源数量
@@ -180,11 +183,19 @@ def render_scoring_prompt(
         渲染后的提示词
     """
     evidence_text = "\n".join(f"- {e}" for e in evidence_cache) if evidence_cache else "No evidence collected yet."
+    
+    # 构建 shots 示例部分（仅动态内容，固定标题在模板中）
+    if shots:
+        shots_text = "\n" + "\n".join(f"- {s}" for s in shots) + "\n"
+    else:
+        shots_text = "\n(No reference examples available)\n"
+    
     return DYNAMIC_SCORING_PROMPT.format(
         item_id=item_id,
         title=title,
         evidence_cache=evidence_text,
         scoring_table=scoring_table,
+        shots_section=shots_text,
         n_sources=n_sources,
     )
 
@@ -193,10 +204,10 @@ def render_final_report_prompt(
     item_id: str,
     domain_name: str,
     title: str,
-    criteria: List[str], # 保持参数兼容性但忽略
+    shots: list[str],  # 评分示例（最终报告暂不使用）
     scoring_table: str,
-    evidence_cache: List[str],
-    evidence_sources: List[str],
+    evidence_cache: list[str],
+    evidence_sources: list[str],
     final_score: int
 ) -> str:
     """
@@ -206,7 +217,7 @@ def render_final_report_prompt(
         item_id: 条目 ID
         domain_name: 领域名称
         title: 评价标题
-        criteria: (已废弃/Deprecated) 评价要素列表
+        shots: 评分示例列表（最终报告暂不使用）
         scoring_table: 评分表格 (markdown)
         evidence_cache: 累积的证据列表
         evidence_sources: 证据来源 chunk_id 列表

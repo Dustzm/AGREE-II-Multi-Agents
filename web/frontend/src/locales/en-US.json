@@ -110,7 +110,7 @@
     },
     "reports": {
         "title": "Appraisal Reports",
-        "description": "View and manage all guideline evaluation results.",
+        "description": "View and manage all guideline appraisal results.",
         "refresh": "Refresh",
         "backToList": "Back to list",
         "table": {
@@ -124,7 +124,7 @@
         "detail": {
             "date": "Appraisal Date:",
             "notEvaluated": "Not evaluated",
-            "qualityScore": "Overall Quality Score",
+            "qualityScore": "Overall Guideline Assessment",
             "totalScore": "Total Score",
             "domainScores": "Domain Scores",
             "items": "items",
@@ -155,7 +155,7 @@
     },
     "skills": {
         "title": "Appraisal Item Configuration",
-        "description": "Manage AGREE-II evaluation dimensions and specific items, customize your evaluation criteria.",
+        "description": "Customize Appraisal Criteria: Manage AGREE-II Dimensions and Items",
         "button": {
             "enableAll": "Enable All",
             "disableAll": "Disable All"
@@ -242,17 +242,20 @@
         },
         "taskLabel": "AGREE-II Appraisal Task",
         "viewPrompt": "View Prompt",
-        "evaluating": "Evaluating {{title}}...",
+        "evaluating": "Appraising {{title}}...",
         "evaluated": "{{title}}",
         "evaluateFailed": "{{title}} failed"
     },
     "evidence": {
         "label": {
             "overview": "Overview",
-            "methodology": "Methodology",
-            "clinical": "Clinical",
-            "independence": "Independence",
-            "irrelevant": "Irrelevant"
+            "executiveSummary": "Executive Summary",
+            "method": "Methods",
+            "recommendation": "Recommendations",
+            "conclusion": "Conclusions",
+            "others": "Others",
+            "appendix": "Appendices",
+            "irrelevant": "Irrelevance"
         },
         "loading": "Loading evidence pool...",
         "error": {

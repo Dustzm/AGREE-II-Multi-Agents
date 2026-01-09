@@ -237,7 +237,7 @@ class AppraisalRunner:
             
             register_progress_callbacks(on_item_progress, on_batch_summary)
             
-            orchestrator = create_orchestrator()
+            orchestrator = create_orchestrator(lang=self.lang)
             runner = runners.InMemoryRunner(
                 agent=orchestrator,
                 app_name='ama_web',
@@ -248,7 +248,7 @@ class AppraisalRunner:
                 user_id='web_user'
             )
             
-            # 构建初始消息（参照 CLI）
+            # 构建初始消息（简化流程，无 Initiator）
             prompt = f"""请开始处理 AGREE-II 指南评价任务。
 
 任务信息：
@@ -256,12 +256,8 @@ class AppraisalRunner:
 - 源文档已解析并保存到 source.md
 
 请按照工作流程执行：
-1. 调用 Initiator 生成评价计划
-2. 调用 read_plan 读取计划
-3. 根据计划中的阶段标记，调用对应的工具：
-   - [APPRAISE:item_x] 标记 -> 调用 Appraiser
-   - [REPORT] 标记 -> 调用 Reporter
-4. 每个任务前后更新状态 (in_progress -> completed)
+1. 调用 appraise_all 并发评价所有条目
+2. 调用 Reporter 生成最终报告
 
 开始执行！"""
             
@@ -270,15 +266,13 @@ class AppraisalRunner:
                 parts=[types.Part(text=prompt)]
             )
             
-            # 跟踪当前智能体和调用状态
+            # 跟踪当前智能体和调用状态（已移除 Initiator）
             current_agent = "Orchestrator"
             agent_progress = {
-                "Initiator": 1, 
-                "Appraiser": 2, 
-                "Reporter": 3
+                "Appraiser": 1, 
+                "Reporter": 2
             }
             agent_messages = {
-                "Initiator": t("agent.initiator_working", self.lang),
                 "Appraiser": t("agent.appraiser_working", self.lang),
                 "Reporter": t("agent.reporter_working", self.lang)
             }
@@ -300,15 +294,13 @@ class AppraisalRunner:
                             tool_name = part.function_call.name
                             logger.info(f"检测到工具调用: {tool_name}")
                             
-                            # 根据工具名称判断是哪个子代理
+                            # 根据工具名称判断是哪个子代理（已移除 Initiator）
                             agent_name = None
                             custom_message = None
+                            appraiser_prompt = None  # 用于存储提示词（移到外部避免作用域问题）
                             
-                            if 'initiator' in tool_name.lower():
-                                agent_name = "Initiator"
-                            elif tool_name.lower().startswith('appraiser'):
+                            if tool_name.lower().startswith('appraiser'):
                                 agent_name = "Appraiser"
-                                appraiser_prompt = None  # 用于存储提示词
                                 # 解析 skill_id 以显示具体条目
                                 try:
                                     # 从工具名提取 skill_id，如 Appraiser_item_1 -> item_1
@@ -357,7 +349,7 @@ class AppraisalRunner:
                                     progress = agent_progress.get(agent_name, 0)
                                     message = custom_message or agent_messages.get(agent_name, t("agent.processing", self.lang, agent=agent_name))
                                     # 发送带提示词的消息（只有 Appraiser 有）
-                                    self.on_agent(agent_name, message, progress, 4, appraiser_prompt if agent_name == "Appraiser" else None)
+                                    self.on_agent(agent_name, message, progress, 3, appraiser_prompt if agent_name == "Appraiser" else None)
                                     logger.info(f"切换到代理: {agent_name}, 消息: {message}")
                                     appraiser_prompt = None  # 重置
                         
@@ -367,15 +359,12 @@ class AppraisalRunner:
                             tool_name = response.name if hasattr(response, 'name') else ""
                             logger.info(f"工具完成: {tool_name}")
                             
-                            # 根据工具名称发送完成状态
-                            if 'initiator' in tool_name.lower():
-                                self.on_agent("Initiator", t("agent.initiator_done", self.lang), 1, 4)
-                                logger.info("Initiator 完成，plan.md 已生成")
-                            elif 'appraise_all' in tool_name.lower():
-                                self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 2, 4)
+                            # 根据工具名称发送完成状态（已移除 Initiator）
+                            if 'appraise_all' in tool_name.lower():
+                                self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 1, 3)
                                 logger.info("批量评价完成")
                             elif 'reporter' in tool_name.lower():
-                                self.on_agent("Reporter", t("agent.reporter_done", self.lang), 3, 4)
+                                self.on_agent("Reporter", t("agent.reporter_done", self.lang), 2, 3)
                                 logger.info("Reporter 完成")
                         
                         # 3. 处理文本输出
@@ -402,7 +391,7 @@ class AppraisalRunner:
             
             
             if not self._cancelled:
-                self.on_agent("Reporter", t("agent.report_done", self.lang), 4, 4)
+                self.on_agent("Reporter", t("agent.report_done", self.lang), 3, 3)
                 self.on_complete(actual_task_id)
         
         except Exception as e:

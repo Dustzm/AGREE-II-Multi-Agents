@@ -12,13 +12,16 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# 语义标签颜色配置
+# 语义标签颜色配置（与 SemanticLabel 枚举和前端 EvidenceViewer 保持一致）
 LABEL_COLORS = {
-    "Overview": "#3B82F6",      # 蓝色
-    "Methodology": "#8B5CF6",   # 紫色
-    "Clinical": "#10B981",      # 绿色
-    "Independence": "#F59E0B",  # 黄色
-    "Irrelevant": "#9CA3AF"     # 灰色
+    "Overview": "#3B82F6",           # 蓝色
+    "Executive Summary": "#6366F1",  # 靛蓝色
+    "Method": "#8B5CF6",             # 紫色
+    "Recommendation": "#10B981",     # 绿色
+    "Conclusion": "#14B8A6",         # 青色
+    "Others": "#F59E0B",             # 橙色
+    "Appendix": "#78716C",           # 灰棕色
+    "Irrelevant": "#9CA3AF"          # 灰色
 }
 
 # 需要跳过的内容类型

@@ -104,8 +104,8 @@ EN_MESSAGES = {
     "agent.processing": "{agent} processing...",
     "agent.report_done": "Report generated",
     "agent.initiator_done": "Appraisal plan generated",
-    "agent.batch_appraise_start": "Starting concurrent evaluation of all items...",
-    "agent.batch_appraise_done": "All items evaluated",
+    "agent.batch_appraise_start": "Starting concurrent appraisal of all items...",
+    "agent.batch_appraise_done": "All items appraised",
     "agent.reporter_done": "Report generated",
     
     # === chat.py ===

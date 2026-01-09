@@ -29,9 +29,12 @@ class TitleContentBlock:
 class SemanticLabel(str, Enum):
     """语义标签枚举"""
     OVERVIEW = "Overview"        # 摘要、前言、范围、目标人群
-    METHODOLOGY = "Methodology"  # 指南制定过程、委员会、证据分级、文献检索
-    CLINICAL = "Clinical"        # 疾病管理、筛查、治疗建议
-    INDEPENDENCE = "Independence"# 利益冲突、资助来源
+    EXECUTIVE_SUMMARY = "Executive Summary"  # 执行摘要
+    CONCLUSION = "Conclusion"    # 结论、总结
+    METHOD = "Method"            # 指南制定过程、委员会、证据分级、文献检索 (原 METHODOLOGY)
+    RECOMMENDATION = "Recommendation"  # 疾病管理、筛查、治疗建议 (原 CLINICAL)
+    OTHERS = "Others"            # 利益冲突、资助来源 (原 INDEPENDENCE)
+    APPENDIX = "Appendix"        # 附录
     IRRELEVANT = "Irrelevant"    # 目录、参考文献列表、索引
 
 

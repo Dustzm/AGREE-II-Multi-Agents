@@ -124,7 +124,7 @@
         "detail": {
             "date": "评价日期:",
             "notEvaluated": "未评估",
-            "qualityScore": "整体质量评分",
+            "qualityScore": "整体评价",
             "totalScore": "总分",
             "domainScores": "领域评分",
             "items": "项",
@@ -249,9 +249,12 @@
     "evidence": {
         "label": {
             "overview": "概述",
-            "methodology": "方法学",
-            "clinical": "临床内容",
-            "independence": "独立性",
+            "executiveSummary": "执行摘要",
+            "method": "方法",
+            "recommendation": "推荐意见",
+            "conclusion": "结论",
+            "others": "其他",
+            "appendix": "附录",
             "irrelevant": "无关内容"
         },
         "loading": "加载源文档数据...",

@@ -47,11 +47,14 @@ interface EvidenceViewerProps {
 
 // 标签颜色配置（备用）
 const DEFAULT_LABEL_COLORS: Record<string, string> = {
-    Overview: '#3B82F6',
-    Methodology: '#8B5CF6',
-    Clinical: '#10B981',
-    Independence: '#F59E0B',
-    Irrelevant: '#9CA3AF'
+    Overview: '#3B82F6',           // 蓝色
+    'Executive Summary': '#6366F1', // 靖蓝色
+    Method: '#8B5CF6',             // 紫色
+    Recommendation: '#10B981',     // 绿色
+    Conclusion: '#14B8A6',         // 青色
+    Others: '#F59E0B',             // 橙色
+    Appendix: '#78716C',           // 灰棕色
+    Irrelevant: '#9CA3AF'          // 灰色
 }
 
 export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
@@ -110,9 +113,12 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
     const getLabelName = (label: string) => {
         const labelKeyMap: Record<string, string> = {
             'Overview': 'evidence.label.overview',
-            'Methodology': 'evidence.label.methodology',
-            'Clinical': 'evidence.label.clinical',
-            'Independence': 'evidence.label.independence',
+            'Executive Summary': 'evidence.label.executiveSummary',
+            'Method': 'evidence.label.method',
+            'Recommendation': 'evidence.label.recommendation',
+            'Conclusion': 'evidence.label.conclusion',
+            'Others': 'evidence.label.others',
+            'Appendix': 'evidence.label.appendix',
             'Irrelevant': 'evidence.label.irrelevant'
         }
         return labelKeyMap[label] ? t(labelKeyMap[label]) : label

@@ -68,11 +68,12 @@ export function Reports() {
         return <CheckCircle2 className="h-5 w-5 text-green-500" />
     }
 
-    // Determine status color helper
-    const getStatusColor = (score: number | null | undefined) => {
-        if (score === null || score === undefined) return "text-gray-400 bg-gray-100"
-        if (score >= 70) return "text-emerald-600 bg-emerald-50"
-        return "text-amber-600 bg-amber-50"
+    // Determine status color helper - 基于质量评分 (1-7)
+    const getStatusColor = (quality_score: number | null | undefined) => {
+        if (quality_score === null || quality_score === undefined) return "text-gray-400 bg-gray-100"
+        if (quality_score >= 5) return "text-emerald-600 bg-emerald-50"  // 5-7: 优秀
+        if (quality_score >= 3) return "text-amber-600 bg-amber-50"  // 3-4: 中等
+        return "text-red-600 bg-red-50"  // 1-2: 较差
     }
 
     /* 导出 PDF (暂不使用)
@@ -111,12 +112,27 @@ export function Reports() {
                                 {t('reports.detail.date')} {selectedReport.evaluation_date} · {selectedReport.evaluator}
                             </p>
                         </div>
-                        {/* 推荐结论 */}
-                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
-                            {getRecommendationIcon(selectedReport.overall_assessment.recommendation)}
-                            <span className="text-sm font-medium">
-                                {selectedReport.overall_assessment.recommendation || t('reports.detail.notEvaluated')}
-                            </span>
+                        {/* 总体评分显示 */}
+                        <div className="flex items-center gap-4">
+                            {selectedReport.overall_quality_score && (
+                                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10">
+                                    <span className="text-sm text-muted-foreground">{t('reports.detail.qualityScore')}:</span>
+                                    <span className="text-2xl font-bold text-primary">{selectedReport.overall_quality_score}/7</span>
+                                </div>
+                            )}
+                            {selectedReport.total_raw_score && (
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted">
+                                    <span className="text-xs text-muted-foreground">{t('reports.detail.totalScore')}:</span>
+                                    <span className="text-sm font-mono font-semibold">{selectedReport.total_raw_score}</span>
+                                </div>
+                            )}
+                            {/* 推荐结论 */}
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
+                                {getRecommendationIcon(selectedReport.overall_assessment.recommendation)}
+                                <span className="text-sm font-medium">
+                                    {selectedReport.overall_assessment.recommendation || t('reports.detail.notEvaluated')}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -402,12 +418,12 @@ export function Reports() {
                                             <td className="px-6 py-4 text-center">
                                                 <span className={cn(
                                                     "text-lg font-bold font-mono",
-                                                    report.score && report.score >= 70 ? "text-emerald-600" : "text-amber-600",
-                                                    !report.score && "text-gray-400"
+                                                    report.quality_score && report.quality_score >= 5 ? "text-emerald-600" :
+                                                        report.quality_score && report.quality_score >= 3 ? "text-amber-600" : "text-red-600",
+                                                    !report.quality_score && "text-gray-400"
                                                 )}>
-                                                    {report.score !== null ? report.score : '-'}
+                                                    {report.quality_score !== null ? `${report.quality_score}/7` : '-'}
                                                 </span>
-                                                {report.score !== null && <span className="text-xs text-gray-400 ml-0.5">%</span>}
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 {report.recommendation ? (
@@ -434,18 +450,19 @@ export function Reports() {
                                 >
                                     <div className="p-5 space-y-4">
                                         <div className="flex items-start justify-between">
-                                            <div className={cn("p-2.5 rounded-xl", getStatusColor(report.score))}>
+                                            <div className={cn("p-2.5 rounded-xl", getStatusColor(report.quality_score))}>
                                                 <FileText className="h-5 w-5" />
                                             </div>
-                                            {report.score !== null ? (
+                                            {report.quality_score !== null ? (
                                                 <div className="flex items-baseline">
                                                     <span className={cn(
                                                         "text-2xl font-bold font-mono",
-                                                        report.score >= 70 ? "text-emerald-600" : "text-amber-600"
+                                                        report.quality_score >= 5 ? "text-emerald-600" :
+                                                            report.quality_score >= 3 ? "text-amber-600" : "text-red-600"
                                                     )}>
-                                                        {report.score}
+                                                        {report.quality_score}
                                                     </span>
-                                                    <span className="text-sm text-gray-400 ml-1">%</span>
+                                                    <span className="text-sm text-gray-400 ml-1">/7</span>
                                                 </div>
                                             ) : (
                                                 <span className="text-gray-300 font-mono">N/A</span>

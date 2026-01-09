@@ -53,9 +53,12 @@ class SemanticLabeler:
 
 ## 标签定义
 - **Overview**: 摘要、前言、范围定义、目标人群描述
-- **Methodology**: 指南制定过程、委员会组成、证据分级方法、文献检索策略
-- **Clinical**: 具体的疾病管理建议、筛查建议、治疗方案、临床推荐
-- **Independence**: 利益冲突声明、资助来源、编辑独立性声明
+- **Executive Summary**: 执行摘要、关键推荐概要
+- **Method**: 指南制定过程、委员会组成、证据分级方法、文献检索策略
+- **Recommendation**: 具体的疾病管理建议、筛查建议、治疗方案、临床推荐
+- **Conclusion**: 结论、总结、未来展望
+- **Others**: 利益冲突声明、资助来源、编辑独立性声明
+- **Appendix**: 附录、补充材料
 - **Irrelevant**: 目录、索引、纯参考文献列表、版权信息
 
 ## 输入内容
@@ -63,15 +66,18 @@ class SemanticLabeler:
 内容: {content}
 
 ## 输出格式
-仅输出一个标签名称: Overview / Methodology / Clinical / Independence / Irrelevant"""
+仅输出一个标签名称: Overview / Executive Summary / Method / Recommendation / Conclusion / Others / Appendix / Irrelevant"""
             else:
                 return """You are a clinical practice guideline analysis expert. Assign a semantic label to the following guideline content fragment.
 
 ## Label Definitions
 - **Overview**: Abstract, preface, scope definition, target population description
-- **Methodology**: Guideline development process, committee composition, evidence grading methods, literature search strategies
-- **Clinical**: Specific disease management recommendations, screening recommendations, treatment plans, clinical recommendations
-- **Independence**: Conflict of interest statements, funding sources, editorial independence statements
+- **Executive Summary**: Executive summary, key recommendation summaries
+- **Method**: Guideline development process, committee composition, evidence grading methods, literature search strategies
+- **Recommendation**: Specific disease management recommendations, screening recommendations, treatment plans, clinical recommendations
+- **Conclusion**: Conclusions, summary, future perspectives
+- **Others**: Conflict of interest statements, funding sources, editorial independence statements
+- **Appendix**: Appendix, supplementary materials
 - **Irrelevant**: Table of contents, index, reference lists only, copyright information
 
 ## Input Content
@@ -79,7 +85,7 @@ Title: {title}
 Content: {content}
 
 ## Output Format
-Output only one label name: Overview / Methodology / Clinical / Independence / Irrelevant"""
+Output only one label name: Overview / Executive Summary / Method / Recommendation / Conclusion / Others / Appendix / Irrelevant"""
         
         # 从文件加载模板
         with open(prompt_file, "r", encoding="utf-8") as f:
@@ -278,8 +284,8 @@ Output only one label name: Overview / Methodology / Clinical / Independence / I
                 return label
         
         # 回退
-        priority_order = [SemanticLabel.IRRELEVANT, SemanticLabel.INDEPENDENCE, 
-                         SemanticLabel.METHODOLOGY, SemanticLabel.CLINICAL, SemanticLabel.OVERVIEW]
+        priority_order = [SemanticLabel.IRRELEVANT, SemanticLabel.OTHERS, 
+                         SemanticLabel.METHOD, SemanticLabel.RECOMMENDATION, SemanticLabel.OVERVIEW]
         for label in priority_order:
             if label.value.lower() in label_str.lower():
                 return label
