@@ -7,12 +7,12 @@ AMA (AGREE-Multi-Agents) 智能体模块
 - agents/           智能体定义
   - portal          门户智能体 (用户交互)
   - orchestrator    智能编排器
-  - initiator       规划师
+  - initiator       规划师 [已弃用]
   - appraiser       迭代评价器 (LiteLLM)
   - reporter        报告员
 - agents/tools/     工具函数
   - public_tools    公共工具
-  - initiator_tools Initiator 工具
+  - initiator_tools Initiator 工具 [已弃用]
   - orchestrator_tools Orchestrator 工具
   - appraiser_tools Appraiser 工具
   - reporter_tools  Reporter 工具

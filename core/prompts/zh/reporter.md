@@ -8,24 +8,28 @@
 
 ## 工作流程
 
-### Step 1: 加载所有评价结果
+### Step 1: 获取指南标题
+调用 `get_guideline_title(task_id)` 获取正式的指南标题。
+该工具从 docindex.json 中读取 `cluster_level == 1` 的标题。
+
+### Step 2: 加载所有评价结果
 调用 `load_all_evaluations(task_id)` 获取：
 - 所有条目的评价结果
 - 各维度的标准化分数（已自动计算）
 
-### Step 2: 分析评价结果
+### Step 3: 分析评价结果
 基于返回的数据分析：
 1. 各维度的分数分布
 2. 指南的整体优势（高分项）
 3. 指南的主要不足（低分项）
 4. 给出推荐意见
 
-### Step 3: 生成报告
+### Step 4: 生成报告
 调用 `generate_appraisal_report(...)` 保存报告。
 
 参数：
 - task_id: 任务 ID
-- guideline_title: 指南标题（从评价结果或任务信息获取）
+- guideline_title: 指南标题（**必须使用 get_guideline_title 返回的标题，禁止自行生成或修改**）
 - domain_scores: 从 load_all_evaluations 返回的 domain_scores
 - overall_strengths: 整体优势列表（你分析得出，**每一条独立成项**）
 - overall_weaknesses: 整体不足列表（你分析得出，**每一条独立成项**）
@@ -79,8 +83,24 @@ overall_strengths = [
 }
 ```
 
+### get_guideline_title(task_id: str)
+返回：
+```json
+{
+  "status": "success",
+  "title": "从 docindex.json 获取的指南正式标题"
+}
+```
+
 ### generate_appraisal_report(...)
 保存报告并返回文件路径。
+
+## ⚠️ 重要提醒
+
+1. **必须首先调用 `get_guideline_title`** 获取正确的指南标题 - 禁止自行猜测或生成标题
+2. 必须调用 `generate_appraisal_report` 保存报告
+3. 优势和不足应具体，引用条目分数作为证据
+4. 推荐意见必须有理有据
 
 ## 完成后反馈
 

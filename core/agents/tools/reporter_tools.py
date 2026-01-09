@@ -19,6 +19,77 @@ from core.skills import AGREE_DOMAINS
 logger = logging.getLogger(__name__)
 
 
+def get_guideline_title(task_id: str) -> dict:
+    """
+    获取指南标题
+    
+    从 docindex.json 中读取 cluster_level == 1 的标题作为指南标题
+    
+    Args:
+        task_id: 任务 ID
+    
+    Returns:
+        dict: {"status": "success/error", "title": str, "error": str}
+    """
+    try:
+        paths = get_task_paths(task_id)
+        if not paths:
+            return {
+                "status": "error",
+                "title": "",
+                "error": f"任务不存在: {task_id}"
+            }
+        
+        prep_dir = Path(paths["prep_dir"])
+        
+        # 查找 docindex.json 文件
+        docindex_files = list(prep_dir.glob("*_docindex.json"))
+        if not docindex_files:
+            return {
+                "status": "error",
+                "title": "",
+                "error": "未找到 docindex.json 文件"
+            }
+        
+        docindex_path = docindex_files[0]
+        with open(docindex_path, "r", encoding="utf-8") as f:
+            docindex = json.load(f)
+        
+        # 查找 cluster_level == 1 的标题（文档最大标题）
+        title_list = docindex.get("title_list", [])
+        for item in title_list:
+            if item.get("cluster_level") == 1:
+                title = item.get("title", "")
+                logger.info(f"获取指南标题: {title}")
+                return {
+                    "status": "success",
+                    "title": title,
+                    "error": ""
+                }
+        
+        # 如果没有 cluster_level == 1，取第一个标题
+        if title_list:
+            title = title_list[0].get("title", "")
+            logger.warning(f"未找到 cluster_level=1 的标题，使用第一个标题: {title}")
+            return {
+                "status": "success",
+                "title": title,
+                "error": ""
+            }
+        
+        return {
+            "status": "error",
+            "title": "",
+            "error": "docindex.json 中没有标题"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "title": "",
+            "error": str(e)
+        }
+
+
 # 各维度包含的条目
 DOMAIN_ITEMS = {
     1: ["item_1", "item_2", "item_3"],
@@ -154,10 +225,50 @@ def generate_appraisal_report(
         report_dir.mkdir(parents=True, exist_ok=True)
         
         # 计算已评价条目数
-        evaluations_result = list_evaluations(task_id)
+        evaluations_result = load_all_evaluations(task_id)
         total_items_evaluated = 0
         if evaluations_result["status"] == "success":
             total_items_evaluated = len(evaluations_result["evaluations"])
+        
+        # 计算总分（所有条目原始分数总和，从各条目评价中直接获取）
+        total_raw_score = 0
+        if evaluations_result["status"] == "success":
+            for evaluation in evaluations_result["evaluations"]:
+                cot = evaluation.get("chain_of_thought", {})
+                score = cot.get("score", 0)
+                if isinstance(score, (int, float)):
+                    total_raw_score += score
+        
+        # 计算总体质量评分（1-7，基于总分）
+        if total_raw_score <= 23:
+            overall_quality_score = 1
+        elif total_raw_score <= 46:
+            overall_quality_score = 2
+        elif total_raw_score <= 69:
+            overall_quality_score = 3
+        elif total_raw_score <= 92:
+            overall_quality_score = 4
+        elif total_raw_score <= 115:
+            overall_quality_score = 5
+        elif total_raw_score <= 138:
+            overall_quality_score = 6
+        else:
+            overall_quality_score = 7
+        
+        # 重新计算推荐意见（基于领域三严谨性和总分）
+        domain_3_score = domain_scores.get(3, {}).get("score")
+        
+        if domain_3_score is not None and domain_3_score < 30:
+            # 领域三严谨性 < 30%，直接不推荐
+            recommendation = "Do not recommend"
+        else:
+            # 否则基于总分判断
+            if total_raw_score > 96:
+                recommendation = "Recommend"
+            elif total_raw_score > 88:
+                recommendation = "Recommend with modifications"
+            else:
+                recommendation = "Do not recommend"
         
         # 构建报告
         report = {
@@ -173,6 +284,10 @@ def generate_appraisal_report(
                 "weaknesses": overall_weaknesses,
                 "recommendation": recommendation
             },
+            
+            # 添加总分和质量评分
+            "total_raw_score": total_raw_score,
+            "overall_quality_score": overall_quality_score,
             
             "metadata": {
                 "generated_at": datetime.now().isoformat(),

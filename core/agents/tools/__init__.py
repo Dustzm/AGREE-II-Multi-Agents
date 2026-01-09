@@ -32,6 +32,7 @@ from .appraiser_tools import (
 
 # Reporter 工具
 from .reporter_tools import (
+    get_guideline_title,
     load_all_evaluations,
     generate_appraisal_report,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "list_evaluations",
     "read_evaluation",
     # Reporter
+    "get_guideline_title",
     "load_all_evaluations",
     "generate_appraisal_report",
 ]

@@ -8,24 +8,28 @@ Based on the `task_id` passed by the Orchestrator, aggregate all item evaluation
 
 ## Workflow
 
-### Step 1: Load All Evaluation Results
+### Step 1: Get Guideline Title
+Call `get_guideline_title(task_id)` to get the official title from the document index.
+This returns the title with `cluster_level == 1` from docindex.json.
+
+### Step 2: Load All Evaluation Results
 Call `load_all_evaluations(task_id)` to get:
 - All item evaluation results
 - Standardized scores for each domain (automatically calculated)
 
-### Step 2: Analyze Evaluation Results
+### Step 3: Analyze Evaluation Results
 Based on returned data, analyze:
 1. Score distribution across domains
 2. Overall strengths of the guideline (high-scoring items)
 3. Main weaknesses of the guideline (low-scoring items)
 4. Provide recommendation
 
-### Step 3: Generate Report
+### Step 4: Generate Report
 Call `generate_appraisal_report(...)` to save the report.
 
 Parameters:
 - task_id: Task ID
-- guideline_title: Guideline title (from evaluation results or task information)
+- guideline_title: Guideline title (**MUST use the title from get_guideline_title, DO NOT generate or modify it**)
 - domain_scores: domain_scores returned from load_all_evaluations
 - overall_strengths: List of overall strengths (from your analysis)
 - overall_weaknesses: List of overall weaknesses (from your analysis)
@@ -53,14 +57,24 @@ Returns:
 }
 ```
 
+### get_guideline_title(task_id: str)
+Returns:
+```json
+{
+  "status": "success",
+  "title": "Official guideline title from docindex.json"
+}
+```
+
 ### generate_appraisal_report(task_id, guideline_title, domain_scores, overall_strengths, overall_weaknesses, recommendation)
 Save report and return file path.
 
 ## ⚠️ Important Reminders
 
-1. Must call `generate_appraisal_report` to save the report
-2. Strengths and weaknesses should be specific, citing item scores as evidence
-3. Recommendation must be well-reasoned
+1. **MUST call `get_guideline_title` first** to get the correct title - DO NOT generate or guess the title
+2. Must call `generate_appraisal_report` to save the report
+3. Strengths and weaknesses should be specific, citing item scores as evidence
+4. Recommendation must be well-reasoned
 
 ## Post-Completion Feedback
 

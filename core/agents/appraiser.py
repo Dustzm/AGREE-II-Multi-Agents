@@ -111,8 +111,7 @@ class IterativeEvaluator:
         
         # 3. 迭代遍历
         # 3. 迭代遍历 (使用 batch 加速)
-        # batch_size=15 可在 100K 上下文内安全处理，减少约 66% 的 LLM 调用
-        batch_size = 15
+        batch_size = 5
         iterator_list = list(iterator)
         
         for i in range(0, len(iterator_list), batch_size):
@@ -243,7 +242,7 @@ class IterativeEvaluator:
         prompt = render_scoring_prompt(
             item_id=self.skill_id,
             title=self.skill_config.get("title", ""),
-            criteria=self.skill_config.get("criteria", []),
+            shots=self.skill_config.get("shots", []),
             evidence_cache=self.evidence_cache,
             scoring_table=scoring_table,
             n_sources=len(self.evidence_sources),
@@ -263,7 +262,7 @@ class IterativeEvaluator:
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
                 temperature=0.1,
-                max_tokens=4096,  # 给评分分析留足空间
+                max_tokens=8096,  # 给评分分析留足空间
                 response_format={"type": "json_object"}  # 强制 JSON 输出
             )
             
@@ -324,7 +323,7 @@ class IterativeEvaluator:
             item_id=self.skill_id,
             domain_name=self.skill_config.get("domain_name", ""),
             title=self.skill_config.get("title", ""),
-            criteria=self.skill_config.get("criteria", []),
+            shots=self.skill_config.get("shots", []),
             scoring_table=scoring_table,
             evidence_cache=self.evidence_cache,
             evidence_sources=self.evidence_sources,

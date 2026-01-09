@@ -13,7 +13,7 @@ from typing import Optional
 from google.adk.agents import LlmAgent
 
 from .base import get_model
-from .tools import load_all_evaluations, generate_appraisal_report
+from .tools import get_guideline_title, load_all_evaluations, generate_appraisal_report
 from .base.schemas import ReporterInput
 from core.prompts import load_prompt
 
@@ -39,6 +39,7 @@ def create_reporter_agent(lang: Optional[str] = None) -> LlmAgent:
         description="Reporter - Aggregates evaluation results and generates final report",
         instruction=instruction,
         tools=[
+            get_guideline_title,
             load_all_evaluations,
             generate_appraisal_report,
         ],
