@@ -173,7 +173,7 @@
             "descZh": "描述 (中文)",
             "locatingEn": "Locating Info (English)",
             "locatingZh": "定位信息提示 (中文)",
-            "criteria": "评价标准 / Criteria (每行一条)",
+            "criteria": "举例/example",
             "scoringPrinciple": "评分细则 / Scoring Principle",
             "addRule": "+ 添加规则",
             "range": "Range",

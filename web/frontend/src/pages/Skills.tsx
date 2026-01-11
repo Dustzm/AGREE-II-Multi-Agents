@@ -361,17 +361,6 @@ export function Skills() {
                             </div>
                         </div>
 
-                        <div className="grid gap-2">
-                            <label className="text-sm font-medium leading-none text-gray-700">
-                                评价标准 / Criteria (每行一条)
-                            </label>
-                            <textarea
-                                className="flex min-h-[120px] w-full rounded-md border border-input bg-white/50 px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono text-xs"
-                                value={criteriaText}
-                                onChange={(e) => setCriteriaText(e.target.value)}
-                            />
-                        </div>
-
                         {/* Scoring Principle Table */}
                         <div className="grid gap-2">
                             <div className="flex items-center justify-between">
@@ -455,6 +444,17 @@ export function Skills() {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <label className="text-sm font-medium leading-none text-gray-700">
+                                举例/example
+                            </label>
+                            <textarea
+                                className="flex min-h-[120px] w-full rounded-md border border-input bg-white/50 px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono text-xs"
+                                value={criteriaText}
+                                onChange={(e) => setCriteriaText(e.target.value)}
+                            />
                         </div>
                     </div>
                 </DialogContent>
