@@ -7,8 +7,7 @@
 
 ### 1. 类别定义（严格执行）
 - **Overview (概览)**:
-  - 核心特征：**全文的摘要（Abstract）**、引言、背景介绍、目标人群与范围说明。
-  - **作者信息规则（强制）**：**作者名单、作者列表、指南开发团队、编写组成员、及其所属机构/单位信息**，**必须归类为 Overview**，绝对禁止归类为 Irrelevant。
+  - 核心特征：**全文的摘要（Abstract）**、引言、背景介绍、目标人群与范围说明、**作者名单、作者列表、指南开发团队、编写组成员、及其所属机构/单位信息**。
   - **重要规则**：如果文本是"摘要"或"引言"，**即使其中简要提到了临床建议或药物选择，也必须归类为 Overview**。因为它是对全文的总结，而非具体的执行章节。
 
 - **Executive Summary (执行摘要)**:
@@ -21,6 +20,12 @@
 
 - **Recommendation (推荐意见)**:
   - 核心特征：**正文章节**。涉及具体的筛查流程、诊断标准、详细的药物治疗方案、随访计划。
+  - **扩展范围（重要）**：
+    - **证据综述**：引用临床研究、RCT、Meta分析来讨论某治疗方案的疗效或安全性
+    - **临床争议讨论**：回应某药物/疗法的安全性质疑，用证据支持或反驳
+    - **药物机制与效果讨论**：讨论药物的作用机制及其临床意义（如 β细胞功能、心血管安全性等）
+    - **不良反应与风险管理**：讨论不良反应发生率、风险因素、管理策略
+  - **判断关键**：如果内容**引用研究数据来回答临床决策问题**（如"某药是否安全？""某治疗是否有效？"），归为 Recommendation
   - **排除项**：不要将"摘要"或"前言"中的总结性建议归为此类。
 
 - **Conclusion (结论)**:
@@ -29,16 +34,15 @@
   - **与 Recommendation 的区别**：Conclusion 是对全文的回顾性总结，不是具体的治疗细节。
 
 - **Others (其他)**:
-  - 核心特征：利益冲突声明、资金来源、制药公司赞助披露。
+  - 核心特征：利益冲突声明、资金来源、制药公司赞助披露、致谢。
 
 - **Appendix (附录)**:
-  - 核心特征：**被明确标记为附录的补充材料**。
+  - 核心特征：**被明确标记为附录的补充材料**，或标题明确为附录。
   - 包含：详细的证据表、算法流程图、补充数据、实施工具模板、扼要参考文献摘要。
   - **与 Recommendation 的区别**：即使内容与临床相关，如果明确位于附录章节，应归为 Appendix。
 
 - **Irrelevant (无关)**:
   - 核心特征：目录、**单纯**参考文献列表、单纯版权页信息。
-  - **⚠️ 严禁归为 Irrelevant 的内容**：任何作者名字、机构名称、单位信息、编写组人员、专家团队信息，**都不是 Irrelevant**，**必须归为 Overview 或 Method**。
 
 ### 2. 判别逻辑
 遵循以下优先级：
@@ -47,24 +51,38 @@
    - 扫描是否包含**机构名称**（大学、医院、研究所、协会等）
    - 如果包含，**立即锁定为 Overview**，停止后续判断
    - 常见模式："Department of...", "University", "Hospital", "中国...", "...医院", "...大学"
-2. **标题关键词检测**：
+2. **⚠️ 文档位置规则（重要）**：
+   - 参考 `page` 和 `total_pages` 计算当前进度百分比
+   - **前 10%**：Overview、Executive Summary、Method 的高概率区域
+   - **中间 80%**：Recommendation 的主要区域
+   - **后 10%**：Conclusion、Appendix、Others 的高概率区域
+   - **位置约束**：
+     - Overview **只能**出现在文档前 20%（page/total_pages ≤ 0.2）
+     - Conclusion **只能**出现在文档后 20%（page/total_pages ≥ 0.8）
+     - 如果页码位于中间位置（20%-80%），描述性内容应归为 Recommendation 而非 Overview
+3. **标题关键词检测**：
    - 如果 title 包含【摘要】、【Abstract】、【引言】、【前言】、【作者】、【Authors】→ **Overview**
    - 如果 title 包含【Executive Summary】、【执行摘要】、【关键推荐】、【Key Recommendations】→ **Executive Summary**
    - 如果 title 包含【结论】、【Conclusion】、【总结】、【Summary】、【展望】→ **Conclusion**
    - 如果 title 包含【附录】、【Appendix】、【Supplementary】、【补充材料】→ **Appendix**
-3. **section 上下文检测**：
+4. **section 上下文检测**：
    - 如果 section 路径中包含 "附录" 或 "Appendix" → **Appendix**
    - section 字段显示该内容在文档树中的**祖先路径**，可辅助判断章节归属
-4. **Recommendation 特殊规则**：
+5. **Recommendation 特殊规则**：
    - 如果 section 中包含 **Recommendation**，该内容很可能是具体的推荐详情 → **Recommendation**
    - **需排除**：如果是推荐意见的概述而非详细方案 → **Executive Summary**
-5. **内容本身判断**：只有当文本属于正文的具体章节时，才考虑 **Recommendation**。
+6. **证据讨论内容规则（重要）**：
+   - 如果 section 中包含 **ISSUES**、**CONCERNS**、**SAFETY**、**EFFICACY**、**EFFECTS** 等关键词，很可能是临床问题讨论 → **Recommendation**
+   - 如果内容引用了**研究数据**（如 P 值、OR、HR、置信区间、RCT 名称如 UKPDS/ADVANCE）→ **Recommendation**
+   - 如果内容讨论**某药物/疗法的机制及其临床意义**（如 β细胞功能、心血管安全性、低血糖风险）→ **Recommendation**
+7. **内容本身判断**：只有当文本属于正文的具体章节时，才考虑 **Recommendation**。
 
 ---
 ## 输入内容
 ---
 title: {title}
 section: {section}
+page: {page} / {total_pages}
 ---
 
 {content}

@@ -7,8 +7,7 @@ Please classify the text into one Tag according to the following rules:
 
 ### 1. Category Definitions (Strictly Enforce)
 - **Overview**:
-  - Core features: **Abstract of the entire document**, introduction, background, target population and scope statement.
-  - **Author Information Rule (Mandatory)**: **Author lists, author names, guideline development teams, writing group members, and their institutional/organizational affiliations** **MUST be classified as Overview**. It is absolutely forbidden to classify them as Irrelevant.
+  - Core features: **Abstract of the entire document**, introduction, background, target population and scope statement, **author lists, author names, guideline development teams, writing group members, and their institutional/organizational affiliations**.
   - **Important rule**: If the text is an "Abstract" or "Introduction", **it must be classified as Overview even if it briefly mentions clinical recommendations or drug choices**. This is because it summarizes the entire document rather than being a specific implementation chapter.
 
 - **Executive Summary**:
@@ -21,6 +20,12 @@ Please classify the text into one Tag according to the following rules:
 
 - **Recommendation**:
   - Core features: **Main body chapters**. Involves specific screening procedures, diagnostic criteria, detailed pharmacotherapy regimens, follow-up plans.
+  - **Extended scope (IMPORTANT)**:
+    - **Evidence synthesis**: Citing clinical studies, RCTs, meta-analyses to discuss efficacy or safety of a treatment
+    - **Clinical controversy discussion**: Addressing safety concerns about a drug/therapy, using evidence to support or refute claims
+    - **Drug mechanism and effect discussion**: Discussing mechanism of action and its clinical significance (e.g., β-cell function, cardiovascular safety)
+    - **Adverse effects and risk management**: Discussing adverse effect rates, risk factors, management strategies
+  - **Key judgment**: If content **cites research data to answer clinical decision questions** (e.g., "Is this drug safe?", "Is this treatment effective?"), classify as Recommendation
   - **Exclusions**: Do not classify summary recommendations from "Abstract" or "Foreword" into this category.
 
 - **Conclusion**:
@@ -29,16 +34,15 @@ Please classify the text into one Tag according to the following rules:
   - **Distinction from Recommendation**: Conclusion is a retrospective summary of the entire document, not specific treatment details.
 
 - **Others**:
-  - Core features: Conflict of interest declarations, funding sources, pharmaceutical sponsorship disclosures.
+  - Core features: Conflict of interest declarations, funding sources, pharmaceutical sponsorship disclosures, acknowledgments.
 
 - **Appendix**:
-  - Core features: **Supplementary materials explicitly marked as appendix**.
+  - Core features: **Supplementary materials explicitly marked as appendix**, or **title explicitly marked as Appendix**.
   - Contains: Detailed evidence tables, algorithm flowcharts, supplementary data, implementation tool templates, concise reference summaries.
   - **Distinction from Recommendation**: Even if content is clinically related, if it is explicitly in an appendix section, classify as Appendix.
 
 - **Irrelevant**:
   - Core features: Table of contents, **pure** reference lists only, copyright pages only.
-  - **⚠️ STRICTLY FORBIDDEN to classify as Irrelevant**: Any author names, institutional names, organizational information, writing group members, expert team information are **NOT Irrelevant**. **They MUST be classified as Overview or Method**.
 
 ### 2. Decision Logic
 Follow this priority order:
@@ -47,27 +51,41 @@ Follow this priority order:
    - Scan for **institutional names** (universities, hospitals, research institutes, associations, etc.)
    - If found, **immediately lock as Overview**, stop further evaluation
    - Common patterns: "Department of...", "University", "Hospital", "Institute", "College", "School of Medicine"
-2. **Title Keyword Detection**:
+2. **⚠️ Document Position Rule (IMPORTANT)**:
+   - Use `page` and `total_pages` to calculate the current progress percentage
+   - **First 10%**: High probability zone for Overview, Executive Summary, Method
+   - **Middle 80%**: Main zone for Recommendation
+   - **Last 10%**: High probability zone for Conclusion, Appendix, Others
+   - **Position constraints**:
+     - Overview can **ONLY** appear in the first 20% of document (page/total_pages ≤ 0.2)
+     - Conclusion can **ONLY** appear in the last 20% of document (page/total_pages ≥ 0.8)
+     - If page is in the middle position (20%-80%), descriptive content should be classified as Recommendation, NOT Overview
+3. **Title Keyword Detection**:
    - If title contains [Abstract], [Introduction], [Foreword], [Preface], [Authors] → **Overview**
    - If title contains [Executive Summary], [Key Recommendations], [Summary of Recommendations] → **Executive Summary**
    - If title contains [Conclusion], [Summary], [Future Directions], [Limitations] → **Conclusion**
-   - If title contains [Appendix], [Supplementary], [Annex] → **Appendix**
-3. **Section Context Detection**:
+   - If title contains [Appendix], [Supplementary], [Annex] → **Appendix**![1767948778875](image/semantic_prompt/1767948778875.png)
+4. **Section Context Detection**:
    - If section path contains "Appendix" or "Supplementary" → **Appendix**
    - The section field shows the **ancestor path** in the document tree, helping determine chapter belonging
-4. **Recommendation Special Rule**:
+5. **Recommendation Special Rule**:
    - If section contains **Recommendation**, the content is likely specific recommendation details → **Recommendation**
    - **Exception**: If it's an overview of recommendations rather than detailed protocols → **Executive Summary**
-5. **Content Judgment**: Only consider **Recommendation** when the text belongs to main body chapters.
+6. **Evidence Discussion Content Rule (IMPORTANT)**:
+   - If section contains **ISSUES**, **CONCERNS**, **SAFETY**, **EFFICACY**, **EFFECTS**, the content is likely clinical issue discussion → **Recommendation**
+   - If content cites **research data** (e.g., P-values, OR, HR, confidence intervals, RCT names like UKPDS/ADVANCE) → **Recommendation**
+   - If content discusses **drug/therapy mechanism and its clinical significance** (e.g., β-cell function, cardiovascular safety, hypoglycemia risk) → **Recommendation**
+7. **Content Judgment**: Only consider **Recommendation** when the text belongs to main body chapters.
 
 ---
 ## Input Content
 ---
 title: {title}
 section: {section}
+page: {page} / {total_pages}
 ---
 
 {content}
 
 ## Output Requirements
-Provide a brief, objective classification rationale in 1-2 sentences (focus on key evidence: title, section path, and content type), then output the tag. **Do NOT use first person or describe your thinking process**.
+Provide a brief, objective classification rationale in 1-2 sentences (focus on key evidence: title, section path, page position, and content type), then output the tag. **Do NOT use first person or describe your thinking process**.

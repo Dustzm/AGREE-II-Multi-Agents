@@ -34,71 +34,33 @@ class SemanticLabeler:
     
     def _load_prompt_template(self) -> str:
         """加载 Prompt 模板"""
-        # 文件位置: core/agents/core/preprocessor/labeler.py
+        # 文件位置: core/preprocessor/labeler.py
         # 目标路径: core/prompts/zh/semantic_prompt.md
-        
         current_dir = Path(__file__).parent
-        # preprocessor -> core -> agents -> core -> prompts
-        core_dir = current_dir.parent.parent.parent
+        # preprocessor -> core -> prompts
+        core_dir = current_dir.parent
         
         prompt_dir = core_dir / "prompts" / self.lang
         prompt_file = prompt_dir / "semantic_prompt.md"
-
-        
-        if not prompt_file.exists():
-            logger.warning(f"Prompt 文件不存在: {prompt_file}，使用默认模板")
-            # 回退到默认模板
-            if self.lang == "zh":
-                return """你是一位临床实践指南分析专家。请为以下指南内容片段分配一个语义标签。
-
-## 标签定义
-- **Overview**: 摘要、前言、范围定义、目标人群描述
-- **Executive Summary**: 执行摘要、关键推荐概要
-- **Method**: 指南制定过程、委员会组成、证据分级方法、文献检索策略
-- **Recommendation**: 具体的疾病管理建议、筛查建议、治疗方案、临床推荐
-- **Conclusion**: 结论、总结、未来展望
-- **Others**: 利益冲突声明、资助来源、编辑独立性声明
-- **Appendix**: 附录、补充材料
-- **Irrelevant**: 目录、索引、纯参考文献列表、版权信息
-
-## 输入内容
-标题: {title}
-内容: {content}
-
-## 输出格式
-仅输出一个标签名称: Overview / Executive Summary / Method / Recommendation / Conclusion / Others / Appendix / Irrelevant"""
-            else:
-                return """You are a clinical practice guideline analysis expert. Assign a semantic label to the following guideline content fragment.
-
-## Label Definitions
-- **Overview**: Abstract, preface, scope definition, target population description
-- **Executive Summary**: Executive summary, key recommendation summaries
-- **Method**: Guideline development process, committee composition, evidence grading methods, literature search strategies
-- **Recommendation**: Specific disease management recommendations, screening recommendations, treatment plans, clinical recommendations
-- **Conclusion**: Conclusions, summary, future perspectives
-- **Others**: Conflict of interest statements, funding sources, editorial independence statements
-- **Appendix**: Appendix, supplementary materials
-- **Irrelevant**: Table of contents, index, reference lists only, copyright information
-
-## Input Content
-Title: {title}
-Content: {content}
-
-## Output Format
-Output only one label name: Overview / Executive Summary / Method / Recommendation / Conclusion / Others / Appendix / Irrelevant"""
         
         # 从文件加载模板
         with open(prompt_file, "r", encoding="utf-8") as f:
             return f.read()
     
-    def _render_prompt(self, title: str, content: str, section: str = "") -> str:
+    def _render_prompt(self, title: str, content: str, section: str = "", page: int = 1, total_pages: int = 1) -> str:
         """渲染 Prompt"""
         # 截断过长的内容（避免超过 token 限制）
         max_content_length = 2000
         if len(content) > max_content_length:
             content = content[:max_content_length] + "..."
         
-        return self.prompt_template.format(title=title, section=section, content=content)
+        return self.prompt_template.format(
+            title=title, 
+            section=section, 
+            content=content,
+            page=page,
+            total_pages=total_pages
+        )
     
     async def _call_llm(self, prompt: str) -> str:
         """
@@ -137,37 +99,51 @@ Output only one label name: Overview / Executive Summary / Method / Recommendati
             logger.error(f"LLM 调用失败: {str(e)}", exc_info=True)
             return '{"thinking": "LLM调用失败", "tag": "Irrelevant"}'
     
-    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 70) -> List[SemanticChunk]:
+    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 70, total_pages: int = 0) -> List[SemanticChunk]:
         """
         为所有内容块打标签（并发执行）
         
         Args:
             chunks: 标题-内容块列表
             max_concurrency: 最大并发数
+            total_pages: 文档总页数（用于计算进度位置）
             
         Returns:
             语义块列表
         """
         import asyncio
         
+        # 如果未提供总页数，从 chunks 中推断
+        if total_pages <= 0:
+            total_pages = max((c.title_page_idx for c in chunks), default=1) + 1
+        
         semaphore = asyncio.Semaphore(max_concurrency)
         tasks = []
         
-        logger.info(f"开始标签分类，共 {len(chunks)} 个块，并发数 {max_concurrency}")
+        logger.info(f"开始标签分类，共 {len(chunks)} 个块，并发数 {max_concurrency}，文档总页数 {total_pages}")
         
         for idx, chunk in enumerate(chunks):
-            task = self._process_single_chunk(idx, chunk, len(chunks), semaphore)
+            task = self._process_single_chunk(idx, chunk, len(chunks), semaphore, total_pages)
             tasks.append(task)
         
         # 并发执行并保持顺序
         semantic_chunks = await asyncio.gather(*tasks)
         return [c for c in semantic_chunks if c is not None]
 
-    async def _process_single_chunk(self, idx: int, chunk: TitleContentBlock, total: int, semaphore: any) -> SemanticChunk:
+    async def _process_single_chunk(self, idx: int, chunk: TitleContentBlock, total: int, semaphore: any, total_pages: int = 1) -> SemanticChunk:
         """处理单个块的标签分类"""
         async with semaphore:
-            # 渲染 Prompt
-            prompt = self._render_prompt(chunk.title, chunk.raw_text, chunk.section)
+            # 获取当前页码（用于位置感知）
+            current_page = chunk.title_page_idx + 1  # 转为 1-indexed
+            
+            # 渲染 Prompt（包含页码信息）
+            prompt = self._render_prompt(
+                chunk.title, 
+                chunk.raw_text, 
+                chunk.section,
+                page=current_page,
+                total_pages=total_pages
+            )
             
             # 日志输出：显示开始状态
             # 仅对第一个块显示完整 Prompt，避免刷屏；其他块只显示标题
