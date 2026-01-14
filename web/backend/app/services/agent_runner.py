@@ -110,6 +110,7 @@ class AppraisalRunner:
             
             # Step 2: 检查并解析 PDF
             source_file = Path(source_path)
+            parse_success = False
             
             if source_file.exists():
                 self.on_status("status", t("status.doc_found_skip", self.lang))

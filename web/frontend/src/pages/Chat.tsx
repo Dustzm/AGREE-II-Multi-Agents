@@ -14,15 +14,59 @@ import { TimelineView, type TimelineEvent } from '@/components/TimelineView'
 
 export function Chat() {
     const { t } = useTranslation()
-    const [isLoading, setIsLoading] = useState(false)
-    const [sessionId] = useState(() => `session-${Date.now()}`)
+    // 持久化状态初始化
+    const [sessionId] = useState(() => {
+        const saved = localStorage.getItem('ama_session_id')
+        if (saved) return saved
+        const newId = `session-${Date.now()}`
+        localStorage.setItem('ama_session_id', newId)
+        return newId
+    })
+
+    // 从 localStorage 恢复初始状态
+    const [isLoading, setIsLoading] = useState(() => {
+        return localStorage.getItem('ama_is_loading') === 'true'
+    })
+
+    const [currentFile, setCurrentFile] = useState<string | null>(() => {
+        return localStorage.getItem('ama_current_file')
+    })
+
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(() => {
+        return localStorage.getItem('ama_task_id')
+    })
+
+    const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>(() => {
+        try {
+            const saved = localStorage.getItem('ama_timeline_events')
+            if (!saved) return []
+            const events = JSON.parse(saved)
+            // JSON.parse 会将 Date 对象转为字符串，需要手动通过 new Date() 恢复
+            return events
+                .filter((e: any) => e.id !== 'connection_error') // 确保加载时不包含连接错误
+                .map((e: any) => ({
+                    ...e,
+                    timestamp: new Date(e.timestamp)
+                }))
+        } catch {
+            return []
+        }
+    })
+
+    const [batchSummary, setBatchSummary] = useState<{ total: number; completed: number; elapsed: number }>(() => {
+        try {
+            const saved = localStorage.getItem('ama_batch_summary')
+            return saved ? JSON.parse(saved) : { total: 0, completed: 0, elapsed: 0 }
+        } catch {
+            return { total: 0, completed: 0, elapsed: 0 }
+        }
+    })
+
     // 层级数据
     const [folders, setFolders] = useState<FolderInfo[]>([])
     const [rootFiles, setRootFiles] = useState<PdfFile[]>([])
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
     const [loadingFiles, setLoadingFiles] = useState(true)
-    const [currentFile, setCurrentFile] = useState<string | null>(null)
-    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
 
     // 上传相关状态
     const [isUploading, setIsUploading] = useState(false)
@@ -31,13 +75,75 @@ export function Chat() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const folderInputRef = useRef<HTMLInputElement>(null)
 
-    // 时序图事件
-    const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
+    // 状态更新时的副作用：同步到 localStorage
+    useEffect(() => {
+        localStorage.setItem('ama_is_loading', String(isLoading))
+    }, [isLoading])
 
-    // 并发评价汇总
-    const [batchSummary, setBatchSummary] = useState<{ total: number; completed: number; elapsed: number }>(
-        { total: 0, completed: 0, elapsed: 0 }
-    )
+    useEffect(() => {
+        if (currentFile) localStorage.setItem('ama_current_file', currentFile)
+        else localStorage.removeItem('ama_current_file')
+    }, [currentFile])
+
+    useEffect(() => {
+        if (currentTaskId) localStorage.setItem('ama_task_id', currentTaskId)
+        else localStorage.removeItem('ama_task_id')
+    }, [currentTaskId])
+
+    useEffect(() => {
+        // 过滤掉连接错误的事件，避免刷新后看到"Connection lost"
+        const persistedEvents = timelineEvents.filter(e => e.id !== 'connection_error')
+        localStorage.setItem('ama_timeline_events', JSON.stringify(persistedEvents))
+    }, [timelineEvents])
+
+    useEffect(() => {
+        localStorage.setItem('ama_batch_summary', JSON.stringify(batchSummary))
+    }, [batchSummary])
+
+    // 清理任务状态（保留 Session）
+    const clearTaskState = useCallback(() => {
+        setTimelineEvents([])
+        setBatchSummary({ total: 0, completed: 0, elapsed: 0 })
+        setCurrentTaskId(null)
+        setIsLoading(false)
+        // localStorage 会通过 useEffect 自动更新
+    }, [])
+
+    // 检查服务是否重启
+    useEffect(() => {
+        const checkSystemStatus = async () => {
+            try {
+                const health = await api.getHealth()
+                const serverStartup = String(health.startup_time)
+                const localStartup = localStorage.getItem('ama_startup_time')
+
+                // 如果本地没有记录，或者记录不一致（服务重启），则清理缓存
+                if (localStartup && localStartup !== serverStartup) {
+                    console.log('检测到服务重启，清理旧缓存...')
+                    // 清理所有相关缓存
+                    localStorage.removeItem('ama_session_id')
+                    localStorage.removeItem('ama_is_loading')
+                    localStorage.removeItem('ama_current_file')
+                    localStorage.removeItem('ama_task_id')
+                    localStorage.removeItem('ama_timeline_events')
+                    localStorage.removeItem('ama_batch_summary')
+
+                    // 更新启动时间
+                    localStorage.setItem('ama_startup_time', serverStartup)
+
+                    // 重新加载页面以重置状态
+                    window.location.reload()
+                } else if (!localStartup) {
+                    // 首次运行，记录启动时间
+                    localStorage.setItem('ama_startup_time', serverStartup)
+                }
+            } catch (error) {
+                console.error('检查系统状态失败:', error)
+            }
+        }
+
+        checkSystemStatus()
+    }, [])
 
     // 添加或更新事件
     const upsertEvent = useCallback((
@@ -186,7 +292,12 @@ export function Chat() {
         loadPdfFiles()
     }, [loadPdfFiles])
 
-    const { connect, send } = useWebSocket({
+    const [connectionError, setConnectionError] = useState(false)
+
+    const { connect, send, isConnected } = useWebSocket({
+        onOpen: () => {
+            setConnectionError(false)
+        },
         onMessage: (msg: ChatMessage) => {
             // 解析 agent 名称获取事件类型
             const agentToType = (agent: string | undefined): TimelineEvent['type'] => {
@@ -237,27 +348,40 @@ export function Chat() {
 
             } else if (msg.type === 'status') {
                 const content = msg.content || ''
+                const contentLower = content.toLowerCase()
 
-                // 检测 PDF 解析状态
-                if (content.includes('解析') || content.includes('PDF')) {
-                    if (content.includes('完成')) {
+                // 检测 PDF 解析状态 (Bilingual)
+                // ZH: 正在解析 PDF... / PDF 解析完成
+                // EN: Parsing PDF... / PDF parsed
+                if (content.includes('解析') || content.includes('PDF') || content.includes('Parsing') || content.includes('Parsed')) {
+                    if (content.includes('完成') || content.includes('parsed') || content.includes('found')) {
                         upsertEvent('parsing', 'parsing', 'done', content)
+                    } else if (content.includes('失败') || content.includes('failed')) {
+                        upsertEvent('parsing', 'parsing', 'error', content)
                     } else {
                         upsertEvent('parsing', 'parsing', 'running', content)
                     }
                 }
-                // 检测语义证据池状态
-                else if (content.includes('语义证据池')) {
-                    if (content.includes('正在')) {
+                // 检测语义来源池状态 (Bilingual, case-insensitive)
+                // ZH: 正在构建语义来源池... / 语义来源池构建完成 / 预处理异常
+                // EN: Building semantic source pool... / Semantic source pool built / Preprocessing error
+                // Use toLowerCase() for case-insensitive matching
+                else if (content.includes('语义来源池') || contentLower.includes('source pool') || contentLower.includes('evidence') || contentLower.includes('preprocessing') || content.includes('预处理异常')) {
+                    if (content.includes('正在') || contentLower.includes('building')) {
                         upsertEvent('preprocessing', 'preprocessing', 'running', content)
-                    } else if (content.includes('完成')) {
+                    } else if (content.includes('完成') || contentLower.includes('built')) {
                         upsertEvent('preprocessing', 'preprocessing', 'done', content)
-                    } else if (content.includes('失败') || content.includes('异常')) {
+                    } else if (content.includes('失败') || content.includes('异常') || contentLower.includes('error') || contentLower.includes('failed')) {
                         upsertEvent('preprocessing', 'preprocessing', 'error', content)
+                    } else {
+                        // 默认 fallback 用于显示其他预处理相关消息
+                        upsertEvent('preprocessing', 'preprocessing', 'running', content)
                     }
                 }
-                // 检测 Orchestrator 启动
-                else if (content.includes('智能体') || content.includes('启动')) {
+                // 检测 Orchestrator 启动 (Bilingual)
+                // ZH: 启动智能体团队
+                // EN: Starting agent team
+                else if (content.includes('智能体') || content.includes('启动') || content.includes('Starting agent')) {
                     upsertEvent('orchestrator', 'orchestrator', 'running', t('chat.status.orchestrating'))
                 }
                 // 检测任务 ID
@@ -333,17 +457,25 @@ export function Chat() {
             }
         },
         onError: () => {
-            setIsLoading(false)
-            upsertEvent('error', 'error', 'error', t('chat.error.disconnected'))
+            // 连接错误不写入时序图，而是通过 UI 状态提示
+            setConnectionError(true)
         },
     })
+
+    // 初始化时，如果检测到正在运行的任务，自动重连
+    useEffect(() => {
+        if (isLoading && sessionId) {
+            console.log('检测到中断的任务，尝试重新连接:', sessionId)
+            connect(sessionId)
+        }
+    }, []) // 仅在挂载时执行一次
 
     const handleSelectPdf = async (pdfFile: PdfFile) => {
         if (isLoading) return
 
         // 重置时序图和汇总
-        setTimelineEvents([])
-        setBatchSummary({ total: 0, completed: 0, elapsed: 0 })
+        clearTaskState()
+        setConnectionError(false)
         setCurrentFile(pdfFile.name)
         setIsLoading(true)
 
@@ -354,7 +486,10 @@ export function Chat() {
             const result = await api.startTask(pdfFile.path)
             setCurrentTaskId(result.task_id)  // 保存 task_id
 
+            // 连接 WebSocket
             connect(sessionId)
+
+            // 延迟发送 start 指令，确保连接建立
             setTimeout(() => {
                 // 从 useTranslation 获取当前语言，转换为后端格式 (zh-CN -> zh, en-US -> en)
                 const currentLang = document.documentElement.lang || 'en'
@@ -483,7 +618,7 @@ export function Chat() {
 
                 <div
                     className={cn(
-                        "flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent transition-colors",
+                        "flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-muted-foreground/10 hover:scrollbar-thumb-muted-foreground/20 transition-colors",
                         isDragOver && "bg-primary/5"
                     )}
                     style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}
@@ -564,10 +699,16 @@ export function Chat() {
                             <div className="flex items-center gap-2 mt-0.5">
                                 <span className={cn(
                                     "w-1.5 h-1.5 rounded-full",
-                                    isLoading ? "bg-purple-500 animate-pulse" : "bg-gray-300"
+                                    connectionError ? "bg-red-500" :
+                                        isLoading ? "bg-purple-500 animate-pulse" : "bg-gray-300"
                                 )} />
-                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {isLoading ? t('chat.progress.processing') : timelineEvents.length > 0 ? t('chat.progress.completed') : t('chat.progress.ready')}
+                                <p className={cn(
+                                    "text-xs font-medium uppercase tracking-wider",
+                                    connectionError ? "text-red-500" : "text-gray-500"
+                                )}>
+                                    {connectionError ? t('chat.error.disconnected') :
+                                        isLoading ? t('chat.progress.processing') :
+                                            timelineEvents.length > 0 ? t('chat.progress.completed') : t('chat.progress.ready')}
                                 </p>
                             </div>
                         </div>

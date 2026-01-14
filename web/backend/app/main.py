@@ -11,6 +11,10 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import time
+
+# 记录服务启动时间
+STARTUP_TIME = int(time.time() * 1000)
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent.parent
@@ -80,7 +84,8 @@ async def root():
         "name": "AMA API",
         "version": "0.1.0",
         "description": "AGREE-Multi-Agents 评价系统",
-        "docs": "/ama/docs"
+        "docs": "/ama/docs",
+        "startup_time": STARTUP_TIME
     }
 
 

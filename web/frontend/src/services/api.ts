@@ -209,4 +209,16 @@ export const api = {
         }
         return response.json()
     },
+
+    // 获取系统健康状态（包含启动时间）
+    async getHealth(): Promise<{ status: string, startup_time?: number }> {
+        // health 路由挂载在 /ama/health，不是 /ama/api/health
+        // API_BASE 是 /ama/api，所以需要替换
+        const url = API_BASE.replace('/api', '/health')
+        const response = await fetch(url)
+        if (!response.ok) {
+            throw new Error('健康检查失败')
+        }
+        return response.json()
+    }
 }

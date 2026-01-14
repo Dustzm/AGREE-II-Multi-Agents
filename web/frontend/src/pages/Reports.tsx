@@ -397,7 +397,7 @@ export function Reports() {
                                             onClick={() => viewReport(report.task_id)}
                                         >
                                             <td className="px-6 py-4">
-                                                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", getStatusColor(report.score))}>
+                                                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", getStatusColor(report.quality_score))}>
                                                     <FileText className="h-4 w-4" />
                                                 </div>
                                             </td>

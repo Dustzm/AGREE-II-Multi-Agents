@@ -46,10 +46,26 @@ class ConnectionManager:
     
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
+        # 离线消息队列: session_id -> list[message_dict]
+        self.message_queues: dict[str, list[dict]] = {}
     
     async def connect(self, session_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active_connections[session_id] = websocket
+        
+        # 检查并发送离线消息
+        if session_id in self.message_queues:
+            queue = self.message_queues[session_id]
+            if queue:
+                logger.info(f"发送积压消息给 {session_id}: {len(queue)} 条")
+                for msg in queue:
+                    try:
+                        await websocket.send_json(msg)
+                    except Exception as e:
+                        logger.error(f"发送积压消息失败: {e}")
+                        break
+                # 清空队列
+                self.message_queues[session_id] = []
     
     def disconnect(self, session_id: str):
         if session_id in self.active_connections:
@@ -57,7 +73,25 @@ class ConnectionManager:
     
     async def send_message(self, session_id: str, message: dict):
         if session_id in self.active_connections:
-            await self.active_connections[session_id].send_json(message)
+            try:
+                await self.active_connections[session_id].send_json(message)
+            except Exception as e:
+                logger.warning(f"发送消息失败，转入离线队列: {e}")
+                self._enqueue_message(session_id, message)
+        else:
+            # 用户离线，加入队列
+            self._enqueue_message(session_id, message)
+            
+    def _enqueue_message(self, session_id: str, message: dict):
+        """将消息加入离线队列"""
+        if session_id not in self.message_queues:
+            self.message_queues[session_id] = []
+        
+        # 限制队列大小，防止无限增长
+        if len(self.message_queues[session_id]) > 1000:
+            self.message_queues[session_id].pop(0)  # 移除最旧的消息
+            
+        self.message_queues[session_id].append(message)
 
 
 manager = ConnectionManager()
@@ -152,17 +186,36 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     })
                     continue
                 
-                # 启动评价任务
-                await run_appraisal(session_id, task_id, pdf_path, lang)
+                # 启动评价任务 - 使用后台任务而不是阻塞等待
+                # 这样即使 WebSocket 断开，任务也会继续运行，产生的消息会进入 Buffer
+                loop = asyncio.get_event_loop()
+                task = loop.create_task(run_appraisal(session_id, task_id, pdf_path, lang))
+                
+                # 添加回调以处理任务自身的异常（避免静默失败）
+                def handle_task_result(t):
+                    try:
+                        t.result()
+                    except asyncio.CancelledError:
+                        logger.info(f"任务 {task_id} 已取消")
+                    except Exception as e:
+                        logger.error(f"任务 {task_id} 异常: {e}", exc_info=True)
+                        
+                task.add_done_callback(handle_task_result)
             
             elif msg_type == "cancel":
+                # TODO: 实现真正的取消逻辑
+                # 目前只是前端停止接收，但后台任务可能还在跑
+                # 需要一个全局的任务管理器来通过 task_id 找到并取消 asyncio task
                 lang = data.get("lang", "en")
                 await manager.send_message(session_id, {
                     "type": "status",
                     "content": t("status.task_cancelled", lang)
                 })
-                break
-    
+                # 注意：这里 break 会断开 WebSocket 连接
+                # 如果只是停止当前任务但保持连接，不应该 break
+                # 但根据现有逻辑，前端发 cancel 后通常期望停止
+                pass 
+                
     except WebSocketDisconnect:
         logger.info(f"WebSocket 断开: {session_id}")
     finally:
