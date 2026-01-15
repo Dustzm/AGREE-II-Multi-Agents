@@ -18,12 +18,16 @@ logger = logging.getLogger(__name__)
 _task_contexts: dict[str, dict] = {}
 
 
-def init_task_directory(input_filename: str, task_id: Optional[str] = None) -> dict:
+def init_task_directory(
+    input_filename: str, 
+    task_id: Optional[str] = None,
+    output_subdir: Optional[str] = None
+) -> dict:
     """
     初始化任务目录结构
     
     为每个任务创建独立的输出目录:
-    {output_root}/{filename}-{MMddhhmm}/
+    {output_root}/[output_subdir/]{filename}-{MMddhhmm}/
     ├── source.md
     ├── appraisal_report.json
     ├── appraisal_report.md
@@ -35,6 +39,7 @@ def init_task_directory(input_filename: str, task_id: Optional[str] = None) -> d
     Args:
         input_filename: 输入文件名 (如 "test.pdf")
         task_id: 可选的任务ID，不提供则自动生成
+        output_subdir: 可选的输出子目录 (如 "batch_1", "batch_2")
         
     Returns:
         dict: {"status": "success/error", "task_id": str, "paths": dict, "error": str}
@@ -44,6 +49,11 @@ def init_task_directory(input_filename: str, task_id: Optional[str] = None) -> d
     try:
         settings = get_settings()
         output_root = Path(settings.app.data_root)
+        
+        # 如果指定了子目录，则使用 output/batch_N/ 作为根目录
+        if output_subdir:
+            output_root = output_root / output_subdir
+            output_root.mkdir(parents=True, exist_ok=True)
         
         # 解析文件名
         base_name = Path(input_filename).stem

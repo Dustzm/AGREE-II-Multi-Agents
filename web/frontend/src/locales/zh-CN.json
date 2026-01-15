@@ -8,7 +8,7 @@
     },
     "nav": {
         "chat": "评价",
-        "batch": "批量",
+        "batch": "实验",
         "reports": "报告",
         "skills": "条目",
         "agents": "智能体"
@@ -71,6 +71,9 @@
         "concurrency": {
             "label": "并发数:"
         },
+        "rounds": {
+            "label": "实验轮次:"
+        },
         "button": {
             "start": "开始",
             "stop": "停止"
@@ -81,7 +84,8 @@
             "completed": "已完成",
             "waiting": "等待启动",
             "hint": "勾选 PDF 并点击开始",
-            "retry": "重试 {{count}} 次"
+            "retry": "重试 {{count}} 次",
+            "round": "第 {{current}}/{{total}} 轮"
         },
         "taskStatus": {
             "pending": "等待中",
@@ -113,6 +117,17 @@
         "description": "查看和管理所有的指南评价结果归档。",
         "refresh": "刷新",
         "backToList": "返回列表",
+        "breadcrumb": {
+            "root": "全部报告"
+        },
+        "folder": {
+            "count": "{{count}} 份报告"
+        },
+        "empty": {
+            "title": "暂无报告",
+            "hint": "完成评价后报告将在此显示",
+            "folder": "该文件夹中暂无报告"
+        },
         "table": {
             "status": "状态",
             "taskId": "任务ID",
@@ -139,10 +154,6 @@
         "tab": {
             "score": "评分详情",
             "evidence": "原文视图"
-        },
-        "empty": {
-            "title": "暂无评价报告",
-            "hint": "完成评价任务后，报告将显示在这里"
         },
         "loading": {
             "detail": "加载报告详情..."

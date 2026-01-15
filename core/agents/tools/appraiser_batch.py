@@ -9,12 +9,33 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, Callable, Awaitable
 
+from concurrent.futures import ThreadPoolExecutor
+
 from core.config import get_settings
 from core.agents.appraiser import run_iterative_evaluation
 from core.agents.tools.appraiser_tools import save_item_evaluation
 from core.skills import list_available_skills, get_skill_summary
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# 全局线程池（扩展默认12线程限制，支持更高并发）
+# ============================================================================
+_llm_executor: Optional[ThreadPoolExecutor] = None
+
+
+def _get_llm_executor(max_workers: int = 50) -> ThreadPoolExecutor:
+    """
+    获取 LLM 调用专用线程池
+    
+    默认 Python 线程池只有 min(32, cpu_count+4) 个线程，
+    对于多 PDF 并发评价场景不够用。
+    """
+    global _llm_executor
+    if _llm_executor is None:
+        _llm_executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="llm_eval_")
+        logger.info(f"创建 LLM 评价线程池: max_workers={max_workers}")
+    return _llm_executor
 
 
 # ============================================================================
@@ -113,8 +134,11 @@ async def appraise_all(
                     logger.warning(f"进度回调失败: {e}")
             
             try:
-                # 在线程池中执行同步评价
-                result = await asyncio.to_thread(
+                # 使用自定义线程池执行同步评价（突破默认12线程限制）
+                loop = asyncio.get_running_loop()
+                executor = _get_llm_executor()
+                result = await loop.run_in_executor(
+                    executor,
                     run_iterative_evaluation,
                     task_id,
                     skill_id,

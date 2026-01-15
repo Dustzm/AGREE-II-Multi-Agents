@@ -58,6 +58,7 @@ export function Batch() {
     // 批量任务状态
     const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null)
     const [concurrency, setConcurrency] = useState(2)
+    const [experimentRounds, setExperimentRounds] = useState(1)
 
     // WebSocket
     const wsRef = useRef<WebSocket | null>(null)
@@ -202,7 +203,7 @@ export function Batch() {
         if (selectedPdfs.size === 0) return
 
         try {
-            const status = await batchApi.startSelected(Array.from(selectedPdfs), concurrency)
+            const status = await batchApi.startSelected(Array.from(selectedPdfs), concurrency, experimentRounds)
             setBatchStatus(status)
 
             // 建立 WebSocket 连接
@@ -253,7 +254,7 @@ export function Batch() {
         } catch (e) {
             alert(e instanceof Error ? e.message : '启动失败')
         }
-    }, [selectedPdfs, concurrency])
+    }, [selectedPdfs, concurrency, experimentRounds])
 
     // 停止批量任务
     const handleStop = useCallback(async () => {
@@ -498,17 +499,31 @@ export function Batch() {
 
                 {/* 控制区 */}
                 <div className="p-4 border-t border-gray-100 space-y-4">
-                    <div className="flex items-center gap-3">
-                        <label className="text-sm text-gray-600">{t('batch.concurrency.label')}</label>
-                        <input
-                            type="number"
-                            min={1}
-                            max={10}
-                            value={concurrency}
-                            onChange={(e) => setConcurrency(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                            disabled={isRunning}
-                            className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
-                        />
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-3">
+                            <label className="text-sm text-gray-600">{t('batch.concurrency.label')}</label>
+                            <input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={concurrency}
+                                onChange={(e) => setConcurrency(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                disabled={isRunning}
+                                className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                            />
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <label className="text-sm text-gray-600">{t('batch.rounds.label')}</label>
+                            <input
+                                type="number"
+                                min={1}
+                                max={4}
+                                value={experimentRounds}
+                                onChange={(e) => setExperimentRounds(Math.max(1, Math.min(4, parseInt(e.target.value) || 1)))}
+                                disabled={isRunning}
+                                className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                            />
+                        </div>
                     </div>
 
                     <div className="flex gap-2">
@@ -541,7 +556,11 @@ export function Batch() {
                         <div>
                             <h2 className="text-lg font-bold text-gray-800">{t('batch.status.title')}</h2>
                             <p className="text-xs text-gray-500 mt-1">
-                                {isRunning ? t('batch.status.running') : batchStatus?.total ? t('batch.status.completed') : t('batch.status.waiting')}
+                                {isRunning ? (
+                                    batchStatus && batchStatus.experiment_rounds > 1
+                                        ? `${t('batch.status.running')} - ${t('batch.status.round', { current: batchStatus.current_round, total: batchStatus.experiment_rounds })}`
+                                        : t('batch.status.running')
+                                ) : batchStatus?.total ? t('batch.status.completed') : t('batch.status.waiting')}
                             </p>
                         </div>
                         {batchStatus && batchStatus.total > 0 && (

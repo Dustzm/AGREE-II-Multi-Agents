@@ -7,8 +7,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download } from 'lucide-react'
-import { api, type ReportSummary, type ReportDetail } from '@/services/api'
+import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download, Folder, Home, ChevronRight } from 'lucide-react'
+import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo } from '@/services/api'
 import { cn } from '@/utils/cn'
 import { EvidenceViewer } from '@/components/EvidenceViewer'
 // import { exportToPdf } from '@/utils/exportPdf'
@@ -16,6 +16,8 @@ import { EvidenceViewer } from '@/components/EvidenceViewer'
 export function Reports() {
     const { t } = useTranslation()
     const [reports, setReports] = useState<ReportSummary[]>([])
+    const [folders, setFolders] = useState<BatchFolderInfo[]>([])
+    const [currentFolder, setCurrentFolder] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null)
     const [loadingDetail, setLoadingDetail] = useState(false)
@@ -25,11 +27,12 @@ export function Reports() {
     const reportContentRef = useRef<HTMLDivElement>(null)
 
     // 加载报告列表
-    const loadReports = useCallback(async () => {
+    const loadReports = useCallback(async (folder?: string | null) => {
         setLoading(true)
         try {
-            const result = await api.listReports()
+            const result = await api.listReports(folder || undefined)
             setReports(result.reports)
+            setFolders(result.folders)
         } catch (error) {
             console.error('加载报告列表失败:', error)
         } finally {
@@ -38,14 +41,14 @@ export function Reports() {
     }, [])
 
     useEffect(() => {
-        loadReports()
-    }, [loadReports])
+        loadReports(currentFolder)
+    }, [loadReports, currentFolder])
 
     // 查看报告详情
     const viewReport = async (taskId: string) => {
         setLoadingDetail(true)
         try {
-            const detail = await api.getReport(taskId)
+            const detail = await api.getReport(taskId, currentFolder || undefined)
             setSelectedReport(detail)
         } catch (error) {
             console.error('加载报告详情失败:', error)
@@ -353,7 +356,7 @@ export function Reports() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={loadReports}
+                        onClick={() => loadReports(currentFolder)}
                         disabled={loading}
                         className="h-10 px-4 bg-white border-emerald-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all text-gray-600 gap-2 rounded-xl shadow-sm"
                     >
@@ -363,16 +366,73 @@ export function Reports() {
                 </div>
             </header>
 
+            {/* 面包屑导航 */}
+            {(currentFolder || folders.length > 0) && (
+                <div className="flex items-center gap-2 text-sm mb-6 px-1">
+                    <button
+                        onClick={() => setCurrentFolder(null)}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all",
+                            !currentFolder
+                                ? "font-medium text-emerald-600 bg-emerald-50"
+                                : "text-gray-600 hover:text-emerald-600 hover:bg-gray-50"
+                        )}
+                    >
+                        <Home className="h-4 w-4" />
+                        {t('reports.breadcrumb.root')}
+                    </button>
+                    {currentFolder && (
+                        <>
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                            <span className="flex items-center gap-1.5 px-3 py-1.5 font-medium text-emerald-600 bg-emerald-50 rounded-lg">
+                                <Folder className="h-4 w-4" />
+                                {currentFolder}
+                            </span>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* 文件夹卡片 */}
+            {!currentFolder && folders.length > 0 && (
+                <div className="grid gap-4 md:grid-cols-4 mb-6">
+                    {folders.map(folder => (
+                        <Card
+                            key={folder.name}
+                            onClick={() => setCurrentFolder(folder.name)}
+                            className="cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-gray-200 hover:border-amber-300 bg-white group"
+                        >
+                            <div className="p-4 flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 transition-colors">
+                                    <Folder className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors">{folder.name}</h3>
+                                    <p className="text-xs text-gray-500">
+                                        {t('reports.folder.count', { count: folder.report_count })}
+                                    </p>
+                                </div>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-32 text-gray-400">
                     <Loader2 className="h-8 w-8 animate-spin mb-3 text-primary" />
                     <span className="text-sm font-medium">{t('common.loadingData')}</span>
                 </div>
-            ) : reports.length === 0 ? (
+            ) : reports.length === 0 && folders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
                     <FileText className="h-16 w-16 mb-4 opacity-20" />
                     <p className="text-lg font-medium text-gray-900">{t('reports.empty.title')}</p>
                     <p className="text-sm mt-2">{t('reports.empty.hint')}</p>
+                </div>
+            ) : reports.length === 0 && currentFolder ? (
+                <div className="flex flex-col items-center justify-center py-32 text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                    <Folder className="h-16 w-16 mb-4 opacity-20" />
+                    <p className="text-lg font-medium text-gray-900">{t('reports.empty.folder')}</p>
                 </div>
             ) : (
                 <>

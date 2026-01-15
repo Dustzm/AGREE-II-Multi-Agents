@@ -8,7 +8,7 @@
     },
     "nav": {
         "chat": "Appraisal",
-        "batch": "Batch",
+        "batch": "Experiment",
         "reports": "Reports",
         "skills": "Items",
         "agents": "Agents"
@@ -71,6 +71,9 @@
         "concurrency": {
             "label": "Concurrency:"
         },
+        "rounds": {
+            "label": "Rounds:"
+        },
         "button": {
             "start": "Start",
             "stop": "Stop"
@@ -81,7 +84,8 @@
             "completed": "Completed",
             "waiting": "Waiting to start",
             "hint": "Select PDFs and click Start",
-            "retry": "Retry {{count}} times"
+            "retry": "Retry {{count}} times",
+            "round": "Round {{current}}/{{total}}"
         },
         "taskStatus": {
             "pending": "Pending",
@@ -113,6 +117,17 @@
         "description": "View and manage all guideline appraisal results.",
         "refresh": "Refresh",
         "backToList": "Back to list",
+        "breadcrumb": {
+            "root": "All Reports"
+        },
+        "folder": {
+            "count": "{{count}} reports"
+        },
+        "empty": {
+            "title": "No Reports",
+            "hint": "Reports will appear here after completing appraisals",
+            "folder": "No reports in this folder"
+        },
         "table": {
             "status": "Status",
             "taskId": "Task ID",
@@ -139,10 +154,6 @@
         "tab": {
             "score": "Score Details",
             "evidence": "Source View"
-        },
-        "empty": {
-            "title": "No evaluation reports",
-            "hint": "Reports will appear here after completing evaluation tasks"
         },
         "loading": {
             "detail": "Loading report details..."

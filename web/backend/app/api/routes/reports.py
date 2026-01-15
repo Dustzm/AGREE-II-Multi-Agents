@@ -24,9 +24,17 @@ class ReportSummary(BaseModel):
     recommendation: Optional[str]
 
 
+class BatchFolderInfo(BaseModel):
+    """批量文件夹信息"""
+    name: str
+    report_count: int
+
+
 class ReportListResponse(BaseModel):
-    """报告列表响应"""
+    """报告列表响应 - 支持层级结构"""
+    folders: List[BatchFolderInfo] = []
     reports: List[ReportSummary]
+    current_folder: Optional[str] = None
 
 
 class DomainScore(BaseModel):
@@ -96,23 +104,45 @@ def load_evaluations(task_dir: Path) -> List[dict]:
 
 
 @router.get("/reports", response_model=ReportListResponse)
-async def list_reports():
+async def list_reports(folder: Optional[str] = None):
     """
-    获取所有评价报告列表
+    获取评价报告列表
+    
+    Args:
+        folder: 可选的文件夹名称 (如 "batch_1", "batch_2")
     """
     output_dir = get_output_dir()
     
     if not output_dir.exists():
-        return ReportListResponse(reports=[])
+        return ReportListResponse(folders=[], reports=[], current_folder=folder)
     
+    folders = []
     reports = []
     
-    # 遍历 output 目录下的所有任务目录
-    for task_dir in output_dir.iterdir():
-        if not task_dir.is_dir():
+    # 确定要扫描的目录
+    target_dir = output_dir / folder if folder else output_dir
+    
+    if folder and not target_dir.exists():
+        return ReportListResponse(folders=[], reports=[], current_folder=folder)
+    
+    # 遍历目标目录
+    for item in target_dir.iterdir():
+        if not item.is_dir():
             continue
         
-        report_path = task_dir / "appraisal_report.json"
+        # 检查是否是 batch_N 文件夹（仅在根目录时）
+        if not folder and item.name.startswith("batch_"):
+            # 统计此文件夹下的报告数量
+            report_count = len(list(item.glob("*/appraisal_report.json")))
+            if report_count > 0:
+                folders.append(BatchFolderInfo(
+                    name=item.name,
+                    report_count=report_count
+                ))
+            continue
+        
+        # 检查是否是任务目录（包含 appraisal_report.json）
+        report_path = item / "appraisal_report.json"
         if not report_path.exists():
             continue
         
@@ -141,26 +171,41 @@ async def list_reports():
         recommendation = data.get("overall_assessment", {}).get("recommendation")
         
         reports.append(ReportSummary(
-            task_id=data.get("task_id", task_dir.name),
+            task_id=data.get("task_id", item.name),
             title=data.get("guideline_title", "未命名指南")[:50],
             date=data.get("evaluation_date", ""),
             quality_score=quality_score,
             recommendation=recommendation
         ))
     
-    # 按日期降序排序
+    # 排序：文件夹按名称，报告按日期降序
+    folders.sort(key=lambda x: x.name)
     reports.sort(key=lambda x: x.date, reverse=True)
     
-    return ReportListResponse(reports=reports)
+    return ReportListResponse(
+        folders=folders,
+        reports=reports,
+        current_folder=folder
+    )
 
 
 @router.get("/reports/{task_id}", response_model=ReportDetail)
-async def get_report(task_id: str):
+async def get_report(task_id: str, folder: Optional[str] = None):
     """
     获取单个报告详情
+    
+    Args:
+        task_id: 任务ID
+        folder: 可选的文件夹名称 (如 "batch_1")
     """
     output_dir = get_output_dir()
-    task_dir = output_dir / task_id
+    
+    # 如果指定了文件夹，在该文件夹下查找
+    if folder:
+        task_dir = output_dir / folder / task_id
+    else:
+        task_dir = output_dir / task_id
+    
     report_path = task_dir / "appraisal_report.json"
     
     if not report_path.exists():

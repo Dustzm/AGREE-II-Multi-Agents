@@ -35,6 +35,8 @@ export interface BatchStatus {
     is_running: boolean
     total: number
     concurrency: number
+    experiment_rounds: number
+    current_round: number
     pending: number
     running: number
     done: number
@@ -125,11 +127,15 @@ export const batchApi = {
     /**
      * 启动勾选 PDF 列表的批量任务
      */
-    async startSelected(pdfPaths: string[], concurrency: number): Promise<BatchStatus> {
+    async startSelected(pdfPaths: string[], concurrency: number, experimentRounds: number = 1): Promise<BatchStatus> {
         const res = await fetch(`${API_BASE}/batch/start-selected`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdf_paths: pdfPaths, concurrency }),
+            body: JSON.stringify({
+                pdf_paths: pdfPaths,
+                concurrency,
+                experiment_rounds: experimentRounds
+            }),
         })
         if (!res.ok) {
             const data = await res.json()

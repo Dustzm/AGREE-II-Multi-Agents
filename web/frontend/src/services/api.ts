@@ -62,8 +62,15 @@ export interface ReportSummary {
     recommendation: string | null
 }
 
+export interface BatchFolderInfo {
+    name: string
+    report_count: number
+}
+
 export interface ReportListResponse {
+    folders: BatchFolderInfo[]
     reports: ReportSummary[]
+    current_folder: string | null
 }
 
 export interface DomainScore {
@@ -193,8 +200,9 @@ export const api = {
     },
 
     // 获取报告列表
-    async listReports(): Promise<ReportListResponse> {
-        const response = await fetch(`${API_BASE}/reports`)
+    async listReports(folder?: string): Promise<ReportListResponse> {
+        const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
+        const response = await fetch(`${API_BASE}/reports${params}`)
         if (!response.ok) {
             throw new Error('获取报告列表失败')
         }
@@ -202,8 +210,9 @@ export const api = {
     },
 
     // 获取报告详情
-    async getReport(taskId: string): Promise<ReportDetail> {
-        const response = await fetch(`${API_BASE}/reports/${taskId}`)
+    async getReport(taskId: string, folder?: string): Promise<ReportDetail> {
+        const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
+        const response = await fetch(`${API_BASE}/reports/${taskId}${params}`)
         if (!response.ok) {
             throw new Error('获取报告详情失败')
         }

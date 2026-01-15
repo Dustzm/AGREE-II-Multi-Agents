@@ -36,6 +36,7 @@ class AppraisalRunner:
         on_complete: Optional[Callable[[str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
         lang: Optional[str] = None,
+        output_subdir: Optional[str] = None,
     ):
         """
         Args:
@@ -44,12 +45,14 @@ class AppraisalRunner:
             on_complete: 完成回调 (task_id)
             on_error: 错误回调 (error_msg)
             lang: 语言代码 (zh/en)，默认英语
+            output_subdir: 输出子目录 (如 "batch_1", "batch_2")
         """
         self.on_status = on_status or (lambda *_: None)
         self.on_agent = on_agent or (lambda *_: None)
         self.on_complete = on_complete or (lambda *_: None)
         self.on_error = on_error or (lambda *_: None)
         self.lang = get_language(lang)
+        self.output_subdir = output_subdir
         
         self._cancelled = False
         
@@ -93,7 +96,7 @@ class AppraisalRunner:
             self.on_status("status", t("status.init_task_dir", self.lang))
             
             # 使用文件名初始化（和 CLI 一致）
-            task_result = init_task_directory(pdf_file.name)
+            task_result = init_task_directory(pdf_file.name, output_subdir=self.output_subdir)
             
             if task_result.get("status") == "error":
                 self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
@@ -221,10 +224,18 @@ class AppraisalRunner:
             async def on_item_progress(skill_id: str, title: str, status: str, duration: float = None):
                 """单条目进度回调"""
                 try:
-                    # 通过 on_agent 发送 item_progress 类型的消息
-                    # 这里复用 on_agent 回调，但传递特殊的 agent 名称以区分
+                    # 优先使用 WebSocket 专用回调
                     if hasattr(self, '_send_item_progress') and self._send_item_progress:
                         await self._send_item_progress(skill_id, title, status, duration)
+                    else:
+                        # 回退使用 on_agent 回调（用于批量任务场景）
+                        if status == "started":
+                            msg = t("agent.appraising_item", self.lang, skill_id=skill_id)
+                        elif status == "completed":
+                            msg = t("agent.item_completed", self.lang, skill_id=skill_id, duration=f"{duration:.1f}" if duration else "")
+                        else:
+                            msg = t("agent.item_failed", self.lang, skill_id=skill_id)
+                        self.on_agent("Appraiser", msg, 1, 3, None)
                 except Exception as e:
                     logger.warning(f"发送条目进度失败: {e}")
             
@@ -233,6 +244,10 @@ class AppraisalRunner:
                 try:
                     if hasattr(self, '_send_batch_summary') and self._send_batch_summary:
                         await self._send_batch_summary(total, completed, elapsed)
+                    else:
+                        # 回退使用 on_agent 回调（用于批量任务场景）
+                        msg = t("agent.batch_progress", self.lang, completed=completed, total=total)
+                        self.on_agent("Appraiser", msg, 1, 3, None)
                 except Exception as e:
                     logger.warning(f"发送汇总进度失败: {e}")
             
@@ -337,9 +352,7 @@ class AppraisalRunner:
                             elif 'reporter' in tool_name.lower():
                                 agent_name = "Reporter"
                             elif 'appraise_all' in tool_name.lower():
-                                # 批量评价工具开始
-                                agent_name = "Appraiser"
-                                custom_message = t("agent.batch_appraise_start", self.lang)
+                                # 批量评价工具开始（不在 UI 显示，仅日志记录）
                                 logger.info("开始批量评价所有条目")
                             
                             # 发送子代理状态更新

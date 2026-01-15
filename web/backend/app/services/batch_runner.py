@@ -71,16 +71,19 @@ class BatchRunner:
     def __init__(
         self,
         concurrency: int = 2,
+        experiment_rounds: int = 1,
         on_update: Optional[Callable[[BatchTask], None]] = None,
         on_complete: Optional[Callable[[dict], None]] = None,
     ):
         """
         Args:
             concurrency: 并发数，默认 2
+            experiment_rounds: 实验轮次，默认 1，最大 4
             on_update: 任务状态更新回调
             on_complete: 全部任务完成回调
         """
         self.concurrency = concurrency
+        self.experiment_rounds = max(1, min(4, experiment_rounds))  # 限制 1-4
         self.on_update = on_update or (lambda _: None)
         self.on_complete = on_complete or (lambda _: None)
 
@@ -89,6 +92,10 @@ class BatchRunner:
         self._running = False
         self._cancelled = False
         self._current_runners: list[AppraisalRunner] = []
+        
+        # 轮次相关
+        self.current_round: int = 0  # 当前轮次 (1-based)
+        self._output_subdir: Optional[str] = None  # 当前轮次的输出子目录
 
         # 状态持久化相关
         self._session_id: Optional[str] = None
@@ -118,6 +125,8 @@ class BatchRunner:
             "is_running": self._running,
             "total": len(self._tasks),
             "concurrency": self.concurrency,
+            "experiment_rounds": self.experiment_rounds,
+            "current_round": self.current_round,
             **status_counts,
             "tasks": tasks_list,
         }
@@ -294,6 +303,9 @@ class BatchRunner:
         self._tasks.clear()
         self._current_runners.clear()
         self._semaphore = asyncio.Semaphore(self.concurrency)
+        
+        # 保存 PDF 路径列表用于多轮执行
+        self._pdf_paths = pdf_paths
 
         # 初始化任务列表
         for pdf_path in pdf_paths:
@@ -307,8 +319,8 @@ class BatchRunner:
         # 保存初始状态
         self._save_state()
 
-        # 异步启动所有任务
-        asyncio.create_task(self._run_all())
+        # 异步启动多轮执行
+        asyncio.create_task(self._run_all_rounds())
 
         return self.get_status()
     
@@ -332,20 +344,51 @@ class BatchRunner:
         # 保存停止后的状态
         self._save_state()
     
-    async def _run_all(self):
-        """运行所有任务"""
+    async def _run_all_rounds(self):
+        """运行所有轮次"""
         try:
-            # 并发执行所有任务
-            await asyncio.gather(*[
-                self._run_with_semaphore(task)
-                for task in self._tasks.values()
-            ], return_exceptions=True)
+            for round_num in range(1, self.experiment_rounds + 1):
+                if self._cancelled:
+                    break
+                
+                self.current_round = round_num
+                self._output_subdir = f"batch_{round_num}"
+                
+                logger.info(f"开始第 {round_num}/{self.experiment_rounds} 轮实验")
+                
+                # 如果不是第一轮，重置所有任务状态
+                if round_num > 1:
+                    for task in self._tasks.values():
+                        task.status = TaskStatus.PENDING
+                        task.error = None
+                        task.start_time = None
+                        task.end_time = None
+                        task.current_step = None
+                        task.result_task_id = None
+                        task.retry_count = 0
+                    
+                    # 广播整体状态更新（包含 current_round 信息）
+                    self.on_complete(self.get_status())
+                
+                # 运行本轮所有任务
+                await self._run_all()
+                
+                # 保存轮次完成状态
+                self._save_state()
+                
         finally:
             self._running = False
+            self.current_round = self.experiment_rounds  # 确保显示最终轮次
             self.on_complete(self.get_status())
-
-            # 保存最终状态
             self._save_state()
+    
+    async def _run_all(self):
+        """运行当前轮次的所有任务"""
+        # 并发执行所有任务
+        await asyncio.gather(*[
+            self._run_with_semaphore(task)
+            for task in self._tasks.values()
+        ], return_exceptions=True)
     
     async def _run_with_semaphore(self, task: BatchTask):
         """使用信号量控制并发执行单个任务"""
@@ -403,6 +446,7 @@ class BatchRunner:
             on_agent=on_agent,
             on_complete=on_complete,
             on_error=on_error,
+            output_subdir=self._output_subdir,  # 传递当前轮次的输出子目录
         )
         self._current_runners.append(runner)
         
@@ -454,6 +498,7 @@ def get_batch_runner() -> Optional[BatchRunner]:
 
 def create_batch_runner(
     concurrency: int = 2,
+    experiment_rounds: int = 1,
     on_update: Optional[Callable[[BatchTask], None]] = None,
     on_complete: Optional[Callable[[dict], None]] = None,
 ) -> BatchRunner:
@@ -461,6 +506,7 @@ def create_batch_runner(
     global _batch_runner
     _batch_runner = BatchRunner(
         concurrency=concurrency,
+        experiment_rounds=experiment_rounds,
         on_update=on_update,
         on_complete=on_complete,
     )

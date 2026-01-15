@@ -60,6 +60,9 @@ ZH_MESSAGES = {
     "agent.initiator_done": "评价计划已生成",
     "agent.batch_appraise_start": "开始并发评价所有条目...",
     "agent.batch_appraise_done": "所有条目评价完成",
+    "agent.item_completed": "{skill_id} 评价完成 ({duration}s)",
+    "agent.item_failed": "{skill_id} 评价失败",
+    "agent.batch_progress": "评价进度: {completed}/{total}",
     "agent.reporter_done": "报告生成完成",
     
     # === chat.py ===
@@ -106,6 +109,9 @@ EN_MESSAGES = {
     "agent.initiator_done": "Appraisal plan generated",
     "agent.batch_appraise_start": "Starting concurrent appraisal of all items...",
     "agent.batch_appraise_done": "All items appraised",
+    "agent.item_completed": "{skill_id} completed ({duration}s)",
+    "agent.item_failed": "{skill_id} failed",
+    "agent.batch_progress": "Progress: {completed}/{total}",
     "agent.reporter_done": "Report generated",
     
     # === chat.py ===

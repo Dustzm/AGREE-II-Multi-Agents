@@ -64,6 +64,7 @@ class StartSelectedRequest(BaseModel):
     """启动勾选 PDF 批量任务请求"""
     pdf_paths: List[str]  # 勾选的 PDF 绝对路径列表
     concurrency: int = 2  # 并发数
+    experiment_rounds: int = 1  # 实验轮次，默认 1，最大 4
 
 
 class BatchStatusResponse(BaseModel):
@@ -71,6 +72,8 @@ class BatchStatusResponse(BaseModel):
     is_running: bool
     total: int
     concurrency: int
+    experiment_rounds: int = 1
+    current_round: int = 0
     pending: int
     running: int
     done: int
@@ -338,6 +341,7 @@ async def start_selected(request: StartSelectedRequest):
     # 创建并启动批量运行器
     runner = create_batch_runner(
         concurrency=request.concurrency,
+        experiment_rounds=request.experiment_rounds,
         on_update=sync_on_update,
         on_complete=sync_on_complete,
     )
