@@ -57,6 +57,11 @@ dependencies = [
     "huggingface-hub>=0.32.4",
     "mineru-vl-utils>=0.1.17,<1",
     "qwen-vl-utils>=0.0.14,<1",
+    
+    # 附件解析
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.0",
+    "python-pptx>=1.0.0",
 ]
 
 [project.optional-dependencies]
