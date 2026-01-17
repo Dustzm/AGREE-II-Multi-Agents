@@ -116,7 +116,19 @@ def get_task_paths(task_id: str) -> dict:
     
     # 尝试从文件系统恢复
     settings = get_settings()
-    task_dir = Path(settings.app.data_root) / task_id
+    data_root = Path(settings.app.data_root)
+    
+    # 首先在根目录查找
+    task_dir = data_root / task_id
+    
+    # 如果根目录不存在，搜索 batch_N 子目录
+    if not task_dir.exists():
+        for subdir in data_root.iterdir():
+            if subdir.is_dir() and subdir.name.startswith("batch_"):
+                candidate = subdir / task_id
+                if candidate.exists():
+                    task_dir = candidate
+                    break
     
     if task_dir.exists():
         weaver_dir = task_dir / ".ama"
@@ -135,6 +147,7 @@ def get_task_paths(task_id: str) -> dict:
         return paths
     
     return {}
+
 
 
 def read_source_document(task_id: str) -> dict:

@@ -29,7 +29,9 @@
             "refresh": "刷新列表",
             "rootDir": "根目录",
             "dragHint": "拖拽 PDF 文件到此处上传",
-            "clickHint": "或点击上方按钮选择文件"
+            "clickHint": "或点击上方按钮选择文件",
+            "hideAttachments": "隐藏附件",
+            "showAttachments": "显示附件"
         },
         "progress": {
             "title": "评价进度",
@@ -154,6 +156,13 @@
         "tab": {
             "score": "评分详情",
             "evidence": "原文视图"
+        },
+        "tooltip": {
+            "qualityScoreTitle": "总体质量评分规则",
+            "recommendationTitle": "推荐结论判定规则",
+            "noRecommend": "领域三（严谨性）得分 < 30分，或总分 ≤ 88分",
+            "recommendModify": "领域三得分 ≥ 30分，且总分 > 88分但 ≤ 96分",
+            "recommend": "领域三得分 ≥ 30分，且总分 > 96分"
         },
         "loading": {
             "detail": "加载报告详情..."

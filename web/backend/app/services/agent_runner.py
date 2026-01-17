@@ -2,7 +2,6 @@
 智能体运行服务
 
 封装 Orchestrator 调用，支持 WebSocket 回调
-参照 CLI 的处理逻辑实现
 """
 import asyncio
 import logging
@@ -26,7 +25,6 @@ class AppraisalRunner:
     评价任务运行器
     
     封装 Orchestrator 的创建和执行，支持状态回调
-    参照 CLI 的 WeaverCLI.start_extraction 和 run_agents 实现
     """
     
     def __init__(
@@ -64,7 +62,7 @@ class AppraisalRunner:
         """取消当前任务"""
         self._cancelled = True
     
-    async def run(self, task_id: str, pdf_path: str):
+    async def run(self, task_id: str, pdf_path: str, reuse_task_id: Optional[str] = None):
         """
         运行评价任务
         
@@ -76,16 +74,19 @@ class AppraisalRunner:
         Args:
             task_id: 任务 ID
             pdf_path: PDF 文件路径
+            reuse_task_id: 可选，复用已有的 task_id（多轮实验时使用）
         """
         try:
             self._cancelled = False
             
             # 导入智能体（延迟导入避免循环依赖）
             from core.agents import create_orchestrator, init_task_directory
+            from core.agents.tools.public_tools import get_task_paths
             from core.parsers import MinerUParser
             from core.config import get_settings
             from google.adk import runners
             from google.genai import types
+            import shutil
             
             pdf_file = Path(pdf_path)
             if not pdf_file.exists():
@@ -95,21 +96,74 @@ class AppraisalRunner:
             # Step 1: 初始化任务目录
             self.on_status("status", t("status.init_task_dir", self.lang))
             
-            # 使用文件名初始化（和 CLI 一致）
-            task_result = init_task_directory(pdf_file.name, output_subdir=self.output_subdir)
+            # 复用预处理文件的情况（多轮实验）
+            if reuse_task_id:
+                # 获取第一轮的路径信息
+                first_round_paths = get_task_paths(reuse_task_id)
+                if first_round_paths:
+                    first_prep_dir = Path(first_round_paths["prep_dir"])
+                    
+                    # 在当前轮次的 output_subdir 下创建新目录
+                    task_result = init_task_directory(pdf_file.name, output_subdir=self.output_subdir)
+                    
+                    if task_result.get("status") == "error":
+                        self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
+                        return
+                    
+                    actual_task_id = task_result["task_id"]
+                    source_path = task_result["paths"]["source"]
+                    prep_dir = task_result["paths"]["prep_dir"]
+                    
+                    # 复制第一轮的预处理文件到新目录
+                    new_prep_dir = Path(prep_dir)
+                    try:
+                        # 复制 source.md
+                        first_source = Path(first_round_paths["source"])
+                        if first_source.exists():
+                            shutil.copy2(first_source, source_path)
+                            logger.info(f"复制 source.md: {first_source} -> {source_path}")
+                        
+                        # 复制 prep 目录下的所有预处理文件
+                        for item in first_prep_dir.iterdir():
+                            if item.is_file():
+                                dest = new_prep_dir / item.name
+                                if not dest.exists():
+                                    shutil.copy2(item, dest)
+                                    logger.info(f"复制预处理文件: {item.name}")
+                            elif item.is_dir():
+                                # 复制子目录（包括 images）
+                                dest = new_prep_dir / item.name
+                                if not dest.exists():
+                                    shutil.copytree(item, dest)
+                                    logger.info(f"复制预处理目录: {item.name}")
+                        
+                        self.on_status("status", t("status.reusing_task", self.lang, task_id=actual_task_id))
+                        logger.info(f"多轮实验: 已复制预处理文件到 {new_prep_dir}")
+                    except Exception as e:
+                        logger.warning(f"复制预处理文件失败: {e}，将重新生成")
+                        # 复制失败时继续正常流程，会重新生成预处理文件
+                else:
+                    logger.warning(f"找不到第一轮目录: {reuse_task_id}，将创建新任务")
+                    reuse_task_id = None  # 回退到正常流程
             
-            if task_result.get("status") == "error":
-                self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
-                return
-            
-            actual_task_id = task_result["task_id"]
-            source_path = task_result["paths"]["source"]
-            prep_dir = task_result["paths"]["prep_dir"]
+            if not reuse_task_id:
+                # 使用文件名初始化（和 CLI 一致）
+                task_result = init_task_directory(pdf_file.name, output_subdir=self.output_subdir)
+                
+                if task_result.get("status") == "error":
+                    self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
+                    return
+                
+                actual_task_id = task_result["task_id"]
+                source_path = task_result["paths"]["source"]
+                prep_dir = task_result["paths"]["prep_dir"]
+
             
             self.on_status("status", t("status.task_id", self.lang, task_id=actual_task_id))
             
             if self._cancelled:
                 return
+
             
             # Step 2: 检查并解析 PDF
             source_file = Path(source_path)
@@ -143,7 +197,9 @@ class AppraisalRunner:
                             
                             if parse_result.get("status") == "success":
                                 pages = parse_result.get("pages", 0)
-                                self.on_status("status", t("status.parse_done_mineru", self.lang, pages=pages))
+                                msg = t("status.parse_done_mineru", self.lang, pages=pages)
+                                logger.info(f"发送解析完成消息: {msg}")
+                                self.on_status("status", msg)
                                 parse_success = True
                             else:
                                 logger.warning(f"MinerU 解析失败: {parse_result.get('error')}")
@@ -202,7 +258,7 @@ class AppraisalRunner:
                             content_list_path=str(content_list_path),
                             output_path=str(evidence_pool_path),
                             pdf_path=str(pdf_file),  # 添加 PDF 路径以构建 docindex
-                            lang="zh"
+                            lang=self.lang  # 使用实例的语言设置
                         )
                         
                         if preprocess_result["status"] == "success":

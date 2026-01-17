@@ -29,7 +29,9 @@
             "refresh": "Refresh",
             "rootDir": "Root",
             "dragHint": "Drop PDF file here to upload",
-            "clickHint": "or click the button above to select"
+            "clickHint": "or click the button above to select",
+            "hideAttachments": "Hide attachments",
+            "showAttachments": "Show attachments"
         },
         "progress": {
             "title": "Appraisal Progress",
@@ -154,6 +156,13 @@
         "tab": {
             "score": "Score Details",
             "evidence": "Source View"
+        },
+        "tooltip": {
+            "qualityScoreTitle": "Overall Quality Score Rules",
+            "recommendationTitle": "Recommendation Criteria",
+            "noRecommend": "Domain 3 (Rigor) score < 30, or total score ≤ 88",
+            "recommendModify": "Domain 3 score ≥ 30, and total score > 88 but ≤ 96",
+            "recommend": "Domain 3 score ≥ 30, and total score > 96"
         },
         "loading": {
             "detail": "Loading report details..."

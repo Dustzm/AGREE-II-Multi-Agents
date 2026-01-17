@@ -13,6 +13,7 @@ export interface PdfFile {
     path: string
     size: number
     modified: string
+    is_attachment?: boolean  // 是否为附件文件
 }
 
 export interface FolderInfo {

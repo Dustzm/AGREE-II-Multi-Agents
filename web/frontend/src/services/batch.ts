@@ -17,7 +17,10 @@ export interface PdfInfo {
     name: string
     path: string
     size: number
+    is_attachment?: boolean
+    attachment_count?: number
 }
+
 
 export interface BatchTask {
     id: string

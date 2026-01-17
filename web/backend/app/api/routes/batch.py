@@ -46,12 +46,38 @@ class PdfInfo(BaseModel):
     name: str
     path: str
     size: int
+    is_attachment: bool = False  # 是否为附件文件
+    attachment_count: int = 0    # 附件数量
+
+
+
+# 附件文件名模式（与 files.py 保持一致）
+ATTACHMENT_PATTERNS = [
+    "附件", "附录", "appendix", "supplement",
+    "执行摘要", "摘要", "summary", "ppt"
+]
+
+
+def is_attachment_file(filename: str) -> bool:
+    """
+    判断文件是否为附件
+    
+    规则：文件名中包含附件相关关键词
+    """
+    name_lower = filename.lower()
+    stem = Path(filename).stem.lower()
+    
+    for pattern in ATTACHMENT_PATTERNS:
+        if pattern.lower() in stem:
+            return True
+    return False
 
 
 class PdfListResponse(BaseModel):
     """PDF 列表响应"""
     folder: str
     pdfs: List[PdfInfo]
+
 
 
 class StartBatchRequest(BaseModel):
@@ -170,7 +196,11 @@ async def list_folders():
 @router.get("/batch/folders/{folder_name}/pdfs", response_model=PdfListResponse)
 async def list_folder_pdfs(folder_name: str):
     """
-    列出指定文件夹下的所有 PDF 文件
+    列出指定文件夹下的主 PDF 文件（排除附件）
+    
+    附件文件（文件名含 "附件"、"附录"、"appendix" 等）将被过滤，
+    因为它们会在处理主 PDF 时自动被检测和处理。
+    同时返回每个主 PDF 对应的附件数量。
     """
     input_dir = get_input_dir()
     folder_path = input_dir / folder_name
@@ -181,13 +211,45 @@ async def list_folder_pdfs(folder_name: str):
     if not folder_path.is_dir():
         raise HTTPException(status_code=400, detail=f"不是文件夹: {folder_name}")
     
+    # 收集所有文件（PDF 和非 PDF 附件）
+    all_files = list(folder_path.iterdir())
+    
+    # 分离主 PDF 和附件文件
+    main_pdfs = []
+    attachment_files = []
+    
+    for file_path in all_files:
+        if not file_path.is_file():
+            continue
+        
+        # PDF 附件
+        if file_path.suffix.lower() == '.pdf' and is_attachment_file(file_path.name):
+            attachment_files.append(file_path)
+        # 非 PDF 附件（同名前缀的其他格式）
+        elif file_path.suffix.lower() in ['.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.mp4', '.mov', '.avi', '.webm', '.mkv']:
+            attachment_files.append(file_path)
+        # 主 PDF
+        elif file_path.suffix.lower() == '.pdf':
+            main_pdfs.append(file_path)
+    
+    # 计算每个主 PDF 的附件数量
     pdfs = []
-    for pdf_path in folder_path.glob("*.pdf"):
+    for pdf_path in main_pdfs:
         stat = pdf_path.stat()
+        pdf_stem = pdf_path.stem  # 如 "1-2016-011E"
+        
+        # 计算以主 PDF 文件名为前缀的附件数量
+        attachment_count = sum(
+            1 for att in attachment_files
+            if att.stem.startswith(pdf_stem) and att.stem != pdf_stem
+        )
+        
         pdfs.append(PdfInfo(
             name=pdf_path.name,
             path=str(pdf_path),
             size=stat.st_size,
+            is_attachment=False,
+            attachment_count=attachment_count,
         ))
     
     # 按文件名排序
@@ -197,6 +259,8 @@ async def list_folder_pdfs(folder_name: str):
         folder=folder_name,
         pdfs=pdfs,
     )
+
+
 
 
 @router.post("/batch/start", response_model=BatchStatusResponse)

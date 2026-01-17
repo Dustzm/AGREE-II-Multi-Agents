@@ -20,6 +20,29 @@ class PdfFile(BaseModel):
     path: str
     size: int
     modified: str
+    is_attachment: bool = False  # 是否为附件文件
+
+
+# 附件文件名模式（用于前端展示，匹配文件名中的关键词）
+ATTACHMENT_PATTERNS = [
+    "附件", "附录", "appendix", "supplement",
+    "执行摘要", "摘要", "summary", "ppt"
+]
+
+# 支持的文件格式（按类型分组）
+SUPPORTED_EXTENSIONS = {
+    # 文档
+    "document": [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".txt", ".md", ".rtf"],
+    # 图片
+    "image": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico", ".tiff", ".tif"],
+    # 音视频
+    "media": [".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav", ".flac", ".aac", ".ogg"],
+}
+
+# 合并所有支持的扩展名
+ALL_SUPPORTED_EXTENSIONS = set()
+for exts in SUPPORTED_EXTENSIONS.values():
+    ALL_SUPPORTED_EXTENSIONS.update(exts)
 
 
 class PdfListResponse(BaseModel):
@@ -117,30 +140,51 @@ async def list_pdf_files():
         if item.is_dir() and not item.name.startswith('.'):
             # 子文件夹
             folder_files = []
-            for pdf_path in sorted(item.glob("*.pdf")):
-                stat = pdf_path.stat()
+            for file_path in sorted(item.iterdir()):
+                if not file_path.is_file():
+                    continue
+                suffix_lower = file_path.suffix.lower()
+                if suffix_lower not in ALL_SUPPORTED_EXTENSIONS:
+                    continue
+                
+                stat = file_path.stat()
+                # 判断是否为附件（非 PDF 文件默认为附件）
+                name_lower = file_path.stem.lower()
+                is_attachment = (
+                    suffix_lower != '.pdf' or  # 非 PDF 文件都是附件
+                    any(p in name_lower for p in ATTACHMENT_PATTERNS)  # PDF 文件名匹配关键词
+                )
                 folder_files.append(PdfFile(
-                    name=pdf_path.name,
-                    path=str(pdf_path),
+                    name=file_path.name,
+                    path=str(file_path),
                     size=stat.st_size,
-                    modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+                    modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    is_attachment=is_attachment
                 ))
             
-            if folder_files:  # 只添加有 PDF 的文件夹
+            if folder_files:  # 只添加有文件的文件夹
                 folders.append({
                     "name": item.name,
                     "path": str(item),
                     "files": [f.dict() for f in folder_files]
                 })
         
-        elif item.is_file() and item.suffix.lower() == '.pdf':
-            # 根目录 PDF
+        elif item.is_file() and item.suffix.lower() in ALL_SUPPORTED_EXTENSIONS:
+            # 根目录文件
             stat = item.stat()
+            suffix_lower = item.suffix.lower()
+            # 判断是否为附件
+            name_lower = item.stem.lower()
+            is_attachment = (
+                suffix_lower != '.pdf' or
+                any(p in name_lower for p in ATTACHMENT_PATTERNS)
+            )
             root_files.append(PdfFile(
                 name=item.name,
                 path=str(item),
                 size=stat.st_size,
-                modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+                modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                is_attachment=is_attachment
             ))
     
     return PdfListResponse(

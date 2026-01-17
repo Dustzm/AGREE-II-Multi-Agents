@@ -39,6 +39,7 @@ class BatchTask:
     end_time: Optional[datetime] = None
     current_step: Optional[str] = None   # 当前执行步骤
     result_task_id: Optional[str] = None # 执行后生成的 task_id
+    first_round_task_id: Optional[str] = None  # 第一轮生成的 task_id（多轮实验复用）
     
     def to_dict(self) -> dict:
         """转换为字典"""
@@ -52,7 +53,9 @@ class BatchTask:
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "current_step": self.current_step,
             "result_task_id": self.result_task_id,
+            "first_round_task_id": self.first_round_task_id,
         }
+
 
 
 class BatchRunner:
@@ -435,6 +438,9 @@ class BatchRunner:
         def on_complete(task_id: str):
             nonlocal error_occurred
             task.result_task_id = task_id
+            # 第一轮时记录 task_id 供后续轮次复用
+            if self.current_round == 1:
+                task.first_round_task_id = task_id
         
         def on_error(err: str):
             nonlocal error_occurred, error_message
@@ -451,7 +457,9 @@ class BatchRunner:
         self._current_runners.append(runner)
         
         try:
-            await runner.run(task.id, task.pdf_path)
+            # 第二轮及以后复用第一轮的 task_id
+            reuse_task_id = task.first_round_task_id if self.current_round > 1 else None
+            await runner.run(task.id, task.pdf_path, reuse_task_id=reuse_task_id)
         except Exception as e:
             error_occurred = True
             error_message = str(e)

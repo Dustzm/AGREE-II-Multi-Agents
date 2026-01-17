@@ -6,7 +6,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown, FolderOpen, Paperclip, Eye, EyeOff, FileSpreadsheet, FileImage, Film, Music, FileCode, File, Presentation } from 'lucide-react'
 import { api, type PdfFile, type FolderInfo } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
 import { cn } from '@/utils/cn'
@@ -67,6 +67,7 @@ export function Chat() {
     const [rootFiles, setRootFiles] = useState<PdfFile[]>([])
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
     const [loadingFiles, setLoadingFiles] = useState(true)
+    const [hiddenAttachments, setHiddenAttachments] = useState<Set<string>>(new Set())  // 存储隐藏附件的主 PDF 路径
 
     // 上传相关状态
     const [isUploading, setIsUploading] = useState(false)
@@ -509,44 +510,179 @@ export function Chat() {
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
-    // 渲染单个 PDF 文件项
-    const renderPdfItem = (file: PdfFile, indent: boolean = false) => (
-        <div
-            key={file.path}
-            onClick={() => handleSelectPdf(file)}
-            className={cn(
-                "group relative flex items-start p-3 rounded-lg border border-transparent transition-all duration-200 cursor-pointer",
-                "hover:bg-white hover:shadow-sm hover:border-border/50",
-                currentFile === file.name && "bg-primary/5 border-primary/20",
-                isLoading ? "opacity-50 pointer-events-none grayscale" : "",
-                indent && "ml-6"
-            )}
-        >
-            <div className={cn(
-                "p-2 rounded-md mr-3 shrink-0 transition-colors",
-                currentFile === file.name
-                    ? "bg-primary/10 text-primary"
-                    : "bg-red-50 text-red-500 group-hover:bg-red-100"
-            )}>
-                <FileText className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-                <h3 className={cn(
-                    "text-sm font-medium truncate transition-colors",
+    // 渲染单个 PDF 文件项（支持附件数量显示和独立隐藏）
+    const renderPdfItem = (file: PdfFile, indent: boolean = false, attachmentCount: number = 0, mainFilePath?: string) => {
+        const isAttachment = file.is_attachment === true
+
+        // 获取文件类型图标和颜色
+        const getFileTypeStyle = (fileName: string) => {
+            const ext = fileName.split('.').pop()?.toLowerCase() || ''
+
+            // 文档类
+            if (['pdf'].includes(ext)) {
+                return { icon: FileText, bgColor: 'bg-red-50', textColor: 'text-red-500' }
+            }
+            if (['docx', 'doc', 'rtf', 'txt', 'md'].includes(ext)) {
+                return { icon: FileText, bgColor: 'bg-blue-50', textColor: 'text-blue-500' }
+            }
+            if (['xlsx', 'xls'].includes(ext)) {
+                return { icon: FileSpreadsheet, bgColor: 'bg-green-50', textColor: 'text-green-600' }
+            }
+            if (['pptx', 'ppt'].includes(ext)) {
+                return { icon: Presentation, bgColor: 'bg-orange-50', textColor: 'text-orange-500' }
+            }
+
+            // 图片类
+            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'].includes(ext)) {
+                return { icon: FileImage, bgColor: 'bg-purple-50', textColor: 'text-purple-500' }
+            }
+
+            // 视频类
+            if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+                return { icon: Film, bgColor: 'bg-pink-50', textColor: 'text-pink-500' }
+            }
+
+            // 音频类
+            if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) {
+                return { icon: Music, bgColor: 'bg-cyan-50', textColor: 'text-cyan-500' }
+            }
+
+            // 代码类
+            if (['json', 'xml', 'html', 'css', 'js', 'ts', 'py'].includes(ext)) {
+                return { icon: FileCode, bgColor: 'bg-slate-50', textColor: 'text-slate-500' }
+            }
+
+            // 默认
+            return { icon: File, bgColor: 'bg-gray-50', textColor: 'text-gray-500' }
+        }
+
+        // 附件文件：不可点击，根据类型显示不同图标和颜色
+        if (isAttachment) {
+            // 根据主 PDF 的隐藏状态决定是否渲染
+            if (mainFilePath && hiddenAttachments.has(mainFilePath)) return null
+
+            const { icon: IconComponent, bgColor, textColor } = getFileTypeStyle(file.name)
+
+            return (
+                <div
+                    key={file.path}
+                    className={cn(
+                        "group relative flex items-start p-2 rounded-lg border border-transparent transition-all cursor-default",
+                        "ml-10",
+                        indent && "ml-12"
+                    )}
+                >
+                    <div className={cn("p-1.5 rounded-md mr-2 shrink-0", bgColor, textColor)}>
+                        <IconComponent className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-xs font-normal text-foreground/80 truncate">
+                            {file.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 flex items-center gap-1.5">
+                            <span>{formatFileSize(file.size)}</span>
+                            <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
+                            <span>{file.modified}</span>
+                        </p>
+                    </div>
+                </div>
+            )
+        }
+
+        // 普通 PDF 文件
+        return (
+            <div
+                key={file.path}
+                onClick={() => handleSelectPdf(file)}
+                className={cn(
+                    "group relative flex items-start p-3 rounded-lg border border-transparent transition-all duration-200 cursor-pointer",
+                    "hover:bg-white hover:shadow-sm hover:border-border/50",
+                    currentFile === file.name && "bg-primary/5 border-primary/20",
+                    isLoading ? "opacity-50 pointer-events-none grayscale" : "",
+                    indent && "ml-6"
+                )}
+            >
+                <div className={cn(
+                    "p-2 rounded-md mr-3 shrink-0 transition-colors",
                     currentFile === file.name
-                        ? "text-primary"
-                        : "text-foreground/90 group-hover:text-primary"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-red-50 text-red-500 group-hover:bg-red-100"
                 )}>
-                    {file.name}
-                </h3>
-                <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-2">
-                    <span>{formatFileSize(file.size)}</span>
-                    <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
-                    <span>{file.modified}</span>
-                </p>
+                    <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <h3 className={cn(
+                        "text-sm font-medium truncate transition-colors flex items-center gap-2",
+                        currentFile === file.name
+                            ? "text-primary"
+                            : "text-foreground/90 group-hover:text-primary"
+                    )}>
+                        {file.name}
+                        {/* 附件数量徽标（可点击切换显示/隐藏） */}
+                        {attachmentCount > 0 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()  // 阻止触发 PDF 选择
+                                    setHiddenAttachments(prev => {
+                                        const next = new Set(prev)
+                                        if (next.has(file.path)) {
+                                            next.delete(file.path)
+                                        } else {
+                                            next.add(file.path)
+                                        }
+                                        return next
+                                    })
+                                }}
+                                className={cn(
+                                    "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] transition-colors cursor-pointer hover:scale-105",
+                                    hiddenAttachments.has(file.path)
+                                        ? "bg-gray-100 text-gray-400"
+                                        : "bg-amber-100 text-amber-600 hover:bg-amber-200"
+                                )}
+                                title={hiddenAttachments.has(file.path) ? t('chat.fileList.showAttachments') : t('chat.fileList.hideAttachments')}
+                            >
+                                <Paperclip className="h-2.5 w-2.5" />
+                                {attachmentCount}
+                                {hiddenAttachments.has(file.path) ? (
+                                    <EyeOff className="h-2.5 w-2.5 ml-0.5" />
+                                ) : (
+                                    <Eye className="h-2.5 w-2.5 ml-0.5" />
+                                )}
+                            </button>
+                        )}
+                    </h3>
+                    <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-2">
+                        <span>{formatFileSize(file.size)}</span>
+                        <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
+                        <span>{file.modified}</span>
+                    </p>
+                </div>
             </div>
-        </div>
-    )
+        )
+    }
+
+    // 渲染文件列表（主 PDF + 其附件）
+    const renderFileGroup = (files: PdfFile[], indent: boolean = false) => {
+        // 分离主 PDF 和附件
+        const mainFiles = files.filter(f => !f.is_attachment)
+        const attachmentFiles = files.filter(f => f.is_attachment)
+
+        return mainFiles.map(mainFile => {
+            // 计算该主 PDF 对应的附件数量（以主 PDF 文件名为前缀）
+            const basename = mainFile.name.replace(/\.pdf$/i, '')
+            const relatedAttachments = attachmentFiles.filter(att =>
+                att.name.startsWith(basename) && att.name !== mainFile.name
+            )
+            const attachmentCount = relatedAttachments.length
+
+            return (
+                <div key={mainFile.path}>
+                    {renderPdfItem(mainFile, indent, attachmentCount)}
+                    {relatedAttachments.map(att => renderPdfItem(att, indent, 0, mainFile.path))}
+                </div>
+            )
+        })
+    }
 
     return (
         <div className="flex h-full bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 isolate overflow-hidden">
@@ -612,6 +748,40 @@ export function Chat() {
                             >
                                 <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFiles && "animate-spin")} />
                             </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    // 全局切换：如果有隐藏的则全部显示，否则全部隐藏
+                                    if (hiddenAttachments.size > 0) {
+                                        setHiddenAttachments(new Set())
+                                    } else {
+                                        // 收集所有有附件的主 PDF 路径
+                                        const allMainPaths = new Set<string>()
+                                        const allFiles = [...rootFiles, ...folders.flatMap(f => f.files)]
+                                        const mainFiles = allFiles.filter(f => !f.is_attachment)
+                                        const attachmentFiles = allFiles.filter(f => f.is_attachment)
+                                        mainFiles.forEach(main => {
+                                            const basename = main.name.replace(/\.pdf$/i, '')
+                                            if (attachmentFiles.some(att => att.name.startsWith(basename) && att.name !== main.name)) {
+                                                allMainPaths.add(main.path)
+                                            }
+                                        })
+                                        setHiddenAttachments(allMainPaths)
+                                    }
+                                }}
+                                className={cn(
+                                    "h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-gray-500/20 hover:to-slate-500/20 hover:shadow-lg hover:shadow-gray-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer",
+                                    hiddenAttachments.size > 0 && "bg-gray-100"
+                                )}
+                                title={hiddenAttachments.size > 0 ? t('chat.fileList.showAttachments') : t('chat.fileList.hideAttachments')}
+                            >
+                                {hiddenAttachments.size > 0 ? (
+                                    <EyeOff className="h-4 w-4 text-gray-400 transition-colors" />
+                                ) : (
+                                    <Eye className="h-4 w-4 text-gray-600 transition-colors" />
+                                )}
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -665,7 +835,7 @@ export function Chat() {
                                     {/* 文件夹内的 PDF */}
                                     {expandedFolders.has(folder.name) && (
                                         <div className="space-y-1">
-                                            {folder.files.map(file => renderPdfItem(file, true))}
+                                            {renderFileGroup(folder.files, true)}
                                         </div>
                                     )}
                                 </div>
@@ -676,7 +846,7 @@ export function Chat() {
                                     <p className="text-xs text-gray-400 px-2 mb-1">{t('chat.fileList.rootDir')}</p>
                                 </div>
                             )}
-                            {rootFiles.map(file => renderPdfItem(file, false))}
+                            {renderFileGroup(rootFiles, false)}
                         </>
                     )}
                 </div>
@@ -724,6 +894,6 @@ export function Chat() {
                     />
                 </div>
             </div>
-        </div>
+        </div >
     )
 }

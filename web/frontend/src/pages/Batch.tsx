@@ -467,6 +467,7 @@ export function Batch() {
                                             ) : (
                                                 pdfs.map(pdf => {
                                                     const isSelected = selectedPdfs.has(pdf.path)
+                                                    const attachmentCount = pdf.attachment_count || 0
                                                     return (
                                                         <div
                                                             key={pdf.path}
@@ -484,10 +485,20 @@ export function Batch() {
                                                             )}
                                                             <FileText className="h-4 w-4 text-red-400 shrink-0" />
                                                             <span className="text-sm text-gray-700 truncate flex-1">{pdf.name}</span>
+                                                            {/* 附件数量徽标 */}
+                                                            {attachmentCount > 0 && (
+                                                                <span
+                                                                    className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700 shrink-0"
+                                                                    title={`${attachmentCount} 个附件`}
+                                                                >
+                                                                    +{attachmentCount}
+                                                                </span>
+                                                            )}
                                                             <span className="text-xs text-gray-400 shrink-0">{formatSize(pdf.size)}</span>
                                                         </div>
                                                     )
                                                 })
+
                                             )}
                                         </div>
                                     )}

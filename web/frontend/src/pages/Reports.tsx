@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download, Folder, Home, ChevronRight } from 'lucide-react'
+import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download, Folder, Home, ChevronRight, Info } from 'lucide-react'
 import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo } from '@/services/api'
 import { cn } from '@/utils/cn'
 import { EvidenceViewer } from '@/components/EvidenceViewer'
@@ -105,36 +105,151 @@ export function Reports() {
                     {t('reports.backToList')}
                 </Button>
 
-                {/* 报告头部 */}
-                <div className="bg-card rounded-xl border p-6 space-y-4">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground font-mono">{selectedReport.task_id}</p>
-                            <h1 className="text-xl font-semibold mt-1">{selectedReport.guideline_title}</h1>
-                            <p className="text-sm text-muted-foreground mt-2">
-                                {t('reports.detail.date')} {selectedReport.evaluation_date} · {selectedReport.evaluator}
-                            </p>
-                        </div>
-                        {/* 总体评分显示 */}
-                        <div className="flex items-center gap-4">
-                            {selectedReport.overall_quality_score && (
-                                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10">
-                                    <span className="text-sm text-muted-foreground">{t('reports.detail.qualityScore')}:</span>
-                                    <span className="text-2xl font-bold text-primary">{selectedReport.overall_quality_score}/7</span>
-                                </div>
-                            )}
-                            {selectedReport.total_raw_score && (
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted">
-                                    <span className="text-xs text-muted-foreground">{t('reports.detail.totalScore')}:</span>
-                                    <span className="text-sm font-mono font-semibold">{selectedReport.total_raw_score}</span>
-                                </div>
-                            )}
-                            {/* 推荐结论 */}
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
-                                {getRecommendationIcon(selectedReport.overall_assessment.recommendation)}
-                                <span className="text-sm font-medium">
-                                    {selectedReport.overall_assessment.recommendation || t('reports.detail.notEvaluated')}
+                {/* 报告头部 - 液态玻璃风格 */}
+                {/* 报告头部 - 优化版 (修复 Tooltip 遮挡，统一视觉) */}
+                <div className="relative rounded-2xl border border-border/40 bg-white/40 shadow-sm hover:shadow-md transition-all duration-500">
+                    {/* 背景装饰层 - 独立裁剪，确保背景不溢出但 Tooltip 可溢出 */}
+                    <div className="absolute inset-0 overflow-hidden rounded-2xl -z-10">
+                        <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary/5 rounded-full blur-[80px] opacity-60" />
+                        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-teal-500/5 rounded-full blur-[80px] opacity-60" />
+                        <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" />
+                    </div>
+
+                    {/* 内容层 - 无裁剪 */}
+                    <div className="p-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6">
+                        {/* 左侧信息 */}
+                        {/* 左侧信息 */}
+                        <div className="space-y-4 max-w-2xl flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <span className="px-2 py-0.5 rounded-md bg-white border border-border/50 text-xs font-mono text-muted-foreground shadow-sm">
+                                    {selectedReport.task_id}
                                 </span>
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold tracking-tight text-gray-900 leading-tight">
+                                    {selectedReport.guideline_title}
+                                </h1>
+                                <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60"></span>
+                                        {t('reports.detail.date')} <span className="font-medium text-gray-700">{selectedReport.evaluation_date}</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 右侧评分条 - 统一面板设计 */}
+                        <div className="flex items-stretch gap-2 xl:gap-4 bg-white/60 border border-white/60 shadow-sm rounded-xl backdrop-blur-sm overflow-visible p-1">
+                            {/* 1. 整体评价 */}
+                            {selectedReport.overall_quality_score && (
+                                <div className="group relative px-5 py-3 flex flex-col justify-between min-w-[130px] rounded-lg hover:bg-white/50 transition-colors cursor-help">
+                                    <div className="flex items-center justify-between mb-1 gap-2">
+                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{t('reports.detail.qualityScore')}</span>
+                                        <Info className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+                                    </div>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-gray-900 leading-none">
+                                            {selectedReport.overall_quality_score}
+                                        </span>
+                                        <span className="text-xs font-medium text-muted-foreground">/7</span>
+                                    </div>
+
+                                    {/* Tooltip */}
+                                    <div className="absolute top-full right-0 xl:left-0 xl:right-auto mt-2 w-72 p-0 bg-white rounded-xl shadow-xl border border-border/60 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 ring-1 ring-black/5">
+                                        <div className="p-3 border-b border-border/50 bg-gray-50/50 rounded-t-xl">
+                                            <h4 className="font-semibold text-xs text-gray-900 flex items-center gap-2">
+                                                <FileBarChart className="h-3.5 w-3.5 text-primary" />
+                                                {t('reports.tooltip.qualityScoreTitle')}
+                                            </h4>
+                                        </div>
+                                        <div className="p-2 grid grid-cols-1 gap-1">
+                                            {[
+                                                { r: "1-23", s: 1, c: "text-red-600 bg-red-50 border-red-100" },
+                                                { r: "24-46", s: 2, c: "text-red-500 bg-red-50 border-red-100" },
+                                                { r: "47-69", s: 3, c: "text-orange-600 bg-orange-50 border-orange-100" },
+                                                { r: "70-92", s: 4, c: "text-amber-600 bg-amber-50 border-amber-100" },
+                                                { r: "93-115", s: 5, c: "text-yellow-600 bg-yellow-50 border-yellow-100" },
+                                                { r: "116-138", s: 6, c: "text-green-600 bg-green-50 border-green-100" },
+                                                { r: "139-161", s: 7, c: "text-emerald-600 bg-emerald-50 border-emerald-100" }
+                                            ].map((item, i) => (
+                                                <div key={i} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors">
+                                                    <span className="font-mono text-[10px] text-muted-foreground/80">{item.r}</span>
+                                                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border leading-none", item.c)}>{item.s}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 2. 总分 */}
+                            {selectedReport.total_raw_score && (
+                                <div className="px-5 py-3 flex flex-col justify-between min-w-[100px] rounded-lg hover:bg-white/50 transition-colors">
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{t('reports.detail.totalScore')}</span>
+                                    <div className="flex items-baseline gap-0.5">
+                                        <span className="text-xl font-bold text-gray-900 font-mono leading-none">
+                                            {selectedReport.total_raw_score}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">pts</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 3. 推荐结论 */}
+                            <div className={cn(
+                                "group relative px-5 py-3 flex flex-col justify-between min-w-[160px] cursor-help transition-colors rounded-lg",
+                                selectedReport.overall_assessment.recommendation?.toLowerCase().includes('not')
+                                    ? "bg-red-50/20 hover:bg-red-50/50"
+                                    : selectedReport.overall_assessment.recommendation?.toLowerCase().includes('modification')
+                                        ? "bg-amber-50/20 hover:bg-amber-50/50"
+                                        : "bg-emerald-50/20 hover:bg-emerald-50/50"
+                            )}>
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className={cn(
+                                        "text-xs font-semibold uppercase tracking-wider",
+                                        selectedReport.overall_assessment.recommendation?.toLowerCase().includes('not') ? "text-red-600/70" :
+                                            selectedReport.overall_assessment.recommendation?.toLowerCase().includes('modification') ? "text-amber-600/70" : "text-emerald-600/70"
+                                    )}>{t('reports.table.recommendation')}</span>
+                                    <Info className={cn(
+                                        "h-3.5 w-3.5 transition-colors",
+                                        selectedReport.overall_assessment.recommendation?.toLowerCase().includes('not') ? "text-red-300 group-hover:text-red-500" :
+                                            selectedReport.overall_assessment.recommendation?.toLowerCase().includes('modification') ? "text-amber-300 group-hover:text-amber-500" : "text-emerald-300 group-hover:text-emerald-500"
+                                    )} />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {getRecommendationIcon(selectedReport.overall_assessment.recommendation)}
+                                    <span className={cn(
+                                        "font-bold text-sm leading-tight",
+                                        selectedReport.overall_assessment.recommendation?.toLowerCase().includes('not') ? "text-red-700" :
+                                            selectedReport.overall_assessment.recommendation?.toLowerCase().includes('modification') ? "text-amber-700" : "text-emerald-700"
+                                    )}>
+                                        {selectedReport.overall_assessment.recommendation || t('reports.detail.notEvaluated')}
+                                    </span>
+                                </div>
+
+                                {/* 推荐规则 Tooltip */}
+                                <div className="absolute top-full right-0 mt-3 w-80 p-0 bg-white rounded-xl shadow-lg border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 ring-1 ring-black/5">
+                                    <div className="p-3 border-b border-border/50 bg-gray-50/50 rounded-t-xl">
+                                        <h4 className="font-semibold text-xs text-gray-900 flex items-center gap-2">
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                            {t('reports.tooltip.recommendationTitle')}
+                                        </h4>
+                                    </div>
+                                    <div className="p-3 space-y-2">
+                                        <div className="relative pl-3 border-l-2 border-red-200">
+                                            <div className="text-[10px] font-bold text-red-600 uppercase mb-0.5">No Recommend</div>
+                                            <p className="text-[10px] text-muted-foreground leading-relaxed">{t('reports.tooltip.noRecommend')}</p>
+                                        </div>
+                                        <div className="relative pl-3 border-l-2 border-amber-200">
+                                            <div className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Modifications</div>
+                                            <p className="text-[10px] text-muted-foreground leading-relaxed">{t('reports.tooltip.recommendModify')}</p>
+                                        </div>
+                                        <div className="relative pl-3 border-l-2 border-emerald-200">
+                                            <div className="text-[10px] font-bold text-emerald-600 uppercase mb-0.5">Recommend</div>
+                                            <p className="text-[10px] text-muted-foreground leading-relaxed">{t('reports.tooltip.recommend')}</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -177,134 +292,136 @@ export function Reports() {
                 </div>
 
                 {/* Tab 内容 */}
-                {detailTab === 'evidence' ? (
-                    <EvidenceViewer taskId={selectedReport.task_id} />
-                ) : (
-                    <div ref={reportContentRef} className="space-y-6">
-                        {/* 领域评分 */}
-                        <div className="bg-card rounded-xl border p-6">
-                            <h2 className="text-lg font-semibold mb-4">{t('reports.detail.domainScores')}</h2>
-                            <div className="space-y-3">
-                                {Object.entries(selectedReport.domain_scores).map(([key, domain]) => (
-                                    <div key={key} className="flex items-center gap-4">
-                                        <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
-                                            {key}
-                                        </span>
-                                        <span className="flex-1 text-sm">{domain.name}</span>
-                                        <div className="w-48 bg-muted rounded-full h-2 overflow-hidden">
-                                            {domain.score !== null ? (
-                                                <div
-                                                    className="h-full bg-primary rounded-full transition-all"
-                                                    style={{ width: `${domain.score}%` }}
-                                                />
-                                            ) : (
-                                                <div className="h-full bg-muted-foreground/20 w-full" />
-                                            )}
-                                        </div>
-                                        <span className={cn(
-                                            "w-16 text-right text-sm font-medium",
-                                            domain.score === null && "text-muted-foreground"
-                                        )}>
-                                            {domain.score !== null ? `${domain.score}%` : 'N/A'}
-                                        </span>
+                {
+                    detailTab === 'evidence' ? (
+                        <EvidenceViewer taskId={selectedReport.task_id} />
+                    ) : (
+                        <div ref={reportContentRef} className="space-y-6">
+                            {/* 领域评分 */}
+                            <div className="bg-card rounded-xl border p-6">
+                                <h2 className="text-lg font-semibold mb-4">{t('reports.detail.domainScores')}</h2>
+                                <div className="space-y-3">
+                                    {Object.entries(selectedReport.domain_scores).map(([key, domain]) => (
+                                        <div key={key} className="flex items-center gap-4">
+                                            <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
+                                                {key}
+                                            </span>
+                                            <span className="flex-1 text-sm">{domain.name}</span>
+                                            <div className="w-48 bg-muted rounded-full h-2 overflow-hidden">
+                                                {domain.score !== null ? (
+                                                    <div
+                                                        className="h-full bg-primary rounded-full transition-all"
+                                                        style={{ width: `${domain.score}%` }}
+                                                    />
+                                                ) : (
+                                                    <div className="h-full bg-muted-foreground/20 w-full" />
+                                                )}
+                                            </div>
+                                            <span className={cn(
+                                                "w-16 text-right text-sm font-medium",
+                                                domain.score === null && "text-muted-foreground"
+                                            )}>
+                                                {domain.score !== null ? `${domain.score}%` : 'N/A'}
+                                            </span>
 
-                                    </div>
-                                ))}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* 总体评估 */}
-                        {(selectedReport.overall_assessment.strengths?.length > 0 ||
-                            selectedReport.overall_assessment.weaknesses?.length > 0) && (
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    {selectedReport.overall_assessment.strengths?.length > 0 && (
-                                        <div className="bg-green-50 rounded-xl border border-green-100 p-6">
-                                            <h3 className="font-medium text-green-800 mb-3">{t('reports.detail.strengths')}</h3>
-                                            <ul className="space-y-2">
-                                                {selectedReport.overall_assessment.strengths.map((s, i) => (
-                                                    <li key={i} className="text-sm text-green-700">{s}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                    {selectedReport.overall_assessment.weaknesses?.length > 0 && (
-                                        <div className="bg-red-50 rounded-xl border border-red-100 p-6">
-                                            <h3 className="font-medium text-red-800 mb-3">{t('reports.detail.weaknesses')}</h3>
-                                            <ul className="space-y-2">
-                                                {selectedReport.overall_assessment.weaknesses.map((w, i) => (
-                                                    <li key={i} className="text-sm text-red-700">{w}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
+                            {/* 总体评估 */}
+                            {(selectedReport.overall_assessment.strengths?.length > 0 ||
+                                selectedReport.overall_assessment.weaknesses?.length > 0) && (
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        {selectedReport.overall_assessment.strengths?.length > 0 && (
+                                            <div className="bg-green-50 rounded-xl border border-green-100 p-6">
+                                                <h3 className="font-medium text-green-800 mb-3">{t('reports.detail.strengths')}</h3>
+                                                <ul className="space-y-2">
+                                                    {selectedReport.overall_assessment.strengths.map((s, i) => (
+                                                        <li key={i} className="text-sm text-green-700">{s}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {selectedReport.overall_assessment.weaknesses?.length > 0 && (
+                                            <div className="bg-red-50 rounded-xl border border-red-100 p-6">
+                                                <h3 className="font-medium text-red-800 mb-3">{t('reports.detail.weaknesses')}</h3>
+                                                <ul className="space-y-2">
+                                                    {selectedReport.overall_assessment.weaknesses.map((w, i) => (
+                                                        <li key={i} className="text-sm text-red-700">{w}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                            {/* 条目评价详情 */}
+                            {selectedReport.item_evaluations?.length > 0 && (
+                                <div className="bg-card rounded-xl border p-6">
+                                    <h2 className="text-lg font-semibold mb-4">{t('reports.detail.itemDetails')}</h2>
+                                    <div className="space-y-4">
+                                        {[...selectedReport.item_evaluations]
+                                            .sort((a, b) => {
+                                                // 提取 item_id 中的数字进行排序
+                                                const numA = parseInt(a.item_id.replace(/\D/g, '')) || 0
+                                                const numB = parseInt(b.item_id.replace(/\D/g, '')) || 0
+                                                return numA - numB
+                                            })
+                                            .map((item) => (
+                                                <details key={item.item_id} className="group border border-border/50 rounded-lg overflow-hidden">
+                                                    <summary className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                                                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
+                                                            {item.item_id}
+                                                        </span>
+                                                        <span className="text-sm font-medium flex-1 line-clamp-1">{item.title}</span>
+                                                        <span className={cn(
+                                                            "font-semibold",
+                                                            item.score && item.score >= 5 ? "text-green-600" : "text-yellow-600"
+                                                        )}>
+                                                            {item.score !== null ? `${item.score}/7` : 'N/A'}
+                                                        </span>
+                                                    </summary>
+                                                    <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-3">
+                                                        {item.step1_locate && (
+                                                            <div>
+                                                                <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.evidenceLocation')}</h4>
+                                                                <p className="text-sm">{item.step1_locate}</p>
+                                                            </div>
+                                                        )}
+                                                        {item.step2_evidence && item.step2_evidence.length > 0 && (
+                                                            <div>
+                                                                <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.quotedEvidence')}</h4>
+                                                                <ul className="space-y-1">
+                                                                    {item.step2_evidence.map((e, i) => (
+                                                                        <li key={i} className="text-sm text-muted-foreground bg-white/50 p-2 rounded border-l-2 border-primary/30">
+                                                                            {e}
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                        {item.step3_reasoning && (
+                                                            <div>
+                                                                <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.scoringReason')}</h4>
+                                                                <p className="text-sm">{item.step3_reasoning}</p>
+                                                            </div>
+                                                        )}
+                                                        {item.evaluated_at && (
+                                                            <p className="text-xs text-muted-foreground/50 text-right">
+                                                                {t('reports.detail.evaluatedAt')} {new Date(item.evaluated_at).toLocaleString()}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </details>
+                                            ))}
+                                    </div>
                                 </div>
                             )}
-
-                        {/* 条目评价详情 */}
-                        {selectedReport.item_evaluations?.length > 0 && (
-                            <div className="bg-card rounded-xl border p-6">
-                                <h2 className="text-lg font-semibold mb-4">{t('reports.detail.itemDetails')}</h2>
-                                <div className="space-y-4">
-                                    {[...selectedReport.item_evaluations]
-                                        .sort((a, b) => {
-                                            // 提取 item_id 中的数字进行排序
-                                            const numA = parseInt(a.item_id.replace(/\D/g, '')) || 0
-                                            const numB = parseInt(b.item_id.replace(/\D/g, '')) || 0
-                                            return numA - numB
-                                        })
-                                        .map((item) => (
-                                            <details key={item.item_id} className="group border border-border/50 rounded-lg overflow-hidden">
-                                                <summary className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                                                    <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
-                                                        {item.item_id}
-                                                    </span>
-                                                    <span className="text-sm font-medium flex-1 line-clamp-1">{item.title}</span>
-                                                    <span className={cn(
-                                                        "font-semibold",
-                                                        item.score && item.score >= 5 ? "text-green-600" : "text-yellow-600"
-                                                    )}>
-                                                        {item.score !== null ? `${item.score}/7` : 'N/A'}
-                                                    </span>
-                                                </summary>
-                                                <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-3">
-                                                    {item.step1_locate && (
-                                                        <div>
-                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.evidenceLocation')}</h4>
-                                                            <p className="text-sm">{item.step1_locate}</p>
-                                                        </div>
-                                                    )}
-                                                    {item.step2_evidence && item.step2_evidence.length > 0 && (
-                                                        <div>
-                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.quotedEvidence')}</h4>
-                                                            <ul className="space-y-1">
-                                                                {item.step2_evidence.map((e, i) => (
-                                                                    <li key={i} className="text-sm text-muted-foreground bg-white/50 p-2 rounded border-l-2 border-primary/30">
-                                                                        {e}
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    )}
-                                                    {item.step3_reasoning && (
-                                                        <div>
-                                                            <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.scoringReason')}</h4>
-                                                            <p className="text-sm">{item.step3_reasoning}</p>
-                                                        </div>
-                                                    )}
-                                                    {item.evaluated_at && (
-                                                        <p className="text-xs text-muted-foreground/50 text-right">
-                                                            {t('reports.detail.evaluatedAt')} {new Date(item.evaluated_at).toLocaleString()}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </details>
-                                        ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
+                        </div>
+                    )
+                }
+            </div >
         )
     }
 
