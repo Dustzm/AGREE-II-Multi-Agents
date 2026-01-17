@@ -60,28 +60,27 @@ class SiblingFileDetector(AttachmentDetector):
     """
     同目录附件检测器
     
-    检测规则：
-    1. {basename}附件.{ext} — 单个附件
-    2. {basename}_附件.{ext} — 单个附件（带下划线）
-    3. {basename}附件1.{ext}, {basename}附件2.{ext} — 多个附件编号
-    4. {basename}_appendix.{ext}, {basename}_supplement.{ext} — 英文命名
+    检测规则（新版，更宽松的匹配）：
+    1. 以源文件 basename 为前缀
+    2. 后面可以跟任意描述（附件、执行摘要、PPT摘要、附件-算法 等）
+    3. 支持空格、下划线、连字符等分隔符
     
-    支持扩展名：pdf, docx, xlsx, md, txt
+    示例匹配：
+    - 1-2023-030E.pdf (源文件)
+    - 1-2023-030E附件.pdf → 匹配
+    - 1-2023-030E附件 1.doc → 匹配
+    - 1-2023-030E执行摘要.pdf → 匹配
+    - 1-2023-030E附件-算法.pdf → 匹配
+    - 1-2023-030E PPT摘要.pptx → 匹配
+    
+    支持扩展名：pdf, docx, doc, xlsx, xls, pptx, md, txt, mp4 等
     """
     
-    # 支持的后缀模式（正则，会与 basename 拼接）
-    SUFFIX_PATTERNS = [
-        r"附件\d*",       # 附件、附件1、附件2...
-        r"_附件\d*",      # _附件、_附件1...
-        r"附录\d*",       # 附录、附录1...
-        r"_附录\d*",
-        r"_appendix\d*",  # _appendix、_appendix1...
-        r"appendix\d*",
-        r"_supplement\d*",
-        r"supplement\d*",
+    # 支持的扩展名
+    EXTENSIONS = [
+        "pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt",
+        "md", "txt", "mp4", "mov", "avi", "webm", "mkv"
     ]
-    
-    EXTENSIONS = ["pdf", "docx", "xlsx", "md", "txt", "mp4", "mov", "avi", "webm", "mkv"]
     
     @property
     def name(self) -> str:
@@ -91,11 +90,13 @@ class SiblingFileDetector(AttachmentDetector):
         """
         检测同目录下的附件文件
         
+        新策略：匹配所有以源文件 basename 为前缀的文件（排除源文件本身）
+        
         Args:
             source_path: 源文件路径
             
         Returns:
-            检测到的附件列表（按优先级排序）
+            检测到的附件列表（按文件名排序）
         """
         source_path = Path(source_path)
         if not source_path.exists():
@@ -104,31 +105,43 @@ class SiblingFileDetector(AttachmentDetector):
         
         parent_dir = source_path.parent
         basename = source_path.stem  # 不含扩展名的文件名
+        source_name = source_path.name  # 完整文件名（包含扩展名）
         
         detected = []
         
-        # 构建匹配模式
-        for priority, suffix_pattern in enumerate(self.SUFFIX_PATTERNS):
-            for ext in self.EXTENSIONS:
-                # 构建完整的正则模式
-                full_pattern = re.compile(
-                    f"^{re.escape(basename)}{suffix_pattern}\\.{ext}$",
-                    re.IGNORECASE
-                )
-                
-                # 遍历目录查找匹配文件
-                for file_path in parent_dir.iterdir():
-                    if file_path.is_file() and full_pattern.match(file_path.name):
-                        # 避免重复添加
-                        if not any(d.path == file_path for d in detected):
-                            detected.append(DetectedAttachment(
-                                path=file_path,
-                                type=ext.lower(),
-                                source=self.name,
-                                priority=priority,
-                            ))
-                            logger.info(f"检测到附件: {file_path}")
+        # 遍历目录查找匹配文件
+        for file_path in parent_dir.iterdir():
+            if not file_path.is_file():
+                continue
+            
+            file_name = file_path.name
+            file_stem = file_path.stem
+            file_ext = file_path.suffix.lstrip('.').lower()
+            
+            # 跳过源文件本身
+            if file_name == source_name:
+                continue
+            
+            # 跳过不支持的扩展名
+            if file_ext not in self.EXTENSIONS:
+                continue
+            
+            # 核心匹配逻辑：文件名以 basename 为前缀
+            # 且后面必须有额外内容（避免匹配同名不同扩展名的文件）
+            if file_stem.startswith(basename) and len(file_stem) > len(basename):
+                # 检查分隔符：后面紧跟的字符应该是分隔符或中文
+                next_char = file_stem[len(basename)]
+                # 允许的分隔符：空格、下划线、连字符、中文字符
+                if next_char in ' _-' or '\u4e00' <= next_char <= '\u9fff':
+                    detected.append(DetectedAttachment(
+                        path=file_path,
+                        type=file_ext,
+                        source=self.name,
+                        priority=0,  # 统一优先级
+                    ))
+                    logger.info(f"检测到附件: {file_path}")
         
-        # 按优先级排序
-        detected.sort(key=lambda x: (x.priority, x.path.name))
+        # 按文件名排序
+        detected.sort(key=lambda x: x.path.name)
         return detected
+

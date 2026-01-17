@@ -1,158 +1,186 @@
 """
-Explorer (搬运工)
+Explorer (附件探索智能体)
 
-使用 Google ADK LlmAgent 实现
-负责根据 Orchestrator 指令定位原文，写入上下文缓冲区
-
-核心原则：严格提取原文，禁止任何修改和省略
+负责检测和解析指南文档的附件内容，包括 PDF、Word、Excel 和视频文件。
 """
+import logging
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
 from google.adk.agents import LlmAgent
+from google.adk.tools import FunctionTool
 
 from .base import get_model
-from .base import (
-    read_source_document,
-    read_guide_map,
-    write_to_context_buffer,
-)
-from .base.schemas import ExplorerInput
+from core.prompts import load_prompt
+from core.attachment import AttachmentProcessor
+from core.agents.tools.public_tools import get_task_paths
+
+logger = logging.getLogger(__name__)
 
 
-def create_explorer_agent() -> LlmAgent:
+# ============================================================================
+# 工具函数
+# ============================================================================
+
+def detect_attachments(task_id: str) -> Dict[str, Any]:
     """
-    创建 Explorer Agent (搬运工)
+    检测任务相关的附件文件
     
-    职责：
-    1. 根据 Orchestrator 的指令定位源文档中的相关内容
-    2. 严格提取原文，不做任何修改
-    3. 将原文片段写入 context_buffer 供 Extractor 使用
+    Args:
+        task_id: 任务 ID
+        
+    Returns:
+        检测结果，包含附件列表
     """
+    paths = get_task_paths(task_id)
+    if not paths:
+        return {"status": "error", "error": f"任务不存在: {task_id}"}
+    
+    pdf_path = paths.get("pdf_path")
+    if not pdf_path or not Path(pdf_path).exists():
+        return {"status": "error", "error": "PDF 文件不存在"}
+    
+    from core.attachment import SiblingFileDetector
+    detector = SiblingFileDetector()
+    attachments = detector.detect(Path(pdf_path))
+    
+    return {
+        "status": "success",
+        "count": len(attachments),
+        "attachments": [
+            {
+                "path": str(a.path),
+                "name": a.path.name,
+                "type": a.type,
+            }
+            for a in attachments
+        ]
+    }
+
+
+async def parse_attachment(task_id: str, file_path: str) -> Dict[str, Any]:
+    """
+    解析单个附件文件
+    
+    Args:
+        task_id: 任务 ID
+        file_path: 附件文件路径
+        
+    Returns:
+        解析结果
+    """
+    paths = get_task_paths(task_id)
+    if not paths:
+        return {"status": "error", "error": f"任务不存在: {task_id}"}
+    
+    processor = AttachmentProcessor()
+    results = await processor.process(
+        source_path=Path(file_path),
+        prep_dir=Path(paths["prep_dir"])
+    )
+    
+    contents = []
+    for result in results:
+        for content in result.contents:
+            contents.append({
+                "title": content.title,
+                "content": content.content[:500] + "..." if len(content.content) > 500 else content.content,
+                "type": content.content_type,
+            })
+    
+    return {
+        "status": "success",
+        "contents_count": len(contents),
+        "contents": contents,
+    }
+
+
+# ============================================================================
+# Agent 创建
+# ============================================================================
+
+def create_explorer_agent(lang: str = "zh") -> LlmAgent:
+    """
+    创建 Explorer（附件探索）智能体
+    
+    Args:
+        lang: 提示词语言（zh/en）
+        
+    Returns:
+        LlmAgent 实例
+    """
+    instruction = load_prompt("explorer", lang)
+    
     return LlmAgent(
         name="Explorer",
         model=get_model(),
-        input_schema=ExplorerInput,
-        description="搬运工 - 严格按指令提取原文，写入上下文缓冲区",
-        instruction="""你是知识图谱抽取系统的专业文本提取工具 (Explorer)。
-
-## 核心原则
-
-⚠️ **你是一个纯粹的文本提取工具，不是文本处理器！**
-
-1. **禁止任何修改**: 你被严格禁止对提取的文本进行任何额外的说明、修饰、总结或改写
-2. **禁止省略**: 绝对禁止对原文的任何省略，必须完整提取
-3. **保持原样**: 提取的文本必须与源文档中的内容完全一致，逐字逐句
-4. **简单拼接**: 如果目标内容分散在文档的多个位置，直接简单拼接即可，无需添加过渡语句
-
-## 对序号的特殊要求
-
-⚠️ **对文档中的序号必须高度敏感！**
-
-文档中的层级序号（如 3.1、3.1.1、3.2.2.1）必须完整保留：
-
-示例 - 必须完整提取：
-```
-3.1 临床问题1
-本临床问题涉及...
-
-3.1.1 推荐意见1
-基于现有证据，建议...
-
-3.1.2 推荐意见2
-对于特殊人群...
-```
-
-❌ 绝对禁止简化为：
-```
-临床问题1涉及...（省略了序号3.1）
-```
-
-## 你的可用工具
-
-### 1. read_source_document(task_id: str)
-读取源文档内容。返回 {"status": "success", "content": "文档内容..."}
-
-### 2. read_guide_map(task_id: str)  
-读取全局地图，了解文档结构。返回 {"status": "success", "content": "地图内容..."}
-
-### 3. write_to_context_buffer(task_id: str, section_id: str, content: str)
-**将提取的原文保存到[task_id]/.ama/buffer/目录下的buffer文件。这是你最重要的工具！**
-
-参数说明：
-- `task_id`: 任务ID（从 Orchestrator 消息中获取）
-- `section_id`: 章节标识符（如 "basic_info", "problem_1", "references"）
-- `content`: 你提取的原文内容（必须是完整原文，不能省略）
-
-返回值：{"status": "success", "path": "/path/to/.ama/buffer/basic_info.md"}
-
-## 工作流程
-
-1. 调用 `read_source_document(task_id)` 获取源文档
-2. **必须调用** `read_guide_map(task_id)` 了解文档结构，明确各章节边界
-3. 根据指令定位并提取原文
-4. **必须调用** `write_to_context_buffer(task_id, section_id, 提取的原文)` 保存
-
-## 调用示例
-
-假设收到指令: "task_id: qlx-123, 请提取 basic_info 章节"
-
-```
-# Step 1: 读取源文档
-read_source_document(task_id="qlx-123")
-# 返回: {"status": "success", "content": "1. 背景\n本指南..."}
-
-# Step 2: 提取原文（在你的思考中完成）
-extracted_content = "1. 背景\n本指南由XX学会制定..."
-
-# Step 3: 保存到 buffer（必须执行！）
-write_to_context_buffer(
-    task_id="qlx-123",
-    section_id="basic_info", 
-    content="1. 背景\n本指南由XX学会制定..."
-)
-# 返回: {"status": "success", "path": "/path/to/buffer/basic_info.md"}
-```
-
-## 示例
-
-Orchestrator 指令: "提取 3.2 临床问题2 的内容"
-
-✅ 正确的提取:
-```
-3.2 临床问题2
-
-对于确诊的XXX患者，推荐使用XXX治疗方案...
-
-3.2.1 推荐意见3
-推荐等级：强推荐
-证据等级：高质量证据
-...
-```
-
-❌ 错误的提取:
-```
-以下是临床问题2的内容摘要：
-该问题主要讨论了治疗方案的选择...（这是总结，不是原文）
-```
-
-记住：你是搬运工，只负责把货物（原文）原封不动地搬运到目的地（buffer），不做任何加工！
-
-## ⚠️ 重要：必须执行工具调用
-
-**你的任务只有在成功调用 `write_to_context_buffer` 后才算完成！**
-
-**禁止**仅在回复中说"已提取"或"已保存"，而不实际调用工具。
-**必须**看到 `write_to_context_buffer` 工具执行成功的日志。
-
-## 完成后反馈
-成功调用工具并写入 buffer 后，向 Orchestrator 报告：
-1. 提取了多少字符
-2. 写入的文件路径
-3. 明确回复："Explorer 任务完成，控制权返回给 Orchestrator
-""",
+        description="附件探索智能体 - 检测并解析指南文档的附件内容",
+        instruction=instruction,
         tools=[
-            read_source_document,
-            read_guide_map,
-            write_to_context_buffer,
+            FunctionTool(detect_attachments),
+            FunctionTool(parse_attachment),
         ],
-        disallow_transfer_to_peers=True,  # 禁止调用其他子 Agent
-        output_key="explore_result",
     )
+
+
+# ============================================================================
+# 快捷函数（供 process_content_list 直接调用）
+# ============================================================================
+
+async def run_explorer(pdf_path: str, prep_dir: str) -> List[Dict[str, Any]]:
+    """
+    运行附件处理，返回附件内容块
+    
+    供 process_content_list 在预处理流程中直接调用，
+    无需通过 Agent 对话形式。
+    
+    Args:
+        pdf_path: 主 PDF 文件路径
+        prep_dir: 预处理输出目录
+        
+    Returns:
+        附件内容块列表，每个元素包含:
+        - title: 标题
+        - content: 内容文本
+        - section: 章节标识（如 [附件: 文件名]）
+    """
+    processor = AttachmentProcessor()
+    
+    try:
+        results = await processor.process(
+            source_path=Path(pdf_path),
+            prep_dir=Path(prep_dir)
+        )
+    except Exception as e:
+        logger.error(f"附件处理失败: {e}", exc_info=True)
+        return []
+    
+    blocks = []
+    for result in results:
+        if result.error:
+            logger.warning(f"附件处理错误: {result.source_file}, {result.error}")
+            continue
+        
+        for content in result.contents:
+            blocks.append({
+                "title": content.title,
+                "content": content.content,
+                "section": f"[附件: {result.source_file.stem}]",
+            })
+    
+    if blocks:
+        logger.info(f"Explorer 处理完成: {len(blocks)} 个附件内容块")
+    
+    return blocks
+
+
+# ============================================================================
+# Exports
+# ============================================================================
+
+__all__ = [
+    "create_explorer_agent",
+    "run_explorer",
+    "detect_attachments",
+    "parse_attachment",
+]

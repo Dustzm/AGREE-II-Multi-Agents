@@ -6,6 +6,7 @@
 from .detector import AttachmentDetector, SiblingFileDetector, DetectedAttachment
 from .parser import AttachmentParser, PDFAttachmentParser, ParsedContent
 from .processor import AttachmentProcessor, AttachmentInfo
+from .pptx_parser import PPTXAttachmentParser
 
 __all__ = [
     # 检测器
@@ -15,8 +16,10 @@ __all__ = [
     # 解析器
     "AttachmentParser",
     "PDFAttachmentParser",
+    "PPTXAttachmentParser",
     "ParsedContent",
     # 处理器
     "AttachmentProcessor",
     "AttachmentInfo",
 ]
+

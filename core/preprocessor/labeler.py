@@ -133,6 +133,21 @@ class SemanticLabeler:
     async def _process_single_chunk(self, idx: int, chunk: TitleContentBlock, total: int, semaphore: any, total_pages: int = 1) -> SemanticChunk:
         """处理单个块的标签分类"""
         async with semaphore:
+            # 如果是附件块，直接标记为 APPENDIX，跳过 LLM 分类
+            if getattr(chunk, 'is_appendix', False):
+                logger.info(f"[{idx+1}/{total}] {chunk.title[:20]}... -> Appendix (附件，跳过分类)")
+                return SemanticChunk(
+                    chunk_id=f"chunk_{idx+1:03d}",
+                    title=chunk.title,
+                    content=chunk.raw_text,
+                    label=SemanticLabel.APPENDIX,
+                    start_page=chunk.title_page_idx,
+                    end_page=chunk.title_page_idx,
+                    reasoning="附件内容，自动标记为 Appendix",
+                    block_ids=chunk.block_ids or [],
+                    section=chunk.section
+                )
+            
             # 获取当前页码（用于位置感知）
             current_page = chunk.title_page_idx + 1  # 转为 1-indexed
             

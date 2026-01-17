@@ -65,14 +65,34 @@ async def process_content_list(
         else:
             logger.info("未提供 PDF 路径，跳过 docindex 构建")
         
-        # Step 1: 构造标题-内容块（包含附件处理）
+        # Step 1: 构造标题-内容块（禁用旧的同步附件处理）
         chunker = DocumentChunker()
         title_content_blocks = await chunker.parse(
             content_list_path, 
             docindex_path=docindex_path,
             source_pdf_path=pdf_path,
-            include_attachments=include_attachments
+            include_attachments=False  # 禁用旧的同步附件处理
         )
+        
+        # Step 1.5: Explorer 处理附件
+        if include_attachments and pdf_path:
+            from core.agents.explorer import run_explorer
+            attachment_blocks = await run_explorer(
+                pdf_path=pdf_path,
+                prep_dir=str(prep_dir),
+            )
+            if attachment_blocks:
+                # 将附件内容转为 TitleContentBlock，标记为 is_appendix
+                for block in attachment_blocks:
+                    title_content_blocks.append(TitleContentBlock(
+                        title=block["title"],
+                        title_page_idx=0,
+                        contents=[{"type": "text", "text": block["content"]}],
+                        raw_text=block["content"],
+                        section=block["section"],
+                        is_appendix=True,  # 标记为附件，跳过 LLM 分类
+                    ))
+                logger.info(f"Explorer 添加了 {len(attachment_blocks)} 个附件内容块")
         
         # Step 2: LLM 语义标签分类
         labeler = SemanticLabeler(model=model, lang=lang)

@@ -11,6 +11,9 @@ from dataclasses import dataclass, field
 from .detector import AttachmentDetector, DetectedAttachment, SiblingFileDetector
 from .parser import AttachmentParser, ParsedContent, PDFAttachmentParser
 from .video import VideoAttachmentParser
+from .word_parser import WordAttachmentParser
+from .excel_parser import ExcelAttachmentParser
+from .pptx_parser import PPTXAttachmentParser
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,10 @@ class AttachmentProcessor:
         """设置默认检测器和解析器"""
         self.add_detector(SiblingFileDetector())
         self.add_parser(PDFAttachmentParser())
+        self.add_parser(WordAttachmentParser())
+        self.add_parser(ExcelAttachmentParser())
         self.add_parser(VideoAttachmentParser())
+        self.add_parser(PPTXAttachmentParser())
     
     def add_detector(self, detector: AttachmentDetector) -> "AttachmentProcessor":
         """添加检测器（支持链式调用）"""

@@ -24,6 +24,7 @@ class TitleContentBlock:
     raw_text: str                # 拼接后的纯文本内容
     block_ids: List[str] = None  # block_id 列表（用于精确匹配）
     section: str = ""            # 层级路径（如 "预防 > 生活方式干预"）
+    is_appendix: bool = False    # 是否为附件内容（跳过 LLM 分类）
 
 
 class SemanticLabel(str, Enum):
