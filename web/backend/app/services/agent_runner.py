@@ -290,18 +290,10 @@ class AppraisalRunner:
             async def on_item_progress(skill_id: str, title: str, status: str, duration: float = None):
                 """单条目进度回调"""
                 try:
-                    # 优先使用 WebSocket 专用回调
+                    # 优先使用 WebSocket 专用回调（仅用于 Chat 单任务场景）
                     if hasattr(self, '_send_item_progress') and self._send_item_progress:
                         await self._send_item_progress(skill_id, title, status, duration)
-                    else:
-                        # 回退使用 on_agent 回调（用于批量任务场景）
-                        if status == "started":
-                            msg = t("agent.appraising_item", self.lang, skill_id=skill_id)
-                        elif status == "completed":
-                            msg = t("agent.item_completed", self.lang, skill_id=skill_id, duration=f"{duration:.1f}" if duration else "")
-                        else:
-                            msg = t("agent.item_failed", self.lang, skill_id=skill_id)
-                        self.on_agent("Appraiser", msg, 1, 3, None)
+                    # 批量场景不更新单条目进度，由 on_batch_summary 统一更新
                 except Exception as e:
                     logger.warning(f"发送条目进度失败: {e}")
             
@@ -349,8 +341,9 @@ class AppraisalRunner:
             )
             
             # 初始化 Token 统计
-            from core.utils.token_tracker import TokenUsageTracker
+            from core.utils.token_tracker import TokenUsageTracker, set_global_tracker
             self._token_tracker = TokenUsageTracker(task_id=actual_task_id)
+            set_global_tracker(self._token_tracker)  # 设置全局追踪器供 Appraiser 使用
             self._weaver_dir = Path(task_result["paths"]["weaver_dir"]) if not reuse_task_id else Path(prep_dir).parent
             
             # 跟踪当前智能体和调用状态（已移除 Initiator）
@@ -375,6 +368,7 @@ class AppraisalRunner:
                 
                 # 捕获 token 使用统计
                 if hasattr(event, 'usage_metadata') and event.usage_metadata:
+                    logger.debug(f"收到 usage_metadata: {event.usage_metadata}")
                     self._token_tracker.add_usage(event.usage_metadata)
                 
                 # 处理事件内容
@@ -496,3 +490,6 @@ class AppraisalRunner:
         finally:
             # 清理全局进度回调
             clear_progress_callbacks()
+            # 清除全局 Token 追踪器
+            from core.utils.token_tracker import set_global_tracker
+            set_global_tracker(None)
