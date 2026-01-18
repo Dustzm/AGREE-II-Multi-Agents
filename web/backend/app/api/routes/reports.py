@@ -276,12 +276,30 @@ async def get_report(task_id: str, folder: Optional[str] = None):
 
 
 @router.get("/reports/{task_id}/visual_evidence")
-async def get_visual_evidence(task_id: str):
+async def get_visual_evidence(task_id: str, folder: Optional[str] = None):
     """
     获取可视化证据数据
+    
+    Args:
+        task_id: 任务ID
+        folder: 可选的文件夹名称 (如 "batch_1")
     """
     output_dir = get_output_dir()
-    task_dir = output_dir / task_id
+    
+    # 确定任务目录
+    if folder:
+        task_dir = output_dir / folder / task_id
+    else:
+        task_dir = output_dir / task_id
+        # 如果根目录不存在，搜索 batch_N 子目录
+        if not task_dir.exists():
+            for subdir in output_dir.iterdir():
+                if subdir.is_dir() and subdir.name.startswith("batch_"):
+                    candidate = subdir / task_id
+                    if candidate.exists():
+                        task_dir = candidate
+                        break
+    
     prep_dir = task_dir / ".ama" / "prep"
     
     # 从 task_id 中提取基础名称（去掉时间戳）
