@@ -10,6 +10,8 @@ from typing import List, Optional, Dict, Any
 
 import litellm
 
+from core.utils.token_tracker import add_litellm_usage
+
 from core.config import get_settings
 from core.skills import load_skill_config
 from core.prompts.iterative_prompts import (
@@ -197,6 +199,9 @@ class IterativeEvaluator:
                 response_format={"type": "json_object"}
             )
             
+            # 统计 Token 使用
+            add_litellm_usage(response)
+            
             content = response.choices[0].message.content.strip()
             content = self._clean_thinking_content(content)
             
@@ -265,6 +270,9 @@ class IterativeEvaluator:
                 max_tokens=8096,  # 给评分分析留足空间
                 response_format={"type": "json_object"}  # 强制 JSON 输出
             )
+            
+            # 统计 Token 使用
+            add_litellm_usage(response)
             
             content = response.choices[0].message.content.strip()
             content = self._clean_thinking_content(content)
@@ -339,6 +347,9 @@ class IterativeEvaluator:
                 temperature=0.3,  # 稍高温度以获得更丰富的推理
                 max_tokens=16384, # 最终报告需要生成详细的 CoT，证据多时需要更大空间
             )
+            
+            # 统计 Token 使用
+            add_litellm_usage(response)
             
             content = response.choices[0].message.content.strip()
             content = self._clean_thinking_content(content)

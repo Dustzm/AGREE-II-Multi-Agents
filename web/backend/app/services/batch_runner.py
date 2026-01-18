@@ -40,10 +40,11 @@ class BatchTask:
     current_step: Optional[str] = None   # 当前执行步骤
     result_task_id: Optional[str] = None # 执行后生成的 task_id
     first_round_task_id: Optional[str] = None  # 第一轮生成的 task_id（多轮实验复用）
+    token_usage: Optional[dict] = None   # Token 使用统计
     
     def to_dict(self) -> dict:
         """转换为字典"""
-        return {
+        result = {
             "id": self.id,
             "pdf_path": self.pdf_path,
             "status": self.status.value,
@@ -55,6 +56,9 @@ class BatchTask:
             "result_task_id": self.result_task_id,
             "first_round_task_id": self.first_round_task_id,
         }
+        if self.token_usage:
+            result["token_usage"] = self.token_usage
+        return result
 
 
 
@@ -152,6 +156,16 @@ class BatchRunner:
             return
 
         try:
+            # 计算总 token 消耗
+            total_prompt_tokens = 0
+            total_response_tokens = 0
+            total_tokens = 0
+            for task in self._tasks.values():
+                if task.token_usage:
+                    total_prompt_tokens += task.token_usage.get("prompt_token_count", 0)
+                    total_response_tokens += task.token_usage.get("response_token_count", 0)
+                    total_tokens += task.token_usage.get("total_token_count", 0)
+            
             state = {
                 "metadata": {
                     "session_id": self._session_id,
@@ -167,8 +181,14 @@ class BatchRunner:
                     "running": self._running,
                     "cancelled": self._cancelled
                 },
+                "token_usage": {
+                    "total_prompt_tokens": total_prompt_tokens,
+                    "total_response_tokens": total_response_tokens,
+                    "total_tokens": total_tokens
+                },
                 "tasks": [task.to_dict() for task in self._tasks.values()]
             }
+
 
             # 原子写入：先写临时文件，再重命名
             if not self._state_file_path:
@@ -490,9 +510,18 @@ class BatchRunner:
         else:
             task.status = TaskStatus.DONE
             task.current_step = "已完成"
+            # 获取并保存 token 使用统计
+            token_usage = runner.get_token_usage()
+            if token_usage:
+                task.token_usage = {
+                    "prompt_token_count": token_usage.get("prompt_token_count", 0),
+                    "response_token_count": token_usage.get("response_token_count", 0),
+                    "total_token_count": token_usage.get("total_token_count", 0),
+                }
 
         self.on_update(task)
         self._save_state()  # 保存最终状态
+
 
 
 # 全局单例

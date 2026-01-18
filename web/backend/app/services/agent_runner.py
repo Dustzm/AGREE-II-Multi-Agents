@@ -57,10 +57,20 @@ class AppraisalRunner:
         # 用于 WebSocket 发送的回调（在 run 中设置）
         self._on_item_progress = None
         self._on_batch_summary = None
+        
+        # Token 使用统计
+        self._token_tracker = None
+        self._weaver_dir = None  # 保存路径
     
     def cancel(self):
         """取消当前任务"""
         self._cancelled = True
+    
+    def get_token_usage(self) -> dict:
+        """获取当前任务的 token 使用统计"""
+        if self._token_tracker:
+            return self._token_tracker.to_dict()
+        return {}
     
     async def run(self, task_id: str, pdf_path: str, reuse_task_id: Optional[str] = None):
         """
@@ -338,6 +348,11 @@ class AppraisalRunner:
                 parts=[types.Part(text=prompt)]
             )
             
+            # 初始化 Token 统计
+            from core.utils.token_tracker import TokenUsageTracker
+            self._token_tracker = TokenUsageTracker(task_id=actual_task_id)
+            self._weaver_dir = Path(task_result["paths"]["weaver_dir"]) if not reuse_task_id else Path(prep_dir).parent
+            
             # 跟踪当前智能体和调用状态（已移除 Initiator）
             current_agent = "Orchestrator"
             agent_progress = {
@@ -357,6 +372,10 @@ class AppraisalRunner:
             ):
                 if self._cancelled:
                     break
+                
+                # 捕获 token 使用统计
+                if hasattr(event, 'usage_metadata') and event.usage_metadata:
+                    self._token_tracker.add_usage(event.usage_metadata)
                 
                 # 处理事件内容
                 if hasattr(event, 'content') and event.content:
@@ -462,6 +481,12 @@ class AppraisalRunner:
             
             if not self._cancelled:
                 self.on_agent("Reporter", t("agent.report_done", self.lang), 3, 3)
+                
+                # 保存 Token 统计到 .ama/token_usage.json
+                if self._token_tracker and self._weaver_dir:
+                    token_usage_path = self._weaver_dir / "token_usage.json"
+                    self._token_tracker.save(token_usage_path)
+                
                 self.on_complete(actual_task_id)
         
         except Exception as e:
