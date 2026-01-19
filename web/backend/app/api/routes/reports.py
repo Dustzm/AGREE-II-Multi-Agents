@@ -45,6 +45,26 @@ class DomainScore(BaseModel):
     evaluated_count: int
 
 
+class ReasonItem(BaseModel):
+    """单条评分理由"""
+    point: str
+    explanation: str
+    evidence_refs: List[int] = []
+
+
+class StructuredReasoning(BaseModel):
+    """结构化推理"""
+    summary: str
+    reasons: List[ReasonItem]
+    score_justification: str
+
+
+class ScoringPrincipleItem(BaseModel):
+    """评分准则条目"""
+    range: str
+    condition: str
+
+
 class ItemEvaluation(BaseModel):
     """条目评价详情"""
     item_id: str
@@ -53,8 +73,11 @@ class ItemEvaluation(BaseModel):
     score: Optional[int]
     step1_locate: Optional[str]
     step2_evidence: Optional[List[str]]
-    step3_reasoning: Optional[str]
+    # TODO [COMPAT] step3_reasoning 支持新旧两种格式，后续清理
+    step3_reasoning: Optional[Any] = None  # str | StructuredReasoning
     evaluated_at: Optional[str]
+    scoring_principle: Optional[List[ScoringPrincipleItem]] = None  # 评分准则
+    evidence_sources: Optional[List[str]] = None  # chunk_id 列表，用于原文定位
 
 
 class ReportDetail(BaseModel):
@@ -248,18 +271,41 @@ async def get_report(task_id: str, folder: Optional[str] = None):
     # 从 evaluations 目录加载条目评价详情
     evaluations = load_evaluations(task_dir)
     item_evaluations = []
+    
+    # 延迟导入 skill 加载器
+    from core.skills import load_skill_config
+    
     for eval_data in evaluations:
         cot = eval_data.get("chain_of_thought", {})
         metadata = eval_data.get("metadata", {})
+        item_id = eval_data.get("item_id", "")
+        
+        # 加载该 item 的评分准则
+        scoring_principle = None
+        try:
+            skill_config = load_skill_config(item_id, check_enabled=False)
+            raw_principles = skill_config.get("scoring_principle", [])
+            scoring_principle = [
+                ScoringPrincipleItem(
+                    range=str(sp.get("range", "")),
+                    condition=sp.get("condition", sp.get("condition_zh", ""))
+                )
+                for sp in raw_principles
+            ]
+        except Exception:
+            pass  # 加载失败则忽略
+        
         item_evaluations.append(ItemEvaluation(
-            item_id=eval_data.get("item_id", ""),
+            item_id=item_id,
             domain=eval_data.get("domain", 0),
             title=eval_data.get("title", ""),
             score=cot.get("score"),
             step1_locate=cot.get("step1_locate"),
             step2_evidence=cot.get("step2_evidence"),
-            step3_reasoning=cot.get("step3_reasoning"),
-            evaluated_at=metadata.get("evaluated_at")
+            step3_reasoning=cot.get("step3_reasoning"),  # 兼容新旧格式
+            evaluated_at=metadata.get("evaluated_at"),
+            scoring_principle=scoring_principle,
+            evidence_sources=eval_data.get("evidence_sources")
         ))
     
     return ReportDetail(
@@ -344,5 +390,104 @@ async def get_pdf_file(task_id: str):
         path=str(pdf_path),
         media_type="application/pdf",
         filename=pdf_filename
+    )
+
+
+class EvidenceLocationRequest(BaseModel):
+    """证据定位请求"""
+    evidence_texts: Optional[List[str]] = None  # 证据文本列表（备选）
+    chunk_ids: Optional[List[str]] = None  # 优先使用 chunk_id 匹配
+
+
+class EvidenceMatch(BaseModel):
+    """证据匹配结果"""
+    page_idx: int
+    bbox: List[float]  # [x1, y1, x2, y2] 归一化坐标
+    text_preview: str
+    chunk_id: Optional[str] = None
+
+
+class EvidenceLocationResponse(BaseModel):
+    """证据定位响应"""
+    matches: List[EvidenceMatch]
+    total: int
+
+
+@router.post("/reports/{task_id}/evidence_location")
+async def get_evidence_location(
+    task_id: str, 
+    request: EvidenceLocationRequest,
+    folder: Optional[str] = None
+):
+    """
+    根据 chunk_id 或证据文本查找 PDF 中的位置
+    
+    优先使用 chunk_ids 进行精确匹配，若未提供则回退到文本匹配
+    """
+    output_dir = get_output_dir()
+    
+    # 确定任务目录
+    if folder:
+        task_dir = output_dir / folder / task_id
+    else:
+        task_dir = output_dir / task_id
+        if not task_dir.exists():
+            for subdir in output_dir.iterdir():
+                if subdir.is_dir() and subdir.name.startswith("batch_"):
+                    candidate = subdir / task_id
+                    if candidate.exists():
+                        task_dir = candidate
+                        break
+    
+    # 加载 visual_evidence.json
+    prep_dir = task_dir / ".ama" / "prep"
+    base_name = task_id.rsplit("-", 1)[0]
+    visual_evidence_path = prep_dir / f"{base_name}_visual_evidence.json"
+    
+    if not visual_evidence_path.exists():
+        # 返回空结果而不是 404
+        return EvidenceLocationResponse(matches=[], total=0)
+    
+    try:
+        with open(visual_evidence_path, "r", encoding="utf-8") as f:
+            visual_data = json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取可视化证据失败: {e}")
+    
+    matches = []
+    
+    # 优先使用 chunk_ids 匹配
+    if request.chunk_ids:
+        chunk_set = set(request.chunk_ids)
+        for page in visual_data.get("pages", []):
+            for region in page.get("regions", []):
+                if region.get("chunk_id") in chunk_set:
+                    matches.append(EvidenceMatch(
+                        page_idx=page.get("page_idx", 0),
+                        bbox=region.get("bbox", [0, 0, 1, 1]),
+                        text_preview=region.get("text_preview", "")[:100],
+                        chunk_id=region.get("chunk_id")
+                    ))
+    
+    # 若 chunk_ids 无匹配，回退到文本匹配
+    elif request.evidence_texts:
+        for evidence_text in request.evidence_texts:
+            if not evidence_text:
+                continue
+            search_text = evidence_text[:50].lower()
+            for page in visual_data.get("pages", []):
+                for region in page.get("regions", []):
+                    text_preview = region.get("text_preview", "").lower()
+                    if search_text in text_preview or text_preview in search_text:
+                        matches.append(EvidenceMatch(
+                            page_idx=page.get("page_idx", 0),
+                            bbox=region.get("bbox", [0, 0, 1, 1]),
+                            text_preview=region.get("text_preview", "")[:100],
+                            chunk_id=region.get("chunk_id")
+                        ))
+    
+    return EvidenceLocationResponse(
+        matches=matches,
+        total=len(matches)
     )
 

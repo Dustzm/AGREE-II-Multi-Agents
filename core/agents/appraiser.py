@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 import litellm
+from pydantic import BaseModel, Field
 
 from core.utils.token_tracker import add_litellm_usage
 
@@ -25,6 +26,32 @@ from core.preprocessor.pojo import SemanticChunk
 from .tools.public_tools import get_task_paths
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Pydantic Schema 定义 - 强制 LLM 输出结构
+# ============================================================================
+
+class ReasonItem(BaseModel):
+    """单个评分理由"""
+    point: str = Field(description="评分要点名称")
+    explanation: str = Field(description="详细解释")
+    evidence_chunks: List[str] = Field(default_factory=list, description="相关的 chunk_id 列表")
+
+
+class StructuredReasoning(BaseModel):
+    """结构化推理"""
+    summary: str = Field(description="一句话总结")
+    reasons: List[ReasonItem] = Field(description="分条理由列表")
+    score_justification: str = Field(description="评分判定理由")
+
+
+class FinalReportOutput(BaseModel):
+    """最终报告输出 Schema"""
+    step1_locate: str = Field(description="证据来源位置描述")
+    step3_reasoning: StructuredReasoning = Field(description="结构化推理")
+
+
 
 
 class IterativeEvaluator:
@@ -339,13 +366,20 @@ class IterativeEvaluator:
         )
         
         try:
+            # 使用 Pydantic Schema 强制输出结构
+            system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
+            
             response = litellm.completion(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.3,  # 稍高温度以获得更丰富的推理
-                max_tokens=16384, # 最终报告需要生成详细的 CoT，证据多时需要更大空间
+                temperature=0.3,
+                max_tokens=16384,
+                response_format=FinalReportOutput  # 使用 Pydantic Schema 强制验证
             )
             
             # 统计 Token 使用
@@ -355,37 +389,31 @@ class IterativeEvaluator:
             content = self._clean_thinking_content(content)
             logger.debug(f"LLM 原始输出: {content[:500]}...")
             
-            # 解析 JSON - 增强容错性
-            # 移除 markdown 代码块
+            # 解析 JSON 并验证结构
+            import re
+            # 移除可能的 markdown 代码块
             if "```json" in content:
                 content = content.split("```json")[1]
                 if "```" in content:
                     content = content.split("```")[0]
-            elif content.startswith("```"):
-                content = content.split("\n", 1)[1]
-                if content.endswith("```"):
-                    content = content[:-3]
             content = content.strip()
             
             # 尝试提取 JSON 对象
-            import re
             json_match = re.search(r'\{[\s\S]*\}', content)
             if json_match:
                 content = json_match.group(0)
             
+            cot = json.loads(content)
+            
+            # 使用 Pydantic 验证结构，确保字段完整
             try:
-                cot = json.loads(content)
-            except json.JSONDecodeError as e:
-                logger.warning(f"JSON 解析失败: {e}, 原始内容: {content}...")
-                # 尝试从文本中提取 reasoning
-                reasoning_match = re.search(r'step3_reasoning["\s:]+([^"]*"[^"]+"|[^\n,}]+)', content)
-                if reasoning_match:
-                    cot = {
-                        "step1_locate": f"证据来自以下章节: {', '.join(self.evidence_sources)}",
-                        "step3_reasoning": reasoning_match.group(1).strip().strip('"')
-                    }
-                else:
-                    raise e
+                validated = FinalReportOutput.model_validate(cot)
+                step3_reasoning = validated.step3_reasoning.model_dump()
+                step1_locate = validated.step1_locate
+            except Exception as validation_error:
+                logger.warning(f"Schema 验证失败，使用原始数据: {validation_error}")
+                step3_reasoning = cot.get("step3_reasoning", "")
+                step1_locate = cot.get("step1_locate", f"证据来自以下章节: {', '.join(self.evidence_sources)}")
             
             return {
                 "status": "success",
@@ -393,9 +421,9 @@ class IterativeEvaluator:
                 "domain": self.domain_id,
                 "title": self.skill_config.get("title", ""),
                 "chain_of_thought": {
-                    "step1_locate": cot.get("step1_locate", f"证据来自以下章节: {', '.join(self.evidence_sources)}"),
+                    "step1_locate": step1_locate,  # 使用已验证的变量
                     "step2_evidence": self.evidence_cache,
-                    "step3_reasoning": cot.get("step3_reasoning", ""),
+                    "step3_reasoning": step3_reasoning,  # 已验证的结构化 dict
                     "score": self.current_score,
                 },
                 "evidence_sources": self.evidence_sources,
@@ -405,6 +433,10 @@ class IterativeEvaluator:
                     "early_stopped": self.current_score == 7,
                 },
             }
+            
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON 解析失败: {e}, 使用简化报告")
+            return self._simple_report()
             
         except Exception as e:
             logger.warning(f"报告生成失败: {e}, 使用简化报告")

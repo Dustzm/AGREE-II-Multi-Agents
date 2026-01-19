@@ -100,33 +100,39 @@ FINAL_REPORT_PROMPT = """# Final Evaluation Report
 |-------------|-----------|
 {scoring_table}
 
-## Accumulated Evidence
-{evidence_cache}
-
-## Evidence Sources
-{evidence_sources}
+## Accumulated Evidence (each labeled with its chunk_id)
+{evidence_cache_indexed}
 
 ## Final Score
 {final_score}
 
 ## Task
-Generate a complete Chain-of-Thought (CoT) evaluation report with the following structure:
-
-1. **Location Information** (step1_locate): Describe which sections/chapters the evidence came from
-2. **Evidence Summary** (step2_evidence): List the key quotes extracted as evidence
-3. **Reasoning Process** (step3_reasoning): Provide a detailed explanation that includes:
-   - How the evidence matches (or fails to match) each scoring condition
-   - Why the final score was chosen over other possible scores
+Generate a structured evaluation report with clear, itemized reasoning.
 
 ## Output Format
-Return a JSON object:
+Return a JSON object with this EXACT structure:
 {{
-    "step1_locate": "Description of evidence locations...",
-    "step2_evidence": ["quote1", "quote2", ...],
-    "step3_reasoning": "Detailed explanation: The evidence addresses the scoring rubric by showing [specific content]. This matches the condition for score [N] because [reason]. Score [N-1] was not chosen because [missing element]."
+    "step1_locate": "Description of which sections/chapters the evidence came from",
+    "step3_reasoning": {{
+        "summary": "One-sentence overall assessment of this item",
+        "reasons": [
+            {{
+                "point": "Short label for this scoring aspect (e.g., 'Health Intent', 'Target Population')",
+                "explanation": "Detailed explanation of how the evidence supports or fails this aspect",
+                "evidence_chunks": ["chunk_001", "chunk_005"]  // Array of chunk_ids in format "chunk_XXX" from the evidence list above
+            }}
+        ],
+        "score_justification": "Explain why this score was chosen and why adjacent scores were not appropriate"
+    }}
 }}
 
-IMPORTANT: The step3_reasoning must explicitly reference the scoring rubric conditions and explain which condition best matches the evidence.
+## Guidelines
+1. Each item in "reasons" should address one specific aspect from the scoring rubric
+2. "evidence_chunks" must contain chunk_ids in the format "chunk_XXX" (e.g., "chunk_001", "chunk_015") - use the exact chunk_id labels shown in the evidence list, NOT numeric indices like [0] or [1]
+3. Include 2-5 reasons depending on the complexity of the scoring rubric
+4. The "score_justification" should explicitly reference the rubric conditions
+
+IMPORTANT: Return ONLY the JSON object, no additional text or markdown formatting.
 """
 
 
@@ -226,16 +232,26 @@ def render_final_report_prompt(
     Returns:
         渲染后的提示词
     """
-    evidence_text = "\n".join(f"- {e}" for e in evidence_cache) if evidence_cache else "No evidence collected."
-    sources_text = ", ".join(evidence_sources) if evidence_sources else "None"
+    # 带 chunk_id 的证据列表，便于 LLM 引用
+    # 将索引映射到对应的 chunk_id
+    if evidence_cache and evidence_sources:
+        # 为每个证据分配一个 chunk_id，如果证据数量超过 chunk_id 数量，循环使用
+        evidence_indexed_parts = []
+        for i, e in enumerate(evidence_cache):
+            chunk_id = evidence_sources[i % len(evidence_sources)] if evidence_sources else f"chunk_{i+1:03d}"
+            evidence_indexed_parts.append(f"[{chunk_id}] {e}")
+        evidence_indexed = "\n".join(evidence_indexed_parts)
+    elif evidence_cache:
+        evidence_indexed = "\n".join(f"[chunk_{i+1:03d}] {e}" for i, e in enumerate(evidence_cache))
+    else:
+        evidence_indexed = "No evidence collected."
     
     return FINAL_REPORT_PROMPT.format(
         item_id=item_id,
         domain_name=domain_name,
         title=title,
         scoring_table=scoring_table,
-        evidence_cache=evidence_text,
-        evidence_sources=sources_text,
+        evidence_cache_indexed=evidence_indexed,
         final_score=final_score,
     )
 

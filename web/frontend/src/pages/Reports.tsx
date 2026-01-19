@@ -7,11 +7,242 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download, Folder, Home, ChevronRight, Info } from 'lucide-react'
-import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo } from '@/services/api'
+import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download, Folder, Home, ChevronRight, Info, Quote, Sparkles, Scale } from 'lucide-react'
+import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo, type StructuredReasoning, type ItemEvaluation } from '@/services/api'
 import { cn } from '@/utils/cn'
 import { EvidenceViewer } from '@/components/EvidenceViewer'
+import { SourceDrawer } from '@/components/SourceDrawer'
 // import { exportToPdf } from '@/utils/exportPdf'
+
+
+// ============================================================================
+// ItemEvaluationCard 组件 - 展示单个条目的评价详情
+// ============================================================================
+
+interface ItemEvaluationCardProps {
+    item: ItemEvaluation
+    onReasonClick: (chunkIds: string[], point: string, explanation?: string) => void  // 直接传递 chunk_id
+}
+
+function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
+    const { t } = useTranslation()
+
+    // 判断 step3_reasoning 是结构化格式还是旧的字符串格式
+    const isStructuredReasoning = (reasoning: unknown): reasoning is StructuredReasoning => {
+        return typeof reasoning === 'object' && reasoning !== null && 'reasons' in reasoning
+    }
+
+    const structuredReasoning = isStructuredReasoning(item.step3_reasoning) ? item.step3_reasoning : null
+    const legacyReasoning = !structuredReasoning && typeof item.step3_reasoning === 'string' ? item.step3_reasoning : null
+
+    // 获取当前评分匹配的评分准则
+    const getMatchedPrincipleIndex = (): number => {
+        if (!item.scoring_principle || item.score === null) return -1
+        for (let i = 0; i < item.scoring_principle.length; i++) {
+            const range = item.scoring_principle[i].range
+            if (range.includes('-')) {
+                const [low, high] = range.split('-').map(Number)
+                if (item.score >= low && item.score <= high) return i
+            } else if (Number(range) === item.score) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    const matchedIndex = getMatchedPrincipleIndex()
+
+    return (
+        <details className="group border border-border/50 rounded-lg overflow-hidden transition-all duration-300 open:shadow-md">
+            <summary className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors relative">
+                {/* 左侧彩色条 - 根据分数变化颜色 */}
+                <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1",
+                    item.score && item.score >= 5 ? "bg-green-500" : item.score && item.score <= 3 ? "bg-red-400" : "bg-yellow-400"
+                )} />
+
+                <span className="px-2 py-0.5 bg-muted text-muted-foreground text-xs font-mono rounded border border-border/50 ml-1">
+                    {item.item_id}
+                </span>
+                <span className="text-sm font-semibold flex-1 line-clamp-1">{item.title}</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground hidden group-open:inline-block">Score:</span>
+                    <span className={cn(
+                        "text-lg font-bold font-mono tracking-tight",
+                        item.score && item.score >= 5 ? "text-green-600" : item.score && item.score <= 3 ? "text-red-500" : "text-yellow-600"
+                    )}>
+                        {item.score !== null ? `${item.score}` : '-'}
+                        <span className="text-sm font-normal text-muted-foreground/60 ml-0.5">/7</span>
+                    </span>
+                </div>
+            </summary>
+
+            <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-4">
+                {/* 评分准则 - 默认展开 */}
+                {/* 评分准则 - 默认展开 */}
+                {item.scoring_principle && item.scoring_principle.length > 0 && (
+                    <div className="bg-white/40 rounded-lg p-3 border border-border/30">
+                        <h4 className="text-[11px] font-bold text-muted-foreground/60 uppercase tracking-wider mb-2 flex items-center gap-1.5 pl-1">
+                            <FileBarChart className="h-3 w-3" />
+                            {t('reports.scoring.criteria')}
+                        </h4>
+                        <div className="space-y-0.5">
+                            {item.scoring_principle.map((sp, idx) => (
+                                <div
+                                    key={idx}
+                                    className={cn(
+                                        "flex items-start gap-3 px-3 py-2.5 text-xs transition-all relative overflow-hidden",
+                                        matchedIndex === idx
+                                            ? "bg-slate-100/80 text-foreground rounded-r-md border-l-[3px] border-primary font-medium"
+                                            : "text-muted-foreground/70 hover:bg-muted/30 rounded-md hover:text-muted-foreground"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "font-mono shrink-0 w-8 text-center pt-0.5",
+                                        matchedIndex === idx ? "text-primary font-bold" : "opacity-80"
+                                    )}>
+                                        {sp.range}
+                                    </span>
+                                    <span className={cn(
+                                        "flex-1 leading-relaxed",
+                                        matchedIndex === idx ? "" : ""
+                                    )}>
+                                        {sp.condition}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 结构化推理理由 - 新格式 */}
+                {structuredReasoning && (
+                    <div className="space-y-4">
+                        {/* 总结 - 优化视觉 */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50/80 to-purple-50/60 rounded-xl p-4 border border-indigo-100/50 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+                            <div className="absolute top-0 right-0 p-3 opacity-10">
+                                <Quote className="h-16 w-16 text-indigo-900 rotate-12" />
+                            </div>
+                            <div className="relative flex gap-3">
+                                <div className="shrink-0 mt-0.5">
+                                    <div className="h-8 w-8 rounded-full bg-indigo-100/80 flex items-center justify-center text-indigo-600">
+                                        <Sparkles className="h-4 w-4" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <h4 className="text-xs font-bold text-indigo-900/50 uppercase tracking-wider">Evaluation Summary</h4>
+                                    <p className="text-sm font-medium text-slate-700 leading-relaxed">
+                                        {structuredReasoning.summary}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 分条理由 - 可点击 */}
+                        <div className="space-y-2">
+                            {structuredReasoning.reasons.map((reason, idx) => {
+                                // 优先使用 evidence_chunks，兼容旧版 evidence_refs
+                                const hasEvidence = (reason.evidence_chunks && reason.evidence_chunks.length > 0) ||
+                                    (reason.evidence_refs && reason.evidence_refs.length > 0)
+                                const chunkIds = reason.evidence_chunks ||
+                                    (reason.evidence_refs ? item.evidence_sources?.slice(0, reason.evidence_refs.length) : []) ||
+                                    []
+
+                                return (
+                                    <div
+                                        key={idx}
+                                        onClick={() => {
+                                            if (chunkIds.length > 0) {
+                                                onReasonClick(chunkIds, reason.point, reason.explanation)
+                                            }
+                                        }}
+                                        className={cn(
+                                            "bg-white rounded-lg border border-border/40 transition-all shadow-sm relative overflow-hidden",
+                                            hasEvidence
+                                                ? "cursor-pointer hover:border-primary/40 hover:shadow-md hover:-translate-y-0.5 group/reason"
+                                                : "opacity-80"
+                                        )}
+                                    >
+                                        {/* 左侧装饰条 */}
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-400/20 to-transparent" />
+
+                                        <div className="p-3.5">
+                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-5 w-5 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+                                                        <div className="h-2 w-2 rounded-full bg-blue-500" />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-slate-800">
+                                                        {reason.point}
+                                                    </span>
+                                                    {/* 验证提示 - 移至标题旁，更紧凑 */}
+                                                    {hasEvidence && (
+                                                        <span className="flex items-center gap-1 text-[10px] text-primary/60 font-medium uppercase tracking-wide opacity-0 group-hover/reason:opacity-100 transition-opacity ml-2">
+                                                            <Eye className="h-3 w-3" />
+                                                            Verify
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* 证据引用标记 - 论文风格 */}
+                                                {hasEvidence && (
+                                                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500 border border-slate-200 group-hover/reason:bg-primary/5 group-hover/reason:text-primary group-hover/reason:border-primary/20 transition-colors">
+                                                        <Quote className="h-3 w-3 rotate-180" />
+                                                        <span>{chunkIds.length} Citations</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <p className="text-sm text-slate-600 pl-7 leading-relaxed mb-1">
+                                                {reason.explanation}
+                                            </p>
+
+
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        {/* 评分判定理由 - 优化为专家评语风格 */}
+                        <div className="bg-slate-50 rounded-lg p-4 border border-slate-200/60 mt-2 relative overflow-hidden group/justify">
+                            <div className="flex items-center gap-2 mb-2 text-slate-500">
+                                <Scale className="h-4 w-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">{t('reports.scoring.justification')}</span>
+                            </div>
+                            <div className="relative pl-6">
+                                <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-slate-300/50 rounded-full" />
+                                <p className="text-sm text-slate-700 leading-relaxed font-serif italic selection:bg-slate-200">
+                                    {structuredReasoning.score_justification}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* TODO [COMPAT] 旧格式推理 - 兼容旧数据，后续清理 */}
+                {legacyReasoning && (
+                    <div>
+                        <h4 className="text-xs font-medium text-muted-foreground mb-1">
+                            {t('reports.detail.scoringReason')}
+                        </h4>
+                        <p className="text-sm bg-white/60 p-3 rounded border border-border/30">
+                            {legacyReasoning}
+                        </p>
+                    </div>
+                )}
+
+                {/* 评价时间 */}
+                {item.evaluated_at && (
+                    <p className="text-xs text-muted-foreground/50 text-right">
+                        {t('reports.detail.evaluatedAt')} {new Date(item.evaluated_at).toLocaleString()}
+                    </p>
+                )}
+            </div>
+        </details>
+    )
+}
+
 
 export function Reports() {
     const { t } = useTranslation()
@@ -25,6 +256,12 @@ export function Reports() {
     const [detailTab, setDetailTab] = useState<'score' | 'evidence'>('score')
     // const [exporting, setExporting] = useState(false)
     const reportContentRef = useRef<HTMLDivElement>(null)
+
+    // 原文查看抽屉状态
+    const [sourceDrawerOpen, setSourceDrawerOpen] = useState(false)
+    const [sourceDrawerChunkIds, setSourceDrawerChunkIds] = useState<string[]>([])
+    const [sourceDrawerReasonPoint, setSourceDrawerReasonPoint] = useState<string>('')
+    const [sourceDrawerReasonExplanation, setSourceDrawerReasonExplanation] = useState<string>('')
 
     // 加载报告列表
     const loadReports = useCallback(async (folder?: string | null) => {
@@ -369,55 +606,31 @@ export function Reports() {
                                                 return numA - numB
                                             })
                                             .map((item) => (
-                                                <details key={item.item_id} className="group border border-border/50 rounded-lg overflow-hidden">
-                                                    <summary className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                                                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
-                                                            {item.item_id}
-                                                        </span>
-                                                        <span className="text-sm font-medium flex-1 line-clamp-1">{item.title}</span>
-                                                        <span className={cn(
-                                                            "font-semibold",
-                                                            item.score && item.score >= 5 ? "text-green-600" : "text-yellow-600"
-                                                        )}>
-                                                            {item.score !== null ? `${item.score}/7` : 'N/A'}
-                                                        </span>
-                                                    </summary>
-                                                    <div className="px-4 pb-4 pt-2 border-t border-border/30 bg-muted/20 space-y-3">
-                                                        {item.step1_locate && (
-                                                            <div>
-                                                                <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.evidenceLocation')}</h4>
-                                                                <p className="text-sm">{item.step1_locate}</p>
-                                                            </div>
-                                                        )}
-                                                        {item.step2_evidence && item.step2_evidence.length > 0 && (
-                                                            <div>
-                                                                <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.quotedEvidence')}</h4>
-                                                                <ul className="space-y-1">
-                                                                    {item.step2_evidence.map((e, i) => (
-                                                                        <li key={i} className="text-sm text-muted-foreground bg-white/50 p-2 rounded border-l-2 border-primary/30">
-                                                                            {e}
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                        {item.step3_reasoning && (
-                                                            <div>
-                                                                <h4 className="text-xs font-medium text-muted-foreground mb-1">{t('reports.detail.scoringReason')}</h4>
-                                                                <p className="text-sm">{item.step3_reasoning}</p>
-                                                            </div>
-                                                        )}
-                                                        {item.evaluated_at && (
-                                                            <p className="text-xs text-muted-foreground/50 text-right">
-                                                                {t('reports.detail.evaluatedAt')} {new Date(item.evaluated_at).toLocaleString()}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </details>
+                                                <ItemEvaluationCard
+                                                    key={item.item_id}
+                                                    item={item}
+                                                    onReasonClick={(chunkIds, point, explanation) => {
+                                                        setSourceDrawerChunkIds(chunkIds)
+                                                        setSourceDrawerReasonPoint(point)
+                                                        setSourceDrawerReasonExplanation(explanation || '')
+                                                        setSourceDrawerOpen(true)
+                                                    }}
+                                                />
                                             ))}
                                     </div>
                                 </div>
                             )}
+
+                            {/* 原文查看抽屉 */}
+                            <SourceDrawer
+                                isOpen={sourceDrawerOpen}
+                                onClose={() => setSourceDrawerOpen(false)}
+                                taskId={selectedReport.task_id}
+                                folder={currentFolder}
+                                chunkIds={sourceDrawerChunkIds}
+                                reasonPoint={sourceDrawerReasonPoint}
+                                reasonExplanation={sourceDrawerReasonExplanation}
+                            />
                         </div>
                     )
                 }

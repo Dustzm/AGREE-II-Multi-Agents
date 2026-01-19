@@ -89,6 +89,25 @@ export interface ItemDetail {
     reasoning_summary: string | null
 }
 
+// 结构化推理相关类型
+export interface ReasonItem {
+    point: string
+    explanation: string
+    evidence_chunks: string[]  // chunk_id 数组，直接用于原文定位
+    evidence_refs?: number[]   // TODO [COMPAT] 兼容旧格式，后续清理
+}
+
+export interface StructuredReasoning {
+    summary: string
+    reasons: ReasonItem[]
+    score_justification: string
+}
+
+export interface ScoringPrincipleItem {
+    range: string
+    condition: string
+}
+
 export interface ItemEvaluation {
     item_id: string
     domain: number
@@ -96,8 +115,11 @@ export interface ItemEvaluation {
     score: number | null
     step1_locate: string | null
     step2_evidence: string[] | null
-    step3_reasoning: string | null
+    // TODO [COMPAT] 支持新旧两种格式，后续清理
+    step3_reasoning: string | StructuredReasoning | null
     evaluated_at: string | null
+    scoring_principle: ScoringPrincipleItem[] | null  // 评分准则
+    evidence_sources: string[] | null  // chunk_id 列表，用于原文定位
 }
 
 export interface ReportDetail {
@@ -114,6 +136,19 @@ export interface ReportDetail {
     item_evaluations: ItemEvaluation[]
     total_raw_score?: number  // 总分（所有条目原始分数总和）
     overall_quality_score?: number  // 总体质量评分 (1-7)
+}
+
+// 证据定位相关类型
+export interface EvidenceMatch {
+    page_idx: number
+    bbox: number[]
+    text_preview: string
+    chunk_id: string | null
+}
+
+export interface EvidenceLocationResponse {
+    matches: EvidenceMatch[]
+    total: number
 }
 
 export const api = {
@@ -228,6 +263,30 @@ export const api = {
         const response = await fetch(url)
         if (!response.ok) {
             throw new Error('健康检查失败')
+        }
+        return response.json()
+    },
+
+    // 获取证据在 PDF 中的位置
+    async getEvidenceLocation(
+        taskId: string,
+        options: {
+            evidenceTexts?: string[]
+            chunkIds?: string[]
+        },
+        folder?: string
+    ): Promise<EvidenceLocationResponse> {
+        const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
+        const response = await fetch(`${API_BASE}/reports/${taskId}/evidence_location${params}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                evidence_texts: options.evidenceTexts,
+                chunk_ids: options.chunkIds
+            }),
+        })
+        if (!response.ok) {
+            throw new Error('获取证据位置失败')
         }
         return response.json()
     }

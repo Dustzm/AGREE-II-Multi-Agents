@@ -171,6 +171,18 @@
         "export": {
             "pdf": "Export PDF",
             "exporting": "Exporting..."
+        },
+        "scoring": {
+            "criteria": "Scoring Criteria",
+            "viewSource": "View Source",
+            "justification": "Score Justification"
+        },
+        "source": {
+            "title": "Source View",
+            "loading": "Loading source...",
+            "noMatch": "No matching source found",
+            "match": "Match:",
+            "page": "Page"
         }
     },
     "skills": {

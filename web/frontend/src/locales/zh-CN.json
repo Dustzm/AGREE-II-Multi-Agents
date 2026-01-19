@@ -171,6 +171,18 @@
         "export": {
             "pdf": "导出 PDF",
             "exporting": "导出中..."
+        },
+        "scoring": {
+            "criteria": "评分准则",
+            "viewSource": "查看原文",
+            "justification": "评分判定"
+        },
+        "source": {
+            "title": "原文视图",
+            "loading": "加载原文中...",
+            "noMatch": "未找到匹配的原文位置",
+            "match": "匹配位置:",
+            "page": "页码"
         }
     },
     "skills": {
