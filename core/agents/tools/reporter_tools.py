@@ -31,6 +31,7 @@ def get_guideline_title(task_id: str) -> dict:
     Returns:
         dict: {"status": "success/error", "title": str, "error": str}
     """
+    logger.info(f"[Reporter] get_guideline_title 被调用, task_id={task_id}")
     try:
         paths = get_task_paths(task_id)
         if not paths:
@@ -116,6 +117,7 @@ def load_all_evaluations(task_id: str) -> dict:
             "error": str
         }
     """
+    logger.info(f"[Reporter] load_all_evaluations 被调用, task_id={task_id}")
     try:
         # 获取配置语言
         from core.config import get_ama_settings
@@ -211,6 +213,7 @@ def generate_appraisal_report(
     Returns:
         dict: {"status": "success/error", "path": str, "markdown_path": str, "error": str}
     """
+    logger.info(f"[Reporter] generate_appraisal_report 被调用, task_id={task_id}, guideline_title={guideline_title[:50] if guideline_title else 'None'}...")
     try:
         paths = get_task_paths(task_id)
         if not paths:
