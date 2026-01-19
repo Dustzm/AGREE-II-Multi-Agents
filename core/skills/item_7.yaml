@@ -10,7 +10,7 @@ description: "Details of the strategy used to search for evidence should be prov
   \ The search strategy should be as comprehensive as possible and executed in a manner\
   \ free from potential biases and sufficiently detailed to be replicated. \n"
 description_zh: 应提供检索证据的详细策略，包括使用的检索词、信息来源、文献涵盖的时间。检索策略应尽可能地便于理解和消除偏倚，并十分详尽，以便重复。
-locating_info: Check Method, Literature Search Strategy, Appendices.
+locating_info: Check Method, Literature Search Strategy, and Appendices sections.
 locating_info_zh: 查看方法、文献检索策略、附录章节。
 criteria: []
 scoring_principle:
@@ -18,20 +18,19 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: '2'
-  condition: Mention of database searching without providing specific details, for
-    example, stating that “databases were searched”
+  condition: Mention of search databases without specific information (e.g., databases
+    were searched)
   condition_zh: 提及了检索数据库但未提供具体信息，例：检索数据库
 - range: '3'
-  condition: explicit identification of the databases searched without detailed search
-    information, for example, PubMed, CNKI, etc.
+  condition: Identification of search databases without specific search information
+    (e.g., PubMed, CNKI, etc.)
   condition_zh: 明确指出了数据库但未提供具体的检索信息，例：检索数据库Pubmed，CNKI等
 - range: '4'
-  condition: explicit identification of the databases and the search terms used
+  condition: Clear database and search terms
   condition_zh: 明确指出了数据库及检索词
 - range: '5'
-  condition: explicit identification of the databases, search dates, and search terms
+  condition: Clear database, search time, search terms
   condition_zh: 明确指出了数据库、检索时间、检索词
 - range: 6-7
-  condition: explicit identification of the databases, search dates, and search terms,
-    with a complete and reproducible search strategy provided
+  condition: Clear database, search time, search terms, complete search strategy
   condition_zh: 明确指出了数据库、检索时间、检索词，并给出完整的检索策略

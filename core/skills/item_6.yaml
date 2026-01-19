@@ -8,34 +8,31 @@ title_zh: 明确规定指南的使用者。
 description: "The target users should be clearly defined in the guideline, so the\
   \ reader can immediately determine if the guideline is relevant to them. \n"
 description_zh: 指南中必须明确规定指南的适用者，以便读者迅速判断该指南是否适合他们使用。
-locating_info: Check introduction，method (target user, intended user and objective
-  user) sections.
-locating_info_zh: 查看引言、方法（适用者、预期用户、目标用户）章节。
+locating_info: Check Executive Summary, Abstract, Introduction, Methodology sections.
+locating_info_zh: 查看执行摘要、摘要、引言、方法章节。
 criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: '2'
-  condition: Vague mention of the intended guideline users (e.g., clinicians, patients,
-    clinical or institutional leaders/managers) , or vague description of how the
-    guideline should be used
+  condition: Vague statement the guideline users (e.g., clinicians, patients, clinical
+    or institutional leaders/managers), or vague statement of how the guideline should
+    be used
   condition_zh: 模糊提及指南的使用者（如临床医生、患者、临床或机构领导/管理者），或模糊说明应如何使用该指南
 - range: 3-4
-  condition: Clear identification of the intended guideline users (e.g., endocrinologists,
-    patients with hypertension) or a clear description of how the guideline should
-    be used (e.g., to inform clinical decision-making, policy formulation, or standards
+  condition: Clear statement of intended guideline users (e.g., endocrinologists,
+    patients with hypertension) or clear statement of how the guideline should be
+    used (e.g., to inform clinical decision-making, policy formulation, or standards
     of care)
   condition_zh: 清晰提及了指南的使用者（如内分泌科医生、高血压患者），或清晰说明了应如何使用该指南，（如告知临床决策、政策或护理标准）
 - range: '5'
-  condition: Vague identification of both the intended guideline users and the intended
-    use of the guideline
+  condition: Vague statement of users and how they should use the guideline
   condition_zh: 模糊地既提及了指南的使用者，且模糊地说明了应如何使用该指南
 - range: '6'
-  condition: Identification of both the intended guideline users and the intended
-    use of the guideline, with one described clearly and the other only vaguely
+  condition: Statement of both the users and the intended use of the guideline, with
+    one described clearly and the other vaguely
   condition_zh: 既提及了指南的使用者，又说明了应如何使用该指南，但一个清晰一个模糊
 - range: '7'
-  condition: Clear identification of both the intended guideline users and a clear
-    description of how the guideline should be used
+  condition: Clear statement of users and how they should use the guideline
   condition_zh: 清晰地既提及了指南的使用者，又清晰地说明了应如何使用该指南

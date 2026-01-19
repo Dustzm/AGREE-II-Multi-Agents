@@ -9,29 +9,29 @@ title_zh: 指南开发小组成员的利益冲突要记载并公布。
 description: 'There should be an explicit statement that all group members have declared
   whether they have any competing interests. '
 description_zh: 必须明确指出参与指南开发小组的所有成员都应声明他们是否存在利益冲突。
-locating_info: Check Competing Interests, Guideline Group sectons.
-locating_info_zh: 查看利益冲突、指南小组章节。
+locating_info: Check Conflicts of interest, Declarations, Acknowledgement, Appendices
+  sections
+locating_info_zh: 查看利益冲突、声明、致谢、附件章节。
 criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-4
-  condition: Competing interests are mentioned, but the information is incomplete
-    (e.g., only the collection method is reported, or only the presence or absence
-    of conflicts is stated)
+  condition: Mention of competing interests with incomplete information.(e.g., only
+    the collection method is reported, or only the presence or absence of conflicts
+    is stated)
   condition_zh: 提及了利益冲突，但信息不完整（如仅说明有收集方法或仅说明有/无冲突）
 - range: '7'
-  condition: Competing interests are fully reported and it is stated that no conflicts
-    exist
+  condition: Collection method for competing interests, report of competing interests,
+    description of no influence
   condition_zh: 完整报告了利益冲突，并说明无冲突
 - range: 5-6
-  condition: Competing interests are fully reported (including collection methods
-    and specific conflicts), but when conflicts are present, no information is provided
-    on their influence or management
+  condition: Provided fully competing interests (including collection methods and
+    report of competing interests), but omitted information on the influence or management
+    when conflicts are present
   condition_zh: 完整报告了利益冲突（包括收集方法、具体冲突情况），但在有冲突的情况下未说明其影响或处理方式
 - range: '7'
-  condition: Competing interests are fully reported, conflicts are declared, and it
-    is described how these conflicts did or did not influence the guideline development
-    process and the resulting recommendations
+  condition: Provided fully competing interests, and described how these conflicts
+    did or did not influence the guideline development process and recommendations
   condition_zh: 完整报告了利益冲突，说明有冲突，且描述了其如何（或如何未）影响指南开发及推荐

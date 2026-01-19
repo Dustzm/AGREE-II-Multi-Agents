@@ -5,11 +5,10 @@ domain_name: Clarity of Presentation
 domain_name_zh: 表达清晰性
 title: Key recommendations are easily identifiable.
 title_zh: 容易识别重要的推荐意见。
-description: "Users should be able to find the most relevant recommendations easily.\
-  \ These recommendations answer the \nmain question(s) that have been covered by\
-  \ the guideline and can be identified in different ways. For example, they can be\
-  \ summarized in a box, typed in bold, underlined or presented as flow charts or\
-  \ algorithms. "
+description: 'Users should be able to find the most relevant recommendations easily.
+  These recommendations answer the main question(s) that have been covered by the
+  guideline and can be identified in different ways. For example, they can be summarized
+  in a box, typed in bold, underlined or presented as flow charts or algorithms. '
 description_zh: '用户能容易发现最相关的推荐意见。这些推荐意见能回答指南包括的主要问题，且能以不同的方法识别。例如，可以总结在一个方框中，或是用黑体字、下划线
 
   标出，用流程图、运算式等表示。
@@ -20,23 +19,21 @@ locating_info_zh: 查看执行摘要、推荐意见章节。
 criteria: []
 scoring_principle:
 - range: '1'
-  condition: No easily identifiable recommendations are present, or recommendations
-    are embedded within narrative paragraphs without clear distinction
+  condition: No easily identifiable recommendations, or recommendations embedded in
+    paragraphs
   condition_zh: 不存在易于识别的推荐意见，或推荐意见藏于段落里
 - range: 2-3
-  condition: Recommendations are placed at the beginning or end of paragraphs but
-    are not specially marked or highlighted
+  condition: Recommendations placed at paragraph boundaries with no special formatting
   condition_zh: 推荐意见位于每段的首行或末尾，但未有特殊标识
 - range: '4'
-  condition: Recommendations are preceded by explicit labels such as “Recommendation”
-    or “Key points,” or are followed by indicators of evidence level and/or strength
+  condition: Recommendations prefaced with explicit labels (e.g., “Recommendation”
+    or “Key point”) or recommendations accompanied by quality of evidence and/or strength
     of recommendation
   condition_zh: 推荐意见前有“推荐意见/关键点：”标识，或推荐意见后有证据分级和/或推荐强度标识
 - range: 5-6
-  condition: Recommendations are visually emphasized using formatting such as bold
-    font, larger font size, or underlining
+  condition: Recommendations highlighted in bold text, larger font size, or underlined
   condition_zh: 推荐意见以加粗字体、大小字体、下划线的形式突出显示
 - range: '7'
-  condition: Recommendations are prominently presented in boxes, tables, lowcharts
-    or executive summary
+  condition: Recommendations summarized in boxes, tables, flowcharts or executive
+    summary
   condition_zh: 推荐意见以方框、表格、流程图或执行摘要的形式突出显示

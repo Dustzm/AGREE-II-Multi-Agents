@@ -10,9 +10,8 @@ description: "A clear description of the population (i.e., patients, public, etc
   \ covered by a guideline should be provided. The age range, sex, clinical description,\
   \ and comorbidity may be provided. \n"
 description_zh: 对指南涵盖的人群（患者，公众等）应有明确描述，应提供年龄范围、性别、临床类型及共病。
-locating_info: Check Abstract, Introduction, Methodology (Target Population, Patient  population,
-  Scope, Purpose, or Objectives) sections.
-locating_info_zh: 查看摘要、引言、方法学（目标人群、患者人群、范围、目的、目标）章节。
+locating_info: Check Executive Summary, Abstract, Introduction, Methodology sections.
+locating_info_zh: 查看执行摘要、摘要、引言、方法章节。
 criteria:
 - 例如，本共识结合国内外证据,对那格列奈的研究结果进行了系统回顾与总结,对如何临床合理有效应用那格列奈提出指导性建议,供临床医师参考。该篇指南的适用人群为临床医师。
 - 例如，为了便于使用者全面和快速地了解此类药物的基本知识以及在我国的临床研究和应用情况，该篇指南的适用人群为药物使用者。
@@ -21,15 +20,14 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Rough description of the target population category (e.g., “patients
-    with diabetes”)
+  condition: Rough description of the population category (e.g., patients with diabetes)
   condition_zh: 仅粗略说明目标人群类别（如“糖尿病患者”）
 - range: 4-6
   condition: Detailed description of population characteristics, including gender,
-    age, clinical status, disease severity/staging, and comorbidities
+    age, clinical status, disease severity/staging, or comorbidities
   condition_zh: 详细描述了目标人群特征（如性别、年龄、临床状态、疾病严重性/分期、伴发疾病）
 - range: '7'
   condition: Detailed description of population characteristics, including gender,
-    age, clinical status, disease severity/staging, and comorbidities and clearly
+    age, clinical status, disease severity/staging, or comorbidities, and clearly
     defined exclusion criteria
   condition_zh: 详细描述了目标人群特征（如性别、年龄、临床状态、疾病严重性/分期、伴发疾病），并明确了排除标准

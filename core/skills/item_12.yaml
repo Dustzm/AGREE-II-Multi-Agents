@@ -22,15 +22,15 @@ scoring_principle:
   condition_zh: 描述指南开发小组是如何联系和如何使用证据产生推荐意见
 - range: 4-5
   condition: Linked some recommendations to corresponding evidence descriptions or
-    evidence tables/figures, with multiple recommendations mapped to multiple evidence
-    description sections
+    evidence tables/figures (Mapped multiple recommendations to multiple corresponding
+    evidence-description paragraphs)
   condition_zh: 一些推荐意见与一些证据描述或证据图表相联系，即多条推荐意见对应多条推荐意见的证据描述段落
 - range: 6-7
   condition: Clearly linked each recommendation to its corresponding evidence description,
-    reference list, or evidence tables/figures, such that one recommendation is explicitly
-    supported by one or more specific bodies of evidence
+    reference list, or evidence tables/figures (Mapped one recommendation to one or
+    more specific evidences)
   condition_zh: 每个推荐意见与对应的证据描述或参考文献目录或证据图表相联系，即一条推荐意见准确对应一条或多条推荐意见的证据描述
 - range: 3-5
-  condition: When evidence is limited or recommendations are consensus-based, explicit
-    statements or descriptions may be scored according to their level of detail
+  condition: If evidence is lacking or recommendations are consensus-based, clear
+    statements or descriptions may be scored based on detail level
   condition_zh: 如果缺乏证据或推荐意见是基于共识得出的，可根据详细程度给予明确陈述或描述相应的分数

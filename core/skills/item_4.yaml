@@ -12,8 +12,9 @@ description: 'This item refers to the professionals who were involved at some st
   about the composition, discipline, and relevant expertise of the guideline development
   group should be provided. '
 description_zh: 该条目是关于指南开发过程中涉及到的专业人员，但不包括对指南进行外部审查的个人和目标人群代表；同时，应提供指南开发小组的组成、原则和有关专家经验方面的信息。
-locating_info: Check Methods, Group Members List, Acknowledgments and Appendices.
-locating_info_zh: 查看方法、指南小组成员名单、致谢和附件章节。
+locating_info: Check Abstract, Introduction, Methods, Group Members List, Acknowledgments
+  and Appendices.
+locating_info_zh: 查看摘要、引言、方法、指南小组成员名单、致谢和附件章节。
 criteria:
 - 指南小组成员分组包含：起草人、执笔人、指南指导委员会、临床专家组、系统评价组、秘书组、外部评审组、共识专家组、指南制订工作组等。
 scoring_principle:
@@ -21,12 +22,11 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: '2'
-  condition: rough description of the group or names only
+  condition: Rough description of the group or names only
   condition_zh: 仅对群体或人员名称进行粗略描述
 - range: 3-7
-  condition: In addition to listing names, provides detailed information on content
-    expertise/discipline/Department, content expertise, geographical location, a description
-    of the member’s role in the guideline development group, and the multidisciplinary
-    team (e.g., methodologists, clinicians, nurses, etc.), with 1 point awarded for
-    each point reported.
+  condition: In addition to listing names, provides detailed information on disciplines/professions/departments,
+    institutions, geographical locations, member’s role in the guideline development
+    group, and the multidisciplinary team (e.g., methodologists, clinicians, nurses,
+    etc.), with 1 point awarded for each point reported
   condition_zh: 提供人员名称的基础上，提供专业/学科/科室、机构、地理位置、成员在指南开发小组中的角色、提及所有领域角色（如方法学家、临床医生、护理人员等），每个1分

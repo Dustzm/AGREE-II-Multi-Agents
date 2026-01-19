@@ -5,12 +5,11 @@ domain_name: Editorial Independence
 domain_name_zh: 编辑独立性
 title: The views of the funding body have not influenced the content of the guideline.
 title_zh: 赞助单位的观点不影响指南的内容。
-description: "Many guidelines are developed with external funding (e.g., government,\
-  \ professional associations, charity organizations, pharmaceutical companies). Support\
-  \ may be in the form of financial contribution for the \ncomplete development, or\
-  \ for parts of it (e.g., printing of the guidelines). There should be an explicit\
-  \ statement that the views or interests of the funding body have not influenced\
-  \ the final recommendations. "
+description: 'Many guidelines are developed with external funding (e.g., government,
+  professional associations, charity organizations, pharmaceutical companies). Support
+  may be in the form of financial contribution for the complete development, or for
+  parts of it (e.g., printing of the guidelines). There should be an explicit statement
+  that the views or interests of the funding body have not influenced the final recommendations. '
 description_zh: "许多指南开发时使用外部赞助（比如政府，专业团体，慈善小组，制药公司）。支持可能以财政捐款的形式对整个开发进行支持，也可能是部分的（如指南的印\n\
   刷）。这将有一个明确的声明：赞助单位的观点或利益不会影响最终推荐意见的形成。 \n"
 locating_info: Check Declarations, Acknowledgement, Funding sections.
@@ -21,28 +20,27 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: '7'
-  condition: Stated that no sponsorship was received
+  condition: Statement of no sponsorship
   condition_zh: 声明无赞助
 - range: 5-6
-  condition: 'If sponsorship was provided by a non-profit organization (e.g., government
-    agencies, professional societies): reporting the funding source only'
+  condition: Provision of sponsorship source only when sponsorship comes from a non-profit
+    organization (e.g., government agencies, professional societies)
   condition_zh: 若有赞助，来源于非营利机构（政府、学会等），仅描述赞助来源
 - range: '7'
-  condition: 'If sponsorship was provided by a non-profit organization (e.g., government
-    agencies, professional societies): reporting the funding source and explicitly
-    stating that the sponsor’s views did not influence the guideline content'
+  condition: Provision of sponsorship source and indication of no influence when sponsorship
+    comes from a non-profit organization (e.g., government agencies, professional
+    societies)
   condition_zh: 若有赞助，来源于非营利机构（政府、学会等），提供赞助来源并明确声明赞助方的观点未影响指南内容
 - range: 2-3
-  condition: 'If sponsorship was provided by a for-profit organization (e.g., companies,
-    pharmaceutical firms): reporting the funding source only'
+  condition: Provision of sponsorship source only when sponsorship comes from a for-profit
+    organization (e.g., companies, pharmaceutical firms)
   condition_zh: 若有赞助，来源于营利机构（公司、药企等），仅仅描述赞助来源
 - range: 4-6
-  condition: 'If sponsorship was provided by a for-profit organization (e.g., companies,
-    pharmaceutical firms): reporting the funding source and stating that the sponsor
-    had an influence on the guideline content'
+  condition: Provision of sponsorship source and acknowledgment of sponsor influence
+    on content when sponsorship comes from a for-profit organization (e.g., companies,
+    pharmaceutical firms)
   condition_zh: 若有赞助，来源于营利机构（公司、药企等），提供赞助来源并声明赞助方对指南内容有影响
 - range: '7'
-  condition: 'If sponsorship was provided by a for-profit organization (e.g., companies,
-    pharmaceutical firms): reporting the funding source and explicitly stating that
-    the sponsor’s views did not influence the guideline content'
+  condition: Provision of sponsorship source and indication of no influence when sponsorship
+    comes from a for-profit organization (e.g., companies, pharmaceutical firms)
   condition_zh: 若有赞助，来源于营利机构（公司、药企等），提供赞助来源并明确声明赞助方的观点未影响指南内容

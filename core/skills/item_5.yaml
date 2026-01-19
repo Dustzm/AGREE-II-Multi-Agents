@@ -10,8 +10,8 @@ description: Information about target population experiences and expectations of
   care should inform the development of guidelines. There should be evidence that
   some process has taken place and that stakeholders’ views have been considered.
 description_zh: 临床指南的开发应考虑目标人群对卫生服务的体验和期望。应当有证据表明采取了某些举措并考虑了目标人群的观点。
-locating_info: Check Introduction and Method sections.
-locating_info_zh: 查看引言、方法章节。
+locating_info: Check Introduction, Method and Appendices sections.
+locating_info_zh: 查看引言、方法、附件章节。
 criteria:
 - 例如，通过正式的患者/公众咨询来决定优先项目；让目标人群参与指南开发小组；或参与指南初稿的外部评审；通过访谈目标人群或者对有关目标人群的价值观念、选择意愿及体验进行文献综述来获得相关信息。
 scoring_principle:
@@ -19,19 +19,17 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: States only that patient/public preferences were considered
+  condition: Only considered patient/public preferences
   condition_zh: 仅陈述了考虑患者/公众偏好
 - range: '4'
-  condition: Provides simple methods for collecting and eliciting patient/public preferences,
+  condition: Provides simple methods for collecting and obtaining patient/public preferences,
     such as consultations or questionnaires
   condition_zh: 提供了简单收集和获取患者/公众偏好的方法，如咨询、问卷
 - range: '5'
-  condition: Provides more comprehensive methods for collecting and eliciting patient/public
+  condition: Provides more comprehensive methods for collecting and obtaining patient/public
     preferences, such as the in-depth involvement of patient representatives in guideline
     development
   condition_zh: 提供了复杂的收集和获取患者/公众偏好的方法，如患者代表深度参与指南制订
 - range: 6-7
-  condition: Provides explicit methods for collecting and eliciting patient/public
-    preferences, and summarizes how these inputs were incorporated into the guideline
-    development process and/or informed the formulation of recommendations
+  condition: Provided collection methods, summarized, and used for guideline recommendations
   condition_zh: 提供了收集和获取患者/公众偏好的方法，并总结后用于指南开发过程和/或产生推荐意见

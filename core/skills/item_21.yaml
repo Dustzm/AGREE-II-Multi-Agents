@@ -12,8 +12,8 @@ description: 'Measuring the application of guideline recommendations can facilit
 description_zh: '测量指南推荐建议的应用有助于推荐建议的持续使用，这要求有清晰确定的并源自于指南中重要推荐建议的标准。标准可以是过程测量、行为测量、临床或健康结局的测量。
 
   '
-locating_info: Check Recommendation, Implementation sections.
-locating_info_zh: 查看推荐意见、实施章节。
+locating_info: Check Recommendations, Implementation, Appendices sections.
+locating_info_zh: 查看推荐意见、实施、附录章节。
 criteria:
 - '譬如下面监督和审计标准： HbA1c应小于8.0%。 '
 - '舒张压应小于95mmHg。 '
@@ -27,14 +27,14 @@ scoring_principle:
   condition: Vaguely mentioned without clear detail
   condition_zh: 模糊提及
 - range: 3-4
-  condition: Provided indicators or evaluation standards, or information on measurement
-    frequency or intervals
+  condition: Provision of indicators/evaluation standards, or information on measurement
+    frequency/intervals
   condition_zh: 提供了指标/评估标准，或关于测量频率/间隔的信息
 - range: 5-6
-  condition: Provided indicators or evaluation standards together with information
-    on measurement frequency or intervals
+  condition: Provision of indicators/evaluation standards, and information on measurement
+    frequency/intervals
   condition_zh: 提供了指标/评估标准，并提供了关于测量频率/间隔的信息
 - range: '7'
-  condition: Provided indicators or evaluation standards, specified measurement frequency
-    or intervals, and described how the measurements should be conducted
+  condition: Provision of indicators/evaluation standards, measurement frequency/intervals,
+    and description of how to measure
   condition_zh: 提供了指标/评估标准、测量频率/间隔以及如何测量的描述

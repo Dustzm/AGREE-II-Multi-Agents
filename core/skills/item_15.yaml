@@ -21,8 +21,7 @@ criteria:
 - 一个含糊的推荐建议的例子是：抗生素应用于异常或复杂情况下的病例。
 scoring_principle:
 - range: '1'
-  condition: Recommendation statements are vague and unclear, making it difficult
-    to determine whether they constitute a recommendation
+  condition: Vague and unclear if it is a recommendation
   condition_zh: 推荐意见表述模糊不清，无法明确是否为推荐意见
 - range: 2-3
   condition: Clearly identified as recommendations, either by specifying the population

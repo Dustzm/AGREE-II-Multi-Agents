@@ -13,24 +13,24 @@ description: 'A guideline that targets the management of a disease should consid
 description_zh: '目标为一种疾病管理的指南将考虑临床筛查、预防、诊断或治疗存在各种不同的选择，在指南中应该明确提到这些可能的选择。
 
   '
-locating_info: Check Executive summary，Recommendations, conclusion sections.
+locating_info: Check Executive summary, Recommendations, Conclusion sections.
 locating_info_zh: 查看执行摘要、推荐意见、结论章节。
 criteria:
 - '例如，对抑郁症管理包括下列治疗选择：a.TCA治疗;b.SSRI治疗;c.心理治疗;d.药理心理联合疗法。 '
 - 推荐顺序可表述为当血糖控制不达标（HbA₁₆>7.0%）时，单药治疗可选二甲双胍，二线治疗为二甲双胍+钠-葡萄糖共转运蛋白2抑制剂或胰岛素；也可直接表述为推荐二甲双胍做为一线用药或首选用药。
 scoring_principle:
 - range: '1'
-  condition: Only a single option is mentioned
+  condition: Only a single option mentioned
   condition_zh: 未提及，即仅有一种方案
 - range: 2-3
-  condition: Multiple options are presented for the same clinical issue
+  condition: Multiple options for the same issue
   condition_zh: 针对同一问题存在多个方案
 - range: 4-5
-  condition: Multiple options are presented for the same clinical issue, with descriptions
-    of the applicable populations or clinical conditions
+  condition: Multiple options for the same issue with description of suitable populations
+    or clinical status
   condition_zh: 针对同一问题存在多个方案，且对适用人群或临床状况进行描述
 - range: 6-7
-  condition: Multiple options are presented for the same clinical issue, with descriptions
-    of the applicable populations or clinical conditions, and with an explicit order
-    of preference or criteria for option selection
+  condition: Multiple options for the same issue with description of suitable populations
+    or clinical status, and with an explicit order of preference or criteria for option
+    selection
   condition_zh: 针对同一问题存在多个方案，对适用人群或临床状况进行描述，且存在推荐顺序或选择依据

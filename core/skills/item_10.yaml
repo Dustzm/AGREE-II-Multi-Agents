@@ -15,25 +15,26 @@ description_zh: '应当描述形成推荐建议的方法和如何得出最终的
   的地方和解决争议的方法。
 
   '
-locating_info: Check Method section.
-locating_info_zh: 查看方法章节。
+locating_info: Check Method and Appendices sections.
+locating_info_zh: 查看方法、附录章节。
 criteria: []
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Mentioned the methods used to formulate recommendations but without further
-    detail (e.g., merely stating the use of the Delphi method, consensus processes,
-    or voting)
+  condition: Only provided recommendation generation method (e.g., merely stating
+    Delphi, consensus processes, or voting)
   condition_zh: 提及了形成推荐意见的方法，但无细节，如仅说明用德尔菲、共识、投票等
 - range: 4-5
-  condition: Described the specific process of recommendation development (e.g., steps
-    of the Delphi method, reference to the Evidence-to-Decision [EtD] framework) or
-    reported the outcomes of the process (e.g., level of consensus achieved)
+  condition: Provided recommendation generation method and described specific process
+    (e.g., steps used in modified Delphi technique, voting procedures that were considered,
+    reference to the Evidence-to-Decision [EtD] framework) or results (e.g., extent
+    to which consensus was reached using modified Delphi technique, outcome of voting
+    procedures)
   condition_zh: 描述了形成推荐的具体过程（如德尔菲法步骤、参考ETD框架等）或给出了过程的结果（如共识度）
 - range: 6-7
-  condition: Provided a detailed description of the recommendation development process,
-    reported the results, and explained how this process informed or influenced the
-    final recommendations
+  condition: 'Comprehensive description of process, results, and impact on final recommendations
+    (e.g., results of Delphi technique influence final recommendation, alignment with
+    recommendations and the final vote) '
   condition_zh: 既详细描述了形成推荐的过程，也说明了结果，并阐述了该过程如何影响最终推荐意见

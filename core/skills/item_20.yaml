@@ -13,7 +13,7 @@ description: 'The recommendations may require additional resources in order to b
 description_zh: '推荐意见可能需要应用额外的资源。这可能与卫生预算费用相关，将在推荐意见可能对资源影响的指南中讨论。
 
   '
-locating_info: Check Method, Recommendation, Implementation, Appendices sections.
+locating_info: Check Methods, Recommendations, Implementation, Appendices sections.
 locating_info_zh: 查看方法、推荐意见、实施、附录章节。
 criteria:
 - 例如，可能需要一个更专业的团队，新的设备，昂贵的药物治疗。通常在指南中标示为：成本利用、成本有效率、采集费用、相关预
@@ -26,12 +26,14 @@ scoring_principle:
   condition: Vaguely mentioned without clear detail
   condition_zh: 模糊提及
 - range: 4-5
-  condition: Mentioned costs, economic considerations, or proposals for economic evaluation,
-    or provided specific survey or economic data
+  condition: Mention of cost/economic issues/proposal for economic evaluation, etc.
+    or specific survey information provided
   condition_zh: 提及成本/经济问题/提出经济评估建议等，或提供了具体的调查信息
 - range: 6-7
-  condition: Provided information on costs or economic considerations, proposed economic
-    evaluation, or presented specific survey data, and clearly described how this
-    information was used in the development of the guideline and/or formulation of
-    recommendations
-  condition_zh: 提供成本/经济问题/提出经济评估建议等，或提供了具体的调查信息，并说明其如何在指南/推荐意见的形成过程中被运用
+  condition: Survey information provided, and how it was used in guideline/recommendation
+    formation
+  condition_zh: 提供了具体的调查信息，并说明其如何在指南/推荐意见的形成过程中被运用
+- range: 6-7
+  condition: Mention of cost/economic issues/proposal for economic evaluation, etc.
+    and how it was used in guideline/recommendation formation
+  condition_zh: 提供成本/经济问题/提出经济评估建议等，并说明其如何在指南/推荐意见的形成过程中被运用

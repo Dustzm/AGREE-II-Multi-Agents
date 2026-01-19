@@ -10,9 +10,9 @@ description: There may be existing facilitators and barriers that will impact th
 description_zh: '指南应用过程中可能存在某些促进或阻碍因素影响指南推荐意见的实施。
 
   '
-locating_info: Check Recommendation, Guideline Application, Guideline dissemination
-  sections.
-locating_info_zh: 查看推荐意见、指南应用、指南实施章节。
+locating_info: Check Recommendations, Guideline Application, Guideline dissemination
+  and Appendices sections.
+locating_info_zh: 查看推荐意见、指南应用、指南实施、附录章节。
 criteria:
 - '例如： i. 一个卒中指南可能建议护理工作应该通过卒中单元和卒中服务的合作来实现，这就可能需要专门的资助机制，以在这一区域建立卒中单元。 '
 - ii. 一个糖尿病的初级保健指南可能需要病人定期到糖尿病诊所就诊、复查，在一个临床医师数量不足的区域，会促使诊所的建立。
@@ -21,17 +21,16 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Mentioned facilitators or barriers to implementation
+  condition: Mention of facilitators or barriers
   condition_zh: 提及促进因素或阻碍因素
 - range: '4'
-  condition: Mentioned both facilitators and barriers
+  condition: Mention of both facilitators and barriers
   condition_zh: 提及促进因素和障碍因素
 - range: 5-6
-  condition: Mentioned both facilitators and barriers and described the methods used
-    to collect or identify them, or explained their influence on the recommendations
+  condition: Mention of both facilitators and barriers, with collection methods or
+    their impact on recommendations
   condition_zh: 提及促进因素和阻碍因素，并说明收集方法或对推荐意见的影响
 - range: '7'
-  condition: Provided a detailed description of relevant factors and the methods used
-    to collect them, and explained their impact on the guideline development process
-    and/or the final recommendations
+  condition: Description of factors and collection methods, and impact on the guideline
+    development process and/or the recommendations
   condition_zh: 描述相关因素和收集方法，以及对指南的开发过程和/或推荐意见的影响

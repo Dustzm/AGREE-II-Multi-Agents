@@ -10,9 +10,8 @@ description: 'A detailed description of the health questions covered by the guid
 
   '
 description_zh: 涉及指南所涵盖的卫生问题，即使没有必要以提问的形式来表达，也必须详细描述有关的卫生问题。
-locating_info: Check Abstract, Introduction, Methodology (Scope, Purpose, or Objectives)
-  sections.
-locating_info_zh: 查看摘要、引言、方法学（范围、目的、目标）章节。
+locating_info: Check Executive Summary, Abstract, Introduction, Methodology sections.
+locating_info_zh: 查看执行摘要、摘要、引言、方法章节。
 criteria:
 - PICO原则：P - Patient/Population/Problem (患者/人群/问题)，I - Intervention (干预措施)，C - Comparison
   (对照措施)，O - Outcome (结局指标)，S - Study design (研究类型)。
@@ -24,11 +23,11 @@ scoring_principle:
   condition_zh: 未提及
 - range: 2-4
   condition: If the health question is framed as a background question, the P or I
-    component is described
+    element is described
   condition_zh: 若卫生问题为背景问题，对P或I进行描述
 - range: 5-7
   condition: If the health question is framed as a background question, the P and
-    I component is described
+    I elements are described
   condition_zh: 若卫生问题为背景问题，对P和I均描述
 - range: 2-3
   condition: If the health question is framed as a foreground question, two PICOS
@@ -48,19 +47,13 @@ scoring_principle:
   condition_zh: 若卫生问题为前景问题，PICOS元素，全部描述
 - range: 2-3
   condition: If the guideline does not explicitly state a health question, the relevant
-    elements should still be described in detail—specifically, atwo PICO elements
-    should be reported in the early sections of the guideline (e.g., the abstract,
-    introduction, or methods)
+    elements should still be described in detail—two PICO elements are reported
   condition_zh: 若指南无卫生问题，也须详细描述有关的元素，即在指南的开始部分（如摘要、引言、方法学）描述相关的PICO元素，描述2个
 - range: 4-5
   condition: If the guideline does not explicitly state a health question, the relevant
-    elements should still be described in detail—specifically, three PICO elements
-    should be reported in the early sections of the guideline (e.g., the abstract,
-    introduction, or methods)
+    elements should still be described in detail—three PICO elements are reported
   condition_zh: 若指南无卫生问题，也须详细描述有关的元素，即在指南的开始部分（如摘要、引言、方法学）描述相关的PICO元素，描述3个
 - range: 6-7
   condition: If the guideline does not explicitly state a health question, the relevant
-    elements should still be described in detail—specifically, all PICO elements should
-    be reported in the early sections of the guideline (e.g., the abstract, introduction,
-    or methods).
+    elements should still be described in detail—all PICO elements are reported
   condition_zh: 若指南无卫生问题，也须详细描述有关的元素，即在指南的开始部分（如摘要、引言、方法学）描述相关的PICO元素，全部描述

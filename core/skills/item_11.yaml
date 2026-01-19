@@ -13,7 +13,7 @@ description: 'Description of how benefits and harms were considered and balanced
 description_zh: '描述在形成推荐意见时如何考虑和权衡获益与危害。
 
   '
-locating_info: Check Method，Recommendations，conclusion sections.
+locating_info: Check Method, Recommendations, Conclusion sections.
 locating_info_zh: 查看方法、推荐意见、结论章节。
 criteria:
 - '例如，一个乳腺癌的指南可能包括对多种最终结局的总效率的讨论，这些讨论可能包括：生存率，生活质量，不良反应，症状管理，或一种治疗选择与另一种治疗选择的对照，这些问题都应提出来作为证据。 '
@@ -22,15 +22,15 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Reported benefits or risks but without supporting evidence (2–3 points)
-    (supporting evidence should be drawn from the same body of evidence or from evidence
-    underpinning the same recommendation; benefits and harms may be supported by multiple
-    studies or multiple recommendations)
+  condition: 'Provided benefits or risks without supporting data (supporting data
+    should be drawn from the same body of evidence or from evidence underpinning the
+    same recommendation; benefits and harms may be supported by multiple studies or
+    multiple recommendations) '
   condition_zh: 虽提供了益处或风险，但未提供佐证数据(佐证数据要求为同一条证据或为同一条推荐意见的证据，风险和益处可以为多条证据或多条推荐意见的证据)
 - range: 4-5
-  condition: Reported benefits or risks with supporting evidence
+  condition: Provided benefits and risks with supporting data
   condition_zh: 提供了益处或风险，并有佐证数据
 - range: 6-7
-  condition: Reported both benefits and harms with supporting evidence and explicitly
-    considered the balance between benefits and harms
+  condition: Provided benefits and risks with supporting data and explicitly considered
+    the balance between benefits and harms
   condition_zh: 既提供了益处和风险，又提供了佐证数据，并考虑对利弊平衡的考量

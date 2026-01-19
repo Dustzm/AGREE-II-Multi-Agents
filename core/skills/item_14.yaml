@@ -13,7 +13,7 @@ description: 'A clear statement about the procedure for updating the guideline s
 description_zh: '应提供一个关于指南更新步骤的清楚陈述。例如，给出一个时间间隔或成立一个工作小组，这个小组能定期接受更新文献研究并按要求进行相应的更新。
 
   '
-locating_info: Check Method section.
+locating_info: Check Method and Appendices sections.
 locating_info_zh: 查看方法章节。
 criteria: []
 scoring_principle:
@@ -21,17 +21,17 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Mentioned updates without providing specific details
+  condition: Mention of updates without specific details
   condition_zh: 仅提及更新，但未提供具体细节
 - range: 4-5
-  condition: Reported update timing or intervals, update criteria, or update conditions,
-    with one element described
+  condition: 'One of the following is described: update intervals, update criteria,
+    or update conditions'
   condition_zh: 提及更新的时间节点或更新间隔、更新标准、更新条件，提到1个
 - range: '6'
-  condition: Reported update timing or intervals, update criteria, or update conditions,
-    with two element described
+  condition: 'Two of the following are described: update intervals, update criteria,
+    or update conditions'
   condition_zh: 提及更新的时间节点或更新间隔、更新标准、更新条件，提到2个
 - range: '7'
-  condition: Provided a comprehensive description of update timing or intervals, update
-    criteria, and update conditions
+  condition: Comprehensive description of update intervals, update criteria, and update
+    conditions
   condition_zh: 提及更新的时间节点或更新间隔、更新标准、更新条件，全部提及

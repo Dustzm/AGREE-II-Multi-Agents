@@ -10,7 +10,7 @@ description: "A guideline should be reviewed externally before it is published. 
   \ include experts in the clinical area as well as some methodological experts. Target\
   \ population (patients, public) representatives may also be included. A description\
   \ of the methodology used to conduct the external review should be presented, which\
-  \ may include a \nlist of the reviewers and their affiliation. \n"
+  \ may include a list of the reviewers and their affiliation. \n"
 description_zh: "指南在发表前应经过专家的外部评审。评审人员不应该是指南开发小组成员，评审人员应包括临床领域的专家、方法学专家，目标人群代表（患者，公众等）也\n\
   可以包括在内，并对外部评审的方法学进行描述，包括评审人员名单和他们的机构。 \n"
 locating_info: Check Method, Acknowledgments, Appendices sections.
@@ -21,16 +21,16 @@ scoring_principle:
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Mentioned external guideline review without providing additional information
+  condition: Mention of external guideline review without additional information
   condition_zh: 仅提及指南外部审查但未提供其他信息
 - range: '4'
-  condition: Provided the names of external reviewers or review groups
+  condition: Provided external reviewer/group names
   condition_zh: 提供了外部审查者/小组的名称
 - range: '5'
-  condition: Described the external review methods/processes/results and identified
-    the reviewers or review groups
+  condition: Described external review method/process/results, and external reviewers/group
+    names
   condition_zh: 描述了外部审查方法/过程/结果以及审查者/小组
 - range: 6-7
-  condition: Described the purpose, methods/processes, and results of the external
-    review, and provided the names of the external reviewers or review groups
+  condition: Described external review purpose, method/process/results, and external
+    reviewers/group names
   condition_zh: 描述了外部审查目的、方法/过程/结果以及外部审查者/小组的名称

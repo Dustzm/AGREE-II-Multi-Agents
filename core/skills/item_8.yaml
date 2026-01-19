@@ -10,7 +10,8 @@ description: Criteria for including/excluding evidence identified by the search 
 description_zh: '应提供检索时纳入和排除证据的标准。
 
   '
-locating_info: Check Method, Literature Search, Inclusion/Exclusion Criteria，Appendices..
+locating_info: Check Method, Literature Search, Inclusion/Exclusion Criteria, and
+  Appendices sections
 locating_info_zh: 查看方法、文献检索、纳入/排除标准、附录章节。
 criteria:
 - 排除标准描述：在纳入标准规定只纳入英文文献，即逻辑上在排除标准里已经排除了非英文文献。
@@ -22,8 +23,8 @@ scoring_principle:
   condition: Vague mention of inclusion (and/or exclusion) criteria
   condition_zh: 模糊提及纳入（和/或排除）标准
 - range: 4-7
-  condition: detailed description of inclusion (and/or exclusion) criteria, such as
-    study design, PICO elements, language, setting, and other relevant factors, with
+  condition: Detailed description of inclusion (and/or exclusion) criteria, such as
+    study type, PICO elements, language, setting, and other relevant factors, with
     1 point awarded for each criterion specified and 2 points awarded for explicit
     use of PICO, up to a maximum of 7 points
   condition_zh: 详细说明纳入（和/或排除）标准，如研究设计、PICO、语言、背景等，提及1个加1分，提及PICO加2分，满分7分（4-7分）
