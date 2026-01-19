@@ -353,10 +353,10 @@ export function Reports() {
                     </div>
 
                     {/* 内容层 - 无裁剪 */}
-                    <div className="p-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6">
+                    <div className="p-6 flex flex-col xl:flex-row items-start justify-between gap-6">
                         {/* 左侧信息 */}
                         {/* 左侧信息 */}
-                        <div className="space-y-4 max-w-2xl flex-shrink-0">
+                        <div className="space-y-4 flex-1 min-w-0">
                             <div className="flex items-center gap-3">
                                 <span className="px-2 py-0.5 rounded-md bg-white border border-border/50 text-xs font-mono text-muted-foreground shadow-sm">
                                     {selectedReport.task_id}
@@ -376,7 +376,7 @@ export function Reports() {
                         </div>
 
                         {/* 右侧评分条 - 统一面板设计 */}
-                        <div className="flex items-stretch gap-2 xl:gap-4 bg-white/60 border border-white/60 shadow-sm rounded-xl backdrop-blur-sm overflow-visible p-1">
+                        <div className="flex flex-shrink-0 items-stretch gap-2 xl:gap-4 bg-white/60 border border-white/60 shadow-sm rounded-xl backdrop-blur-sm overflow-visible p-1">
                             {/* 1. 整体评价 */}
                             {selectedReport.overall_quality_score && (
                                 <div className="group relative px-5 py-3 flex flex-col justify-between min-w-[130px] rounded-lg hover:bg-white/50 transition-colors cursor-help">
