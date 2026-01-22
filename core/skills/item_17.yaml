@@ -9,11 +9,8 @@ description: 'Users should be able to find the most relevant recommendations eas
   These recommendations answer the main question(s) that have been covered by the
   guideline and can be identified in different ways. For example, they can be summarized
   in a box, typed in bold, underlined or presented as flow charts or algorithms. '
-description_zh: '用户能容易发现最相关的推荐意见。这些推荐意见能回答指南包括的主要问题，且能以不同的方法识别。例如，可以总结在一个方框中，或是用黑体字、下划线
-
+description_zh: 用户能容易发现最相关的推荐意见。这些推荐意见能回答指南包括的主要问题，且能以不同的方法识别。例如，可以总结在一个方框中，或是用黑体字、下划线
   标出，用流程图、运算式等表示。
-
-  '
 locating_info: Check Executive Summary, Recommendations sections.
 locating_info_zh: 查看执行摘要、推荐意见章节。
 criteria: []

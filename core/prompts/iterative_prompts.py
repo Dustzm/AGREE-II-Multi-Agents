@@ -22,26 +22,38 @@ EVIDENCE_EXTRACTION_PROMPT = """# Evidence Extraction Task
 {scoring_table}
 
 ## Content to Analyze
+```
 {chunk_content}
+```
 
 ## Your Task
-Extract **exact text fragments** from "Content to Analyze" that help determine the score according to the Scoring Rubric.
+Extract **complete and exact text fragments** from "Content to Analyze" that help determine the score according to the Scoring Rubric.
+
+**Extraction Principles:**
+1. **COMPLETENESS IS CRITICAL**: Extract ALL relevant information completely. Do NOT summarize, truncate, or abbreviate.
+2. **Preserve Full Context**: Each extracted quote must retain its complete meaning. Include surrounding context if necessary for understanding.
+3. **Multiple Evidence Items**: If there are multiple pieces of evidence, extract each one separately but in full.
+4. **Err on the side of inclusion**: When in doubt, include the content rather than omit it.
 
 **What to Extract:**
 - Direct quotes from the document that describe relevant facts, data, or statements related to the scoring conditions
 - Content that proves or disproves any of the conditions in the rubric
+- Names, affiliations, roles, methods, processes, dates, or any specific details mentioned
+- Complete sentences or paragraphs that contain valuable information
 
 **What NOT to Extract:**
 - The rubric text itself
 - Your own interpretations or summaries
+- Irrelevant content that has no connection to the scoring conditions
 
 **Example:**
-- ✓ GOOD: "The target patient population comprises all adults with type 2 diabetes"
-- ✗ BAD: "Target population"
+- ✓ GOOD: "Thomas Skurk, ZIEL Institute for Food & Health, Technical University of Munich, served as the lead methodologist for the systematic review process."
+- ✗ BAD: "Thomas Skurk" (too brief, missing context)
+- ✗ BAD: "The authors are listed with affiliations" (summary, not a quote)
 
 ## Output Format
 Return a JSON array of exact quotes:
-["quote 1", "quote 2", ...]
+["complete quote 1", "complete quote 2", ...]
 
 Return empty array [] if no relevant content found.
 """
@@ -58,7 +70,9 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 - Title: {title}
 
 ## Accumulated Evidence (from {n_sources} sections)
+```
 {evidence_cache}
+```
 
 ## Scoring Rubric
 | Score Range | Condition |
@@ -68,6 +82,7 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 ## Scoring Reference Examples
 The following are reference examples showing how similar guidelines were scored. Use these as behavioral guidance for applying the scoring rubric, not as direct templates:
 {shots_section}
+
 ## Task
 Based on the accumulated evidence, determine which scoring condition is best matched.
 
@@ -76,11 +91,17 @@ Based on the accumulated evidence, determine which scoring condition is best mat
 2. Compare the evidence coverage against each scoring condition
 3. Select the score range that best matches the evidence
 
+**CRITICAL RULE**: 
+You MUST strictly adhere to the "Score Range" defined in the Scoring Rubric. 
+- You may ONLY assign a score if it explicitly falls within one of the provided ranges.
+- If a score (e.g., 1) is NOT included in any of the ranges (e.g., if ranges are "2" and "3-7"), you are FORBIDDEN from assigning that score.
+- STRICTLY NO hallucinations of scores outside the provided ranges.
+
 ## Output Format
 Provide your analysis and score in the following format:
 
 Analysis: [Brief explanation of which scoring condition matches and why]
-Score: [integer 1-7]
+Score: [integer] (A value strictly within the valid ranges from the Scoring Rubric)
 """
 
 
@@ -101,10 +122,14 @@ FINAL_REPORT_PROMPT = """# Final Evaluation Report
 {scoring_table}
 
 ## Accumulated Evidence (each labeled with its chunk_id)
+```
 {evidence_cache_indexed}
+```
 
 ## Final Score
+```
 {final_score}
+```
 
 ## Task
 Generate a structured evaluation report with clear, itemized reasoning.

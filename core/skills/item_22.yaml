@@ -19,28 +19,18 @@ scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: '7'
-  condition: Statement of no sponsorship
-  condition_zh: 声明无赞助
-- range: 5-6
-  condition: Provision of sponsorship source only when sponsorship comes from a non-profit
-    organization (e.g., government agencies, professional societies)
-  condition_zh: 若有赞助，来源于非营利机构（政府、学会等），仅描述赞助来源
-- range: '7'
-  condition: Provision of sponsorship source and indication of no influence when sponsorship
-    comes from a non-profit organization (e.g., government agencies, professional
-    societies)
-  condition_zh: 若有赞助，来源于非营利机构（政府、学会等），提供赞助来源并明确声明赞助方的观点未影响指南内容
-- range: 2-3
+- range: 2-4
   condition: Provision of sponsorship source only when sponsorship comes from a for-profit
     organization (e.g., companies, pharmaceutical firms)
   condition_zh: 若有赞助，来源于营利机构（公司、药企等），仅仅描述赞助来源
-- range: 4-6
-  condition: Provision of sponsorship source and acknowledgment of sponsor influence
-    on content when sponsorship comes from a for-profit organization (e.g., companies,
-    pharmaceutical firms)
-  condition_zh: 若有赞助，来源于营利机构（公司、药企等），提供赞助来源并声明赞助方对指南内容有影响
+- range: 5-6
+  condition: If there is sponsorship, ① if it comes from non-profit organizations
+    (government, societies, etc.), only describe the source of sponsorship, or ② if
+    it comes from for-profit organizations (companies, pharmaceutical companies, etc.),
+    provide the source of sponsorship and disclose whether the sponsor has influenced
+    the guideline content.
+  condition_zh: 若有赞助，①来源于非营利机构（政府、学会等），仅描述赞助来源，或②来源于营利机构（公司、药企等），提供赞助来源并声明赞助方对指南内容有影响
 - range: '7'
-  condition: Provision of sponsorship source and indication of no influence when sponsorship
-    comes from a for-profit organization (e.g., companies, pharmaceutical firms)
-  condition_zh: 若有赞助，来源于营利机构（公司、药企等），提供赞助来源并明确声明赞助方的观点未影响指南内容
+  condition: Disclosure of no sponsorship, or sponsorship with disclosure of the source
+    and clear statement that the sponsor’s views have not influenced the guidelines
+  condition_zh: 声明无赞助，或有赞助，且提供赞助来源并明确声明赞助方的观点未影响指南内容

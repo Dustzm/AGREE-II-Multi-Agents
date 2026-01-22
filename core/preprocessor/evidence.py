@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # AGREE-II 六个领域到语义标签的映射关系
 DOMAIN_LABEL_MAPPING: Dict[int, List[SemanticLabel]] = {
     1: [SemanticLabel.OVERVIEW, SemanticLabel.EXECUTIVE_SUMMARY, SemanticLabel.METHOD],      # Scope and Purpose
-    2: [SemanticLabel.OVERVIEW, SemanticLabel.EXECUTIVE_SUMMARY, SemanticLabel.METHOD, SemanticLabel.APPENDIX],      # Stakeholder Involvement
+    2: [SemanticLabel.OVERVIEW, SemanticLabel.EXECUTIVE_SUMMARY, SemanticLabel.METHOD, SemanticLabel.APPENDIX, SemanticLabel.OTHERS],      # Stakeholder Involvement
     3: [SemanticLabel.METHOD, SemanticLabel.RECOMMENDATION, SemanticLabel.APPENDIX],      # Rigour of Development
     4: [SemanticLabel.EXECUTIVE_SUMMARY, SemanticLabel.RECOMMENDATION],                                  # Clarity of Presentation
     5: [SemanticLabel.RECOMMENDATION, SemanticLabel.APPENDIX],                                  # Applicability

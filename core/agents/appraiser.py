@@ -110,6 +110,27 @@ class IterativeEvaluator:
         # 使用 DOTALL 模式匹配跨行的 think 标签
         return re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
     
+    def _extract_content_from_response(self, response) -> tuple[str, str | None]:
+        """
+        从 LLM 响应中提取内容和思考内容
+        
+        Args:
+            response: LiteLLM 响应对象
+            
+        Returns:
+            (content, reasoning_content) 元组
+        """
+        message = response.choices[0].message
+        content = message.content.strip() if message.content else ""
+        
+        # vLLM + reasoning-parser 模式下，reasoning 内容会在单独字段
+        reasoning_content = getattr(message, 'reasoning_content', None)
+        
+        # 清理可能残留的 think 标签
+        content = self._clean_thinking_content(content)
+        
+        return content, reasoning_content
+    
     def evaluate(self) -> Dict[str, Any]:
         """
         执行迭代评价
@@ -179,6 +200,11 @@ class IterativeEvaluator:
         Returns:
             提取的证据列表
         """
+        # 记录处理的 chunk 内容
+        for c in chunks:
+            logger.info(f"Evaluating Chunk: {c.title}")
+            logger.info(f"Chunk Content: {c.content}")
+
         # 拼接 chunk 内容
         combined_content = []
         for c in chunks:
@@ -213,6 +239,10 @@ class IterativeEvaluator:
             system_instruction = "You are a strict extraction system. Output JSON only."
             api_prompt = prompt + "\n\nIMPORTANT: Return a JSON object with a single key 'evidence' containing the list of strings. Example: {\"evidence\": [\"text1\", \"text2\"]}"
 
+            logger.info("=== [Evidence Extraction] Input Prompt ===")
+            logger.info(api_prompt)
+            logger.info("==========================================")
+
             response = litellm.completion(
                 model=self.model,
                 messages=[
@@ -221,16 +251,28 @@ class IterativeEvaluator:
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.3,  # 提高温度，增加灵活性，避免过度严格
+                temperature=0.1,  # 提高温度，增加灵活性，避免过度严格
+                top_p=0.9,
                 max_tokens=8192, # Batch 模式下允许提取更多
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
             )
             
             # 统计 Token 使用
             add_litellm_usage(response)
             
-            content = response.choices[0].message.content.strip()
-            content = self._clean_thinking_content(content)
+            # 提取内容和思考内容
+            content, reasoning_content = self._extract_content_from_response(response)
+            
+            # 记录思考内容 (如果存在)
+            if reasoning_content:
+                logger.info("=== [Evidence Extraction] Reasoning Content ===")
+                logger.info(reasoning_content[:500] + "..." if len(reasoning_content) > 500 else reasoning_content)
+                logger.info("===============================================")
+            
+            logger.info("=== [Evidence Extraction] Output Content ===")
+            logger.info(content)
+            logger.info("============================================")
             
             # 解析 JSON
             try:
@@ -284,6 +326,10 @@ class IterativeEvaluator:
         system_instruction = "You are a scoring assistant. Output JSON only."
         api_prompt = prompt + "\n\nIMPORTANT: Return a JSON object with exactly two keys:\n1. 'analysis': brief explanation of which criteria are met\n2. 'score': integer 1-7\n\nExample: {\"analysis\": \"The evidence covers...\", \"score\": 5}"
         
+        logger.info("=== [Dynamic Scoring] Input Prompt ===")
+        logger.info(api_prompt)
+        logger.info("======================================")
+        
         try:
             response = litellm.completion(
                 model=self.model,
@@ -294,16 +340,28 @@ class IterativeEvaluator:
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
                 temperature=0.1,
+                top_p=0.9,
                 max_tokens=8096,  # 给评分分析留足空间
-                response_format={"type": "json_object"}  # 强制 JSON 输出
+                response_format={"type": "json_object"},  # 强制 JSON 输出
+                extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
             )
             
             # 统计 Token 使用
             add_litellm_usage(response)
             
-            content = response.choices[0].message.content.strip()
-            content = self._clean_thinking_content(content)
+            # 提取内容和思考内容
+            content, reasoning_content = self._extract_content_from_response(response)
             logger.debug(f"动态评分 JSON 输出: {content[:200]}...")
+
+            # 记录思考内容 (如果存在)
+            if reasoning_content:
+                logger.info("=== [Dynamic Scoring] Reasoning Content ===")
+                logger.info(reasoning_content[:500] + "..." if len(reasoning_content) > 500 else reasoning_content)
+                logger.info("============================================")
+
+            logger.info("=== [Dynamic Scoring] Output Content ===")
+            logger.info(content)
+            logger.info("========================================")
             
             # 解析 JSON
             data = json.loads(content)
@@ -365,6 +423,10 @@ class IterativeEvaluator:
             final_score=self.current_score,
         )
         
+        logger.info("=== [Final Report] Input Prompt ===")
+        logger.info(prompt)
+        logger.info("===================================")
+        
         try:
             # 使用 Pydantic Schema 强制输出结构
             system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
@@ -377,17 +439,29 @@ class IterativeEvaluator:
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.3,
+                temperature=0.1,
+                top_p=0.9,
                 max_tokens=16384,
-                response_format=FinalReportOutput  # 使用 Pydantic Schema 强制验证
+                response_format=FinalReportOutput,  # 使用 Pydantic Schema 强制验证
+                extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
             )
             
             # 统计 Token 使用
             add_litellm_usage(response)
             
-            content = response.choices[0].message.content.strip()
-            content = self._clean_thinking_content(content)
+            # 提取内容和思考内容
+            content, reasoning_content = self._extract_content_from_response(response)
             logger.debug(f"LLM 原始输出: {content[:500]}...")
+
+            # 记录思考内容 (如果存在)
+            if reasoning_content:
+                logger.info("=== [Final Report] Reasoning Content ===")
+                logger.info(reasoning_content[:500] + "..." if len(reasoning_content) > 500 else reasoning_content)
+                logger.info("=========================================")
+
+            logger.info("=== [Final Report] Output Content ===")
+            logger.info(content)
+            logger.info("=====================================")
             
             # 解析 JSON 并验证结构
             import re

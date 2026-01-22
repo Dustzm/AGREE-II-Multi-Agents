@@ -5,14 +5,10 @@ domain_name: Rigor of Development
 domain_name_zh: 制定严谨性
 title: A procedure for updating the guideline is provided.
 title_zh: 提供指南更新的步骤。
-description: 'A clear statement about the procedure for updating the guideline should
+description: A clear statement about the procedure for updating the guideline should
   be provided. For example, a timescale has been given or a standing panel is established
   who receives regularly updated literature searches and makes changes as required.
-
-  '
-description_zh: '应提供一个关于指南更新步骤的清楚陈述。例如，给出一个时间间隔或成立一个工作小组，这个小组能定期接受更新文献研究并按要求进行相应的更新。
-
-  '
+description_zh: 应提供一个关于指南更新步骤的清楚陈述。例如，给出一个时间间隔或成立一个工作小组，这个小组能定期接受更新文献研究并按要求进行相应的更新。
 locating_info: Check Method and Appendices sections.
 locating_info_zh: 查看方法章节。
 criteria: []

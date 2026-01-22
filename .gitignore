@@ -59,6 +59,8 @@ logs/
 *.egg-info
 
 #customize
+benchmark/output/
+benchmark/uploads/
 node_modules/
 .agent/
 .kiro/

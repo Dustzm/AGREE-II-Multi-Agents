@@ -17,16 +17,15 @@ locating_info: Check Abstract, Introduction, Methods, Group Members List, Acknow
 locating_info_zh: 查看摘要、引言、方法、指南小组成员名单、致谢和附件章节。
 criteria:
 - 指南小组成员分组包含：起草人、执笔人、指南指导委员会、临床专家组、系统评价组、秘书组、外部评审组、共识专家组、指南制订工作组等。
+- 机构单位中通常会包含专业/学科/科室，注意排查
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
-- range: '2'
-  condition: Rough description of the group or names only
-  condition_zh: 仅对群体或人员名称进行粗略描述
-- range: 3-7
-  condition: In addition to listing names, provides detailed information on disciplines/professions/departments,
-    institutions, geographical locations, member’s role in the guideline development
-    group, and the multidisciplinary team (e.g., methodologists, clinicians, nurses,
-    etc.), with 1 point awarded for each point reported
-  condition_zh: 提供人员名称的基础上，提供专业/学科/科室、机构、地理位置、成员在指南开发小组中的角色、提及所有领域角色（如方法学家、临床医生、护理人员等），每个1分
+- range: 2-7
+  condition: Provide ① personnel name, ② specialty/discipline/department, ③ institution,
+    ④ geographic location, ⑤ role of the member in the guideline development team,
+    and ⑥ multidisciplinary team members (e.g., methodologists, clinicians, nurses,
+    etc., the more comprehensive, the better); add 1 point for each item provided
+    on top of 1 point, with a maximum total score of 7 points.
+  condition_zh: 提供①人员名称、②专业/学科/科室、③机构、④地理位置、⑤成员在指南开发小组中的角色、⑥多学科团队（如方法学家、临床医生、护理人员等越全越好），在1分基础上每出现一项加1分，总分最多不超过7分

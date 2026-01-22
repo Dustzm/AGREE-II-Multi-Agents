@@ -15,16 +15,17 @@ locating_info: Check Method, Literature Search, Inclusion/Exclusion Criteria, an
 locating_info_zh: 查看方法、文献检索、纳入/排除标准、附录章节。
 criteria:
 - 排除标准描述：在纳入标准规定只纳入英文文献，即逻辑上在排除标准里已经排除了非英文文献。
+- 研究设计、PICO、语言、背景等必须包含在纳入/排除标准中，单独的PICO、背景等信息不可作为评分依据
 scoring_principle:
 - range: '1'
   condition: Not mentioned
   condition_zh: 未提及
 - range: 2-3
-  condition: Vague mention of inclusion (and/or exclusion) criteria
-  condition_zh: 模糊提及纳入（和/或排除）标准
+  condition: simple mention of inclusion (and/or exclusion) criteria
+  condition_zh: 简单提及纳入（和/或排除）标准
 - range: 4-7
-  condition: Detailed description of inclusion (and/or exclusion) criteria, such as
-    study type, PICO elements, language, setting, and other relevant factors, with
-    1 point awarded for each criterion specified and 2 points awarded for explicit
-    use of PICO, up to a maximum of 7 points
-  condition_zh: 详细说明纳入（和/或排除）标准，如研究设计、PICO、语言、背景等，提及1个加1分，提及PICO加2分，满分7分（4-7分）
+  condition: The inclusion (and/or exclusion) criteria must be clearly stated, including
+    such elements as study design, PICO, language, and setting; 1 point for each mentioned
+    element, 2 points for mentioning PICO, with a maximum of 7 points. If clear inclusion
+    and exclusion criteria are not provided, this rating level cannot be awarded.
+  condition_zh: 必须清晰说明纳入（和/或排除）标准，在此标准中包含如研究设计、PICO、语言、背景等，提及1个加1分，提及PICO加2分，最高7分，如果没有清晰的纳入排除标准，不可进入此档评分
