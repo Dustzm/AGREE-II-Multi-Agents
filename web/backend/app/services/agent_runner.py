@@ -453,10 +453,43 @@ class AppraisalRunner:
                         # 3. 处理文本输出
                         elif hasattr(part, 'text') and part.text:
                             text = part.text
-                            # 过滤思考过程
-                            if '<think>' in text or '💭' in text:
-                                continue
-                            # 只显示有意义的输出
+                            
+                            # 检查是否有 reasoning/reasoning_content (vLLM + reasoning-parser 模式)
+                            # ADK 通过 LiteLLM 返回的消息可能包含 reasoning_content 字段
+                            message = event.content
+                            reasoning_content = None
+                            
+                            # 检查多种可能的 reasoning 字段位置
+                            if hasattr(message, 'reasoning_content'):
+                                reasoning_content = message.reasoning_content
+                            elif hasattr(message, 'reasoning'):
+                                reasoning_content = message.reasoning
+                            
+                            # 如果有思考内容，记录但不推送到 WebSocket
+                            if reasoning_content:
+                                logger.info(f"[Thinking] 获取到思考内容 ({len(reasoning_content)} 字符)")
+                                # 如果当前 text 就是思考内容（被错误地放到了 content 中），跳过
+                                if text.strip() == reasoning_content.strip():
+                                    logger.debug("[Thinking] text 与 reasoning_content 相同，跳过")
+                                    continue
+                            
+                            # 回退检测: 如果 text 看起来像是思考内容（以换行开头且包含思考特征）
+                            # vLLM 返回的 reasoning 通常以 \n 开头
+                            if text.startswith('\n') and len(text) > 50:
+                                # 检测是否是完整的思考内容（通常很长且以分析性语言开头）
+                                trimmed = text.strip()
+                                if trimmed.startswith(('好的，', '嗯，', '让我', '首先', '我需要', '根据')):
+                                    logger.debug(f"[Thinking] 检测到可能的思考内容: {text[:50]}...")
+                                    continue
+                            
+                            # 过滤 <think> 标签内容
+                            if '<think>' in text or '</think>' in text:
+                                import re
+                                text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+                                if not text:
+                                    continue
+                            
+                            # 只显示有意义的输出 (非空且长度足够)
                             if len(text.strip()) > 20:
                                 # 截取前 200 字符
                                 display_text = text[:200] + "..." if len(text) > 200 else text
