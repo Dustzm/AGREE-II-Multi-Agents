@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, FileText, Settings, PlayCircle } from 'lucide-react'
+import { MessageSquare, FileText, Settings, PlayCircle, BarChart2 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { LanguageSwitch } from './LanguageSwitch'
 
 const navItems = [
     { to: '/chat', icon: MessageSquare, labelKey: 'nav.chat' },
     { to: '/batch', icon: PlayCircle, labelKey: 'nav.batch' },
+    { to: '/benchmark', icon: BarChart2, labelKey: 'nav.benchmark' },
     { to: '/reports', icon: FileText, labelKey: 'nav.reports' },
     { to: '/skills', icon: Settings, labelKey: 'nav.skills' },
     // { to: '/agents', icon: Bot, labelKey: 'nav.agents' },  // 已隐藏

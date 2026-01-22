@@ -8,7 +8,8 @@
     },
     "nav": {
         "chat": "Appraisal",
-        "batch": "Experiment",
+        "batch": "Batch",
+        "benchmark": "Experiment",
         "reports": "Reports",
         "skills": "Items",
         "agents": "Agents"
@@ -112,6 +113,58 @@
         },
         "success": {
             "stopped": "Batch task stopped, waiting for current step to complete..."
+        }
+    },
+    "benchmark": {
+        "title": "Experiment",
+        "description": "Upload human score files and select batches for comparison analysis",
+        "humanFiles": {
+            "title": "Human Score Files",
+            "empty": "No files, please upload"
+        },
+        "batches": {
+            "title": "Select Batches",
+            "empty": "No batches available",
+            "selectHint": "Selected {{count}}/2",
+            "tasks": "tasks"
+        },
+        "run": {
+            "title": "Run Comparison",
+            "start": "Run Experiment",
+            "running": "Running...",
+            "success": "Comparison complete",
+            "download": "Download Results"
+        },
+        "summary": {
+            "guides": "Guides",
+            "consistency": "Consistency"
+        },
+        "results": {
+            "title": "History",
+            "empty": "No results yet"
+        },
+        "visualization": {
+            "overall": "Overall Overview",
+            "consistency": "Consistency",
+            "successfulGuides": "Successful Guides",
+            "totalMatches": "Total Matches",
+            "rank": "Guideline Ranking",
+            "itemDistribution": "Item Consistency Distribution (by Domain)",
+            "noData": "No Data",
+            "legend": {
+                "high": "High (≥80%)",
+                "med": "Med (≥60%)",
+                "low": "Low (<60%)"
+            },
+            "totalCount": "Total: {{count}}",
+            "domains": {
+                "scope": "Scope & Purpose",
+                "stakeholder": "Stakeholder Involvement",
+                "rigour": "Rigour of Development",
+                "clarity": "Clarity of Presentation",
+                "applicability": "Applicability",
+                "independence": "Editorial Independence"
+            }
         }
     },
     "reports": {

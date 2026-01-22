@@ -8,7 +8,8 @@
     },
     "nav": {
         "chat": "评价",
-        "batch": "实验",
+        "batch": "批量",
+        "benchmark": "实验",
         "reports": "报告",
         "skills": "条目",
         "agents": "智能体"
@@ -310,5 +311,52 @@
         "title": "提示词上下文",
         "copy": "复制提示词",
         "empty": "暂无提示词内容"
+    },
+    "benchmark": {
+        "title": "实验分析",
+        "description": "上传人类评分文件，选择批次进行实验对比分析",
+        "humanFiles": {
+            "title": "人类评分文件",
+            "upload": "上传文件",
+            "dragDrop": "拖拽或点击上传 (.xlsx)",
+            "empty": "暂无文件",
+            "delete": "删除",
+            "preview": "预览"
+        },
+        "batches": {
+            "title": "选择 Batches",
+            "selectHint": "请选择两个 batch 进行对比",
+            "empty": "暂无 Batch 结果"
+        },
+        "run": {
+            "title": "执行对比",
+            "start": "开始实验",
+            "running": "正在对比...",
+            "download": "下载报告",
+            "history": "历史记录"
+        },
+        "visualization": {
+            "overall": "总体概览",
+            "consistency": "一致性",
+            "successfulGuides": "成功指南",
+            "totalMatches": "总匹配数",
+            "rank": "指南排行",
+            "itemDistribution": "条目一致性分布 (按领域)",
+            "noData": "无数据",
+            "legend": {
+                "high": "高 (≥80%)",
+                "med": "中 (≥60%)",
+                "low": "低 (<60%)"
+            },
+            "totalCount": "共 {{count}} 个",
+            "domains": {
+                "scope": "范围和目的",
+                "stakeholder": "参与人员",
+                "rigour": "制定严谨性",
+                "clarity": "清晰性",
+                "applicability": "应用性",
+                "independence": "独立性"
+            }
+        }
     }
 }

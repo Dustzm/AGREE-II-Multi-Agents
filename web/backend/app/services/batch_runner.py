@@ -375,7 +375,7 @@ class BatchRunner:
                     break
                 
                 self.current_round = round_num
-                self._output_subdir = f"batch_{round_num}"
+                self._output_subdir = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 
                 logger.info(f"开始第 {round_num}/{self.experiment_rounds} 轮实验")
                 

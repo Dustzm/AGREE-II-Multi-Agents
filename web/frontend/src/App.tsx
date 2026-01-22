@@ -6,6 +6,7 @@ import { Reports } from './pages/Reports'
 import { Skills } from './pages/Skills'
 import { Agents } from './pages/Agents'
 import { Batch } from './pages/Batch'
+import { Benchmark } from './pages/Benchmark'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="skills" element={<Skills />} />
           <Route path="agents" element={<Agents />} />
           <Route path="batch" element={<Batch />} />
+          <Route path="benchmark" element={<Benchmark />} />
         </Route>
       </Routes>
     </BrowserRouter>

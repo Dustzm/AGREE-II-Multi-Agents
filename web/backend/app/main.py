@@ -20,7 +20,7 @@ STARTUP_TIME = int(time.time() * 1000)
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from .api.routes import health, upload, chat, files, reports, skills, prompts, batch
+from .api.routes import health, upload, chat, files, reports, skills, prompts, batch, benchmark
 
 # 配置日志
 logging.basicConfig(
@@ -75,6 +75,7 @@ app.include_router(reports.router, prefix="/ama/api", tags=["报告"])
 app.include_router(skills.router, prefix="/ama/api", tags=["条目配置"])
 app.include_router(prompts.router, prefix="/ama/api", tags=["提示词管理"])
 app.include_router(batch.router, prefix="/ama/api", tags=["批量任务"])
+app.include_router(benchmark.router, prefix="/ama/api", tags=["Benchmark"])
 
 
 @app.get("/")

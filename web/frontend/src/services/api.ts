@@ -289,5 +289,142 @@ export const api = {
             throw new Error('获取证据位置失败')
         }
         return response.json()
-    }
+    },
+
+    // ===== Benchmark API =====
+
+    // 列出已上传的人类评分文件
+    async listHumanFiles(): Promise<{ files: HumanFileInfo[] }> {
+        const response = await fetch(`${API_BASE}/benchmark/human-files`)
+        if (!response.ok) {
+            throw new Error('获取人类评分文件列表失败')
+        }
+        return response.json()
+    },
+
+    // 上传人类评分文件
+    async uploadHumanFile(file: File): Promise<{ status: string; message: string; file: HumanFileInfo }> {
+        const formData = new FormData()
+        formData.append('file', file)
+        const response = await fetch(`${API_BASE}/benchmark/human-files`, {
+            method: 'POST',
+            body: formData,
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: '上传失败' }))
+            throw new Error(error.detail || '上传失败')
+        }
+        return response.json()
+    },
+
+    // 删除人类评分文件
+    async deleteHumanFile(filename: string): Promise<{ status: string; message: string }> {
+        const response = await fetch(`${API_BASE}/benchmark/human-files/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+        })
+        if (!response.ok) {
+            throw new Error('删除文件失败')
+        }
+        return response.json()
+    },
+
+    // 列出可用的 batch 目录
+    async listBatches(): Promise<{ batches: BatchInfo[] }> {
+        const response = await fetch(`${API_BASE}/benchmark/batches`)
+        if (!response.ok) {
+            throw new Error('获取 batch 列表失败')
+        }
+        return response.json()
+    },
+
+    // 执行 Benchmark
+    async runBenchmark(humanFile: string, batchIds: string[], threshold: number = 2): Promise<BenchmarkRunResponse> {
+        const response = await fetch(`${API_BASE}/benchmark/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                human_file: humanFile,
+                batch_ids: batchIds,
+                threshold: threshold,
+            }),
+        })
+        if (!response.ok) {
+            throw new Error('执行 Benchmark 失败')
+        }
+        return response.json()
+    },
+
+    // 列出 Benchmark 结果
+    async listBenchmarkResults(): Promise<{ results: BenchmarkResultInfo[] }> {
+        const response = await fetch(`${API_BASE}/benchmark/results`)
+        if (!response.ok) {
+            throw new Error('获取结果列表失败')
+        }
+        return response.json()
+    },
+
+    // 获取 Benchmark 结果下载 URL
+    getBenchmarkDownloadUrl(filename: string): string {
+        return `${API_BASE}/benchmark/download/${encodeURIComponent(filename)}`
+    },
+}
+
+// ===== Benchmark 类型定义 =====
+
+export interface HumanFileInfo {
+    name: string
+    path: string
+    size: number
+    modified: string
+}
+
+export interface BatchInfo {
+    name: string
+    path: string
+    task_count: number
+    created: string
+}
+
+export interface GuideConsistency {
+    seq_no: number
+    guide_id: string
+    guide_name: string
+    consistent_count: number
+    total_matches: number
+    consistency: number
+    status: string
+}
+
+export interface ItemConsistency {
+    item_id: string
+    item_name: string
+    consistent_count: number
+    total_matches: number
+    consistency: number
+}
+
+export interface BenchmarkSummary {
+    total_guides: number
+    success_count: number
+    overall_consistency: number
+    guide_consistencies: GuideConsistency[]
+    item_consistencies: ItemConsistency[]
+}
+
+export interface BenchmarkResultInfo {
+    name: string
+    path: string
+    size: number
+    created: string
+    human_file?: string
+    batch_ids?: string[]
+}
+
+export interface BenchmarkRunResponse {
+    status: string
+    message: string
+    xlsx_file?: string
+    download_url?: string
+    summary?: BenchmarkSummary
+    error?: string
 }
