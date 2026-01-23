@@ -376,9 +376,32 @@ export const api = {
         }
         return response.json()
     },
+
+    // 保存 Benchmark 修改
+    async saveBenchmarkChanges(filename: string, updates: ScoreUpdate[]): Promise<{ status: string; message: string }> {
+        const response = await fetch(`${API_BASE}/benchmark/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename,
+                updates
+            }),
+        })
+        if (!response.ok) {
+            throw new Error('保存修改失败')
+        }
+        return response.json()
+    },
 }
 
 // ===== Benchmark 类型定义 =====
+
+export interface ScoreUpdate {
+    guide_id: string
+    item_id: string
+    field: string
+    value: number
+}
 
 export interface HumanFileInfo {
     name: string

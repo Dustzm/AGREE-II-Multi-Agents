@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronUp, Download, BarChart3, Trophy, Target, Activity, LayoutGrid } from 'lucide-react'
-import { BenchmarkSummary, GuideConsistency, ItemConsistency } from '@/services/api'
+import { ChevronDown, ChevronUp, Download, BarChart3, Trophy, Target, Activity, LayoutGrid, Save, Edit, Loader2 } from 'lucide-react'
+import { BenchmarkSummary, GuideConsistency, ItemConsistency, ScoreUpdate } from '@/services/api'
 import { api } from '@/services/api'
+import { toast } from 'react-hot-toast'
 
 interface Props {
     summary: BenchmarkSummary
@@ -12,6 +13,10 @@ interface Props {
 
 // Tab 类型：0 表示汇总（第一个sheet），1-N 表示各指南详情
 type ActiveTab = number
+
+// 内部状态：记录修改的分数
+// Key格式: "${guideId}_${itemId}_${field}"
+type ModifiedScores = Record<string, number>
 
 // AGREE II 领域定义
 const DOMAINS = [
@@ -42,18 +47,96 @@ function getConsistencyLightBg(value: number): string {
     return 'bg-rose-50'
 }
 
-// 渲染分数组件
-function renderScore(score: number | null | undefined, isModel: boolean = false) {
-    if (score === null || score === undefined) {
-        return <span className="text-slate-300">—</span>
+// 可编辑分数组件
+function EditableScore({ 
+    value, 
+    originalValue, 
+    onChange, 
+    isModel = false 
+}: { 
+    value: number | null | undefined; 
+    originalValue: number | null | undefined; 
+    onChange: (newValue: number) => void;
+    isModel?: boolean;
+}) {
+    const [isEditing, setIsEditing] = useState(false)
+    const [tempValue, setTempValue] = useState('')
+
+    // 初始化/更新 tempValue
+    useEffect(() => {
+        setTempValue(value?.toString() || '')
+    }, [value])
+
+    const handleStartEdit = () => {
+        setTempValue(value?.toString() || '')
+        setIsEditing(true)
+    }
+
+    const handleSave = () => {
+        const num = parseInt(tempValue)
+        if (!isNaN(num) && num >= 1 && num <= 7) {
+            if (num !== value) {
+                onChange(num)
+            }
+        } else {
+            // Invalid input, revert
+            setTempValue(value?.toString() || '')
+        }
+        setIsEditing(false)
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSave()
+        } else if (e.key === 'Escape') {
+            setTempValue(value?.toString() || '')
+            setIsEditing(false)
+        }
+    }
+
+    const isModified = value !== originalValue
+
+    if (isEditing) {
+        return (
+            <input
+                type="number"
+                min={1}
+                max={7}
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                className="w-12 px-1 py-0.5 text-center text-sm font-mono border-2 border-violet-400 rounded focus:outline-none focus:ring-2 focus:ring-violet-200"
+            />
+        )
+    }
+
+    if (value === null || value === undefined) {
+        return (
+            <span 
+                onClick={handleStartEdit}
+                className="text-slate-300 cursor-pointer hover:bg-slate-100 px-2 py-0.5 rounded transition-colors"
+            >
+                —
+            </span>
+        )
     }
 
     return (
-        <span className={`
-            text-slate-700 font-medium font-mono
-            ${isModel ? 'text-violet-700' : ''}
-        `}>
-            {score}
+        <span 
+            onClick={handleStartEdit}
+            className={`
+                cursor-pointer px-2 py-0.5 rounded transition-all duration-200 font-medium font-mono select-none
+                ${isModel ? 'text-violet-700' : 'text-slate-700'}
+                ${isModified 
+                    ? 'bg-amber-50 text-amber-700 ring-2 ring-amber-400 ring-offset-1 font-bold shadow-sm' 
+                    : 'hover:bg-slate-100 hover:ring-1 hover:ring-slate-200'
+                }
+            `}
+            title={isModified ? `原始值: ${originalValue ?? '-'}` : '点击修改'}
+        >
+            {value}
         </span>
     )
 }
@@ -250,19 +333,75 @@ export function GuideDetailsPanel({
     const { t } = useTranslation()
     const [isExpanded, setIsExpanded] = useState(true)
     const [activeTab, setActiveTab] = useState<ActiveTab>(0)
+    const [modifiedScores, setModifiedScores] = useState<ModifiedScores>({})
+    const [isSaving, setIsSaving] = useState(false)
 
     const details = summary.guide_details || []
     if (!details || details.length === 0) return null
 
+    // 辅助函数：生成 Key
+    const getScoreKey = (guideId: string, itemId: string, field: string) => `${guideId}::${itemId}::${field}`
+
+    // 辅助函数：获取当前分数（修改值或原始值）
+    const getCurrentScore = (guideId: string, itemId: string, field: string, original: number | null | undefined) => {
+        const key = getScoreKey(guideId, itemId, field)
+        return modifiedScores[key] ?? original
+    }
+
+    // 处理分数变更
+    const handleScoreChange = (guideId: string, itemId: string, field: string, newValue: number) => {
+        const key = getScoreKey(guideId, itemId, field)
+        setModifiedScores(prev => ({
+            ...prev,
+            [key]: newValue
+        }))
+    }
+
+    // 保存更改
+    const handleSaveChanges = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (Object.keys(modifiedScores).length === 0) return
+
+        setIsSaving(true)
+        const toastId = toast.loading('正在保存更改...')
+
+        try {
+            const updates: ScoreUpdate[] = Object.entries(modifiedScores).map(([key, value]) => {
+                const [guideId, itemId, field] = key.split('::')
+                return { guideId, itemId, field, value }
+            })
+
+            await api.saveBenchmarkChanges(xlsxFile, updates)
+            
+            toast.success('保存成功', { id: toastId })
+            // 清空修改状态（或者应该重新加载数据？理想情况下重新加载，这里简单处理先保留，
+            // 但如果后端保存成功，下次渲染应该用新数据。由于我们没有SWR，
+            // 且modifiedScores是本地状态，如果不清空，它会继续覆盖原始值。
+            // 实际上应该触发父组件重新加载数据。
+            // 但为了简化，我们可以不清空，让用户继续编辑。
+            // 可是原始值没变，highlight会一直存在。
+            // 最好是重新加载页面或数据。
+            // 简单起见：刷新页面
+            window.location.reload()
+        } catch (error) {
+            toast.error('保存失败: ' + (error as Error).message, { id: toastId })
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    const hasChanges = Object.keys(modifiedScores).length > 0
+
     // 构建标签数据：包含短标签（显示用）、完整名称（tooltip用）和指南ID
     const tabs = [
-        { id: 0, shortLabel: t('benchmark.details.consistency'), fullName: t('benchmark.details.consistency'), guideId: undefined, type: 'summary' },
+        { id: 0, shortLabel: t('benchmark.details.consistency'), fullName: t('benchmark.details.consistency'), guideId: undefined, type: 'summary', hasChanges: false },
         ...details.map((d, i) => ({
             id: i + 1,
             shortLabel: `指南${d.seq_no}`,
             fullName: d.guide_name || d.guide_id,
             guideId: d.guide_id,
-            type: 'guide'
+            type: 'guide',
+            hasChanges: Object.keys(modifiedScores).some(k => k.startsWith(`${d.guide_id}::`))
         }))
     ]
 
@@ -287,6 +426,16 @@ export function GuideDetailsPanel({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {hasChanges && (
+                        <button
+                            onClick={handleSaveChanges}
+                            disabled={isSaving}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition-all font-medium text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in slide-in-from-right-4"
+                        >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            保存更改
+                        </button>
+                    )}
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
@@ -327,6 +476,11 @@ export function GuideDetailsPanel({
                                         {/* 选中态的左侧光晕指示条 */}
                                         {isActive && (
                                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-violet-400 to-indigo-400 rounded-r-full shadow-[0_0_12px_rgba(139,92,246,0.4)]" />
+                                        )}
+                                        
+                                        {/* 修改状态指示点 */}
+                                        {tab.hasChanges && (
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" title="有未保存的修改" />
                                         )}
                                         
                                         <div className="flex items-center gap-2 w-full pl-1">
@@ -534,12 +688,18 @@ export function GuideDetailsPanel({
                                             </thead>
                                             <tbody>
                                                 {details[activeTab - 1].items.map((item, idx) => {
+                                                    const guideId = details[activeTab - 1].guide_id
+                                                    const currentHuman1 = getCurrentScore(guideId, item.item_id, 'human_score1', item.human_score1)
+                                                    const currentHuman2 = getCurrentScore(guideId, item.item_id, 'human_score2', item.human_score2)
+                                                    const currentBatch1 = getCurrentScore(guideId, item.item_id, 'batch1_model_score', item.batch1_model_score)
+                                                    const currentBatch2 = getCurrentScore(guideId, item.item_id, 'batch2_model_score', item.batch2_model_score)
+
                                                     // 计算评分差异
                                                     const scores = [
-                                                        item.human_score1,
-                                                        item.human_score2,
-                                                        item.batch1_model_score,
-                                                        item.batch2_model_score
+                                                        currentHuman1,
+                                                        currentHuman2,
+                                                        currentBatch1,
+                                                        currentBatch2
                                                     ].filter((s): s is number => s !== null && s !== undefined)
 
                                                     const minScore = scores.length > 0 ? Math.min(...scores) : 0
@@ -574,16 +734,34 @@ export function GuideDetailsPanel({
                                                                 </div>
                                                             </td>
                                                             <td className="py-2 px-2 text-center">
-                                                                {renderScore(item.human_score1)}
+                                                                <EditableScore
+                                                                    value={currentHuman1}
+                                                                    originalValue={item.human_score1}
+                                                                    onChange={(val) => handleScoreChange(guideId, item.item_id, 'human_score1', val)}
+                                                                />
                                                             </td>
                                                             <td className="py-2 px-2 text-center">
-                                                                {renderScore(item.human_score2)}
+                                                                <EditableScore
+                                                                    value={currentHuman2}
+                                                                    originalValue={item.human_score2}
+                                                                    onChange={(val) => handleScoreChange(guideId, item.item_id, 'human_score2', val)}
+                                                                />
                                                             </td>
                                                             <td className="py-2 px-2 text-center">
-                                                                {renderScore(item.batch1_model_score, true)}
+                                                                <EditableScore
+                                                                    value={currentBatch1}
+                                                                    originalValue={item.batch1_model_score}
+                                                                    onChange={(val) => handleScoreChange(guideId, item.item_id, 'batch1_model_score', val)}
+                                                                    isModel
+                                                                />
                                                             </td>
                                                             <td className="py-2 px-2 text-center">
-                                                                {renderScore(item.batch2_model_score, true)}
+                                                                <EditableScore
+                                                                    value={currentBatch2}
+                                                                    originalValue={item.batch2_model_score}
+                                                                    onChange={(val) => handleScoreChange(guideId, item.item_id, 'batch2_model_score', val)}
+                                                                    isModel
+                                                                />
                                                             </td>
                                                         </tr>
                                                     )

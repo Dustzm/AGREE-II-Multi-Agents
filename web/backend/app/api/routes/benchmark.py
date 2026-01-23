@@ -160,7 +160,133 @@ class BenchmarkDetailResponse(BaseModel):
     summary: BenchmarkSummary
 
 
+class ScoreUpdate(BaseModel):
+    """评分更新数据"""
+    guide_id: str
+    item_id: str
+    field: str  # human_score1, human_score2, batch1_model_score, batch2_model_score
+    value: int
+
+
+class SaveBenchmarkRequest(BaseModel):
+    """保存 Benchmark 请求"""
+    filename: str
+    updates: List[ScoreUpdate]
+
+
 # ===== API 路由 =====
+
+@router.post("/benchmark/save")
+async def save_benchmark_changes(request: SaveBenchmarkRequest):
+    """
+    保存 Benchmark 修改
+    """
+    output_dir = get_output_dir()
+    json_path = output_dir / Path(request.filename).with_suffix('.json').name
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail=f"结果不存在: {request.filename}")
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+
+        summary_data = meta.get('summary', {})
+        
+        # 1. 确保 guide_details 存在（如果没有则重新计算）
+        if not summary_data.get('guide_details'):
+            # ... 复用计算逻辑 ...
+            human_file_path = get_uploads_dir() / meta['human_file']
+            output_dir_path = get_model_output_dir()
+
+            benchmark = Benchmark(str(human_file_path), str(output_dir_path))
+            from benchmark.loader import BatchModelScoreLoader
+            benchmark.model_loader = BatchModelScoreLoader(str(output_dir_path), meta['batch_ids'])
+            benchmark.register_metric(ConsistencyMetric(threshold=meta.get('threshold', 2)))
+            results = benchmark.run()
+
+            # 获取评分者姓名
+            rater_names = benchmark.rater_names if hasattr(benchmark, 'rater_names') else []
+
+            # 重新构建 guide_details
+            batch_ids = meta['batch_ids']
+            batch_1_id = batch_ids[0] if len(batch_ids) > 0 else 'batch_1'
+            batch_2_id = batch_ids[1] if len(batch_ids) > 1 else 'batch_2'
+
+            guide_details = []
+            for result in results:
+                if not result.success:
+                    continue
+
+                consistency = result.metrics.get('consistency_ratio')
+                if not consistency:
+                    continue
+
+                items_data = consistency.details.get('items', {})
+                item_details_list = []
+
+                for i in range(1, 24):
+                    item_id = f"item_{i}"
+                    item_data = items_data.get(item_id, {})
+
+                    matches = item_data.get('matches', [])
+                    batch1_score = None
+                    batch2_score = None
+
+                    for match in matches:
+                        if match.get('batch_id') == batch_1_id and match.get('model_score') is not None:
+                            batch1_score = match['model_score']
+                        elif match.get('batch_id') == batch_2_id and match.get('model_score') is not None:
+                            batch2_score = match['model_score']
+
+                    item_details_list.append(GuideItemDetail(
+                        item_id=item_id,
+                        item_name=f"条目{i}",
+                        human_score1=item_data.get('human_score1'),
+                        human_score2=item_data.get('human_score2'),
+                        batch1_model_score=batch1_score,
+                        batch2_model_score=batch2_score,
+                    ))
+
+                guide_details.append(GuideDetail(
+                    seq_no=result.guide_entry.seq_no,
+                    guide_id=result.guide_entry.guide_id,
+                    guide_name=result.guide_entry.guide_name,
+                    status="success",
+                    consistency=consistency.value,
+                    items=item_details_list,
+                ))
+
+            summary_data['guide_details'] = [d.dict() for d in guide_details]
+            if not summary_data.get('rater_names'):
+                summary_data['rater_names'] = rater_names
+
+        # 2. 应用更新
+        updated_count = 0
+        for update in request.updates:
+            # 找到对应的 guide 和 item
+            guide = next((g for g in summary_data['guide_details'] if g['guide_id'] == update.guide_id), None)
+            if guide:
+                item = next((i for i in guide['items'] if i['item_id'] == update.item_id), None)
+                if item:
+                    # 更新字段
+                    if update.field in item:
+                        item[update.field] = update.value
+                        updated_count += 1
+        
+        # 3. 写回文件
+        meta['summary'] = summary_data
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+            
+        logger.info(f"保存 Benchmark 修改: {updated_count} 条更新已写入 {json_path}")
+        
+        return {"status": "success", "message": f"成功保存 {updated_count} 条修改", "updated_count": updated_count}
+
+    except Exception as e:
+        logger.exception(f"保存失败: {e}")
+        raise HTTPException(status_code=500, detail=f"保存失败: {str(e)}")
+
 
 @router.get("/benchmark/human-files")
 async def list_human_files():
