@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Upload, Download, Play, Trash2, FileSpreadsheet, FolderOpen, Check, AlertCircle, Loader2, BarChart2 } from 'lucide-react'
+import { Upload, Download, Play, Trash2, FileSpreadsheet, FolderOpen, Check, AlertCircle, Loader2, BarChart2, Eye } from 'lucide-react'
 import { api, HumanFileInfo, BatchInfo, BenchmarkResultInfo, BenchmarkSummary } from '@/services/api'
-import { BenchmarkVisualization } from '@/components/BenchmarkVisualization'
+import { GuideDetailsPanel } from '@/components/GuideDetailsPanel'
 
 export function Benchmark() {
     const { t } = useTranslation()
@@ -15,6 +15,8 @@ export function Benchmark() {
     const [results, setResults] = useState<BenchmarkResultInfo[]>([])
     const [isRunning, setIsRunning] = useState(false)
     const [runResult, setRunResult] = useState<{ summary: BenchmarkSummary; xlsxFile: string } | null>(null)
+    const [historyDetail, setHistoryDetail] = useState<{ summary: BenchmarkSummary; batchIds: string[]; xlsxFile: string } | null>(null)
+    const [loadingDetail, setLoadingDetail] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -133,6 +135,27 @@ export function Benchmark() {
     // 下载结果
     const handleDownload = (filename: string) => {
         window.open(api.getBenchmarkDownloadUrl(filename), '_blank')
+    }
+
+    // 加载历史结果详情
+    const handleViewDetail = async (filename: string) => {
+        setLoadingDetail(true)
+        setError(null)
+        setHistoryDetail(null)  // 清除之前的历史详情
+        setRunResult(null)  // 清除当前运行结果
+
+        try {
+            const detail = await api.getBenchmarkDetail(filename)
+            setHistoryDetail({
+                summary: detail.summary,
+                batchIds: detail.batch_ids,
+                xlsxFile: detail.xlsx_file,
+            })
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '加载详情失败')
+        } finally {
+            setLoadingDetail(false)
+        }
     }
 
     // 格式化百分比
@@ -341,22 +364,28 @@ export function Benchmark() {
                         </div>
                     )}
 
-                    {/* 历史结果 */}
-                    <div className="mt-4">
-                        <h3 className="text-sm font-medium text-gray-500 mb-2">{t('benchmark.results.title')}</h3>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {results.length === 0 ? (
-                                <p className="text-sm text-gray-400 text-center py-4">{t('benchmark.results.empty')}</p>
-                            ) : (
-                                results.slice(0, 5).map(result => (
+                    {/* 历史结果列表 */}
+                    {results.length > 0 && (
+                        <div className="mt-4">
+                            <h3 className="text-sm font-medium text-gray-500 mb-2">{t('benchmark.results.title')}</h3>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {results.slice(0, 5).map(result => (
                                     <div
                                         key={result.name}
-                                        className="flex items-center justify-between p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                                        className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                                     >
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm truncate text-gray-700">{result.name}</p>
                                             <p className="text-xs text-gray-400">{result.created}</p>
                                         </div>
+                                        <button
+                                            onClick={() => handleViewDetail(result.name)}
+                                            className="p-2 rounded-lg hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"
+                                            disabled={loadingDetail}
+                                            title="查看详情"
+                                        >
+                                            {loadingDetail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                                        </button>
                                         <button
                                             onClick={() => handleDownload(result.name)}
                                             className="p-2 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-blue-600 transition-colors"
@@ -364,16 +393,20 @@ export function Benchmark() {
                                             <Download className="w-4 h-4" />
                                         </button>
                                     </div>
-                                ))
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
-            {/* 可视化区域 - 全宽展示 */}
-            {runResult && (
-                <BenchmarkVisualization summary={runResult.summary} />
+            {/* 指南详情面板 - 支持当前运行和历史结果 */}
+            {(runResult?.summary || historyDetail?.summary) && (
+                <GuideDetailsPanel
+                    summary={runResult?.summary ?? historyDetail?.summary!}
+                    batchIds={runResult ? selectedBatches : historyDetail?.batchIds || []}
+                    xlsxFile={runResult?.xlsxFile || historyDetail?.xlsxFile || ''}
+                />
             )}
         </div>
     )

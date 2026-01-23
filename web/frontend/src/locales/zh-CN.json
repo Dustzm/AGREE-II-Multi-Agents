@@ -357,6 +357,25 @@
                 "applicability": "应用性",
                 "independence": "独立性"
             }
+        },
+        "details": {
+            "title": "指南详情",
+            "guides": "部指南",
+            "consistency": "一致性汇总",
+            "guideName": "指南名称",
+            "item": "条目",
+            "human": "人工评分",
+            "rater1": "评分者1",
+            "rater2": "评分者2",
+            "model": "模型评分",
+            "humanRater1": "评分者1",
+            "humanRater2": "评分者2",
+            "batch1": "批次1模型",
+            "batch2": "批次2模型"
+        },
+        "results": {
+            "title": "历史记录",
+            "empty": "暂无历史结果"
         }
     }
 }

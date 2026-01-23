@@ -47,18 +47,23 @@ class ConsistencyMetric(BaseMetric):
         self,
         human_scores: Dict[str, HumanScore],
         model_scores: Dict[str, Dict[str, ModelScore]],
+        rater_names: List[str] = None,
         **kwargs
     ) -> MetricResult:
         """
         计算一致性比例（4次匹配组合）
-        
+
         Args:
             human_scores: 人类评分字典 {item_id: HumanScore}
             model_scores: 模型评分字典 {batch_id: {item_id: ModelScore}}
-            
+            rater_names: 评分者姓名列表，如 ['吴之仪', '曾传飞']
+
         Returns:
             MetricResult 包含一致性比例和条目级详情
         """
+        # 默认评分者姓名
+        if rater_names is None:
+            rater_names = []
         total_items = 23  # AGREE II共23个条目
         
         # 动态获取 batch_ids（从 model_scores 字典的键中获取）
@@ -149,7 +154,7 @@ class ConsistencyMetric(BaseMetric):
         
         # 计算指南一致性比例
         consistency_ratio = consistent_count / total_matches if total_matches > 0 else 0
-        
+
         return MetricResult(
             name=self.name,
             value=consistency_ratio,
@@ -159,6 +164,7 @@ class ConsistencyMetric(BaseMetric):
                 'total_matches': total_matches,
                 'total_items': total_items,
                 'batch_ids': batch_ids[:2],  # 记录使用的 batch_ids
+                'rater_names': rater_names,  # 记录评分者姓名
                 'items': item_details
             }
         )

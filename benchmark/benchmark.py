@@ -45,11 +45,11 @@ class BenchmarkResult:
 
 class Benchmark:
     """主对比引擎（2×2匹配组合版本）"""
-    
+
     def __init__(self, human_file: str, output_dir: str):
         """
         初始化
-        
+
         Args:
             human_file: 人类评分Excel文件路径
             output_dir: 模型评估输出目录（包含batch_1, batch_2子目录）
@@ -57,11 +57,12 @@ class Benchmark:
         self.human_loader = HumanScoreLoader(human_file)
         self.model_loader = BatchModelScoreLoader(output_dir)
         self.metrics: List[BaseMetric] = []
-        
+        self.rater_names: List[str] = []  # 评分者姓名
+
         # 记录可用批次
         available = self.model_loader.available_batches
         logger.info(f"可用批次: {available}")
-        
+
         if len(available) < 2:
             logger.warning(f"期望2个批次，但只找到 {len(available)} 个: {available}")
     
@@ -78,16 +79,21 @@ class Benchmark:
     def run(self) -> List[BenchmarkResult]:
         """
         执行对比
-        
+
         Returns:
             所有指南的对比结果列表
         """
         results = []
-        
+
         # 加载目录
         entries = self.human_loader.load_index()
         logger.info(f"开始对比 {len(entries)} 个指南")
-        
+
+        # 获取评分者姓名（从第一个指南 sheet）
+        if entries:
+            self.rater_names = self.human_loader.get_rater_names(entries[0].seq_no)
+            logger.info(f"评分者姓名: {self.rater_names}")
+
         for entry in entries:
             result = self._process_guide(entry)
             results.append(result)
@@ -159,7 +165,7 @@ class Benchmark:
         
         for metric in self.metrics:
             try:
-                metric_result = metric.compute(human_scores, model_scores)
+                metric_result = metric.compute(human_scores, model_scores, rater_names=self.rater_names)
                 result.metrics[metric.name] = metric_result
                 logger.debug(f"  {metric.name}: {metric_result.value:.4f}")
             except Exception as e:

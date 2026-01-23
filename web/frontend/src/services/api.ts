@@ -367,6 +367,15 @@ export const api = {
     getBenchmarkDownloadUrl(filename: string): string {
         return `${API_BASE}/benchmark/download/${encodeURIComponent(filename)}`
     },
+
+    // 获取 Benchmark 结果详情
+    async getBenchmarkDetail(filename: string): Promise<BenchmarkDetailResponse> {
+        const response = await fetch(`${API_BASE}/benchmark/detail/${encodeURIComponent(filename)}`)
+        if (!response.ok) {
+            throw new Error('获取结果详情失败')
+        }
+        return response.json()
+    },
 }
 
 // ===== Benchmark 类型定义 =====
@@ -409,6 +418,8 @@ export interface BenchmarkSummary {
     overall_consistency: number
     guide_consistencies: GuideConsistency[]
     item_consistencies: ItemConsistency[]
+    guide_details: GuideDetail[]  // 指南详情列表
+    rater_names: string[]  // 评分者姓名列表
 }
 
 export interface BenchmarkResultInfo {
@@ -427,4 +438,32 @@ export interface BenchmarkRunResponse {
     download_url?: string
     summary?: BenchmarkSummary
     error?: string
+}
+
+// 新增类型定义
+export interface GuideItemDetail {
+    item_id: string
+    item_name: string
+    human_score1: number | null
+    human_score2: number | null
+    batch1_model_score: number | null
+    batch2_model_score: number | null
+}
+
+export interface GuideDetail {
+    seq_no: number
+    guide_id: string
+    guide_name: string
+    status: string
+    consistency: number
+    items: GuideItemDetail[]  // 23个条目
+}
+
+export interface BenchmarkDetailResponse {
+    xlsx_file: string
+    human_file: string
+    batch_ids: string[]
+    threshold: number
+    created: string
+    summary: BenchmarkSummary
 }

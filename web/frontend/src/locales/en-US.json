@@ -165,6 +165,21 @@
                 "applicability": "Applicability",
                 "independence": "Editorial Independence"
             }
+        },
+        "details": {
+            "title": "Guide Details",
+            "guides": "Guides",
+            "consistency": "Consistency Summary",
+            "guideName": "Guide Name",
+            "item": "Item",
+            "human": "Human",
+            "rater1": "Rater 1",
+            "rater2": "Rater 2",
+            "model": "Model",
+            "humanRater1": "Rater 1",
+            "humanRater2": "Rater 2",
+            "batch1": "Batch 1 Model",
+            "batch2": "Batch 2 Model"
         }
     },
     "reports": {

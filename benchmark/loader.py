@@ -47,24 +47,84 @@ class ModelScore:
 
 class HumanScoreLoader:
     """从多sheet Excel加载人类评分"""
-    
+
     def __init__(self, excel_path: str):
         """
         初始化加载器
-        
+
         Args:
             excel_path: Excel文件路径
         """
         self.excel_path = Path(excel_path)
         self._xlsx: Optional[pd.ExcelFile] = None
-    
+        self._rater_names: Optional[List[str]] = None
+
     @property
     def xlsx(self) -> pd.ExcelFile:
         """延迟加载Excel文件"""
         if self._xlsx is None:
             self._xlsx = pd.ExcelFile(self.excel_path)
         return self._xlsx
-    
+
+    def get_rater_names(self, seq_no: int = None) -> List[str]:
+        """
+        获取评分者姓名
+
+        从指定指南 sheet 的第 2 行 C、D 列读取评分者姓名
+        如果未指定 seq_no，则从第一个指南 sheet 读取
+
+        Args:
+            seq_no: 指南序号，如果为 None 则使用第一个指南
+
+        Returns:
+            评分者姓名列表，如 ['吴之仪', '曾传飞']
+        """
+        if self._rater_names is not None:
+            return self._rater_names
+
+        # 确定要读取的 sheet
+        if seq_no is None:
+            # 从第一个指南 sheet 读取
+            entries = self.load_index()
+            if not entries:
+                logger.warning("没有找到指南条目，无法获取评分者姓名")
+                self._rater_names = []
+                return self._rater_names
+            seq_no = entries[0].seq_no
+
+        # 尝试多种 sheet 命名格式
+        possible_names = [
+            str(seq_no),           # "5"
+            f"指南{seq_no}",       # "指南5"
+            f"Sheet{seq_no}",      # "Sheet5"
+        ]
+
+        sheet_name = None
+        for name in possible_names:
+            if name in self.xlsx.sheet_names:
+                sheet_name = name
+                break
+
+        if sheet_name is None:
+            logger.warning(f"Sheet '{seq_no}' 不存在，无法获取评分者姓名")
+            self._rater_names = []
+            return self._rater_names
+
+        # 读取第 2 行（索引 1）获取评分者姓名
+        df = pd.read_excel(self.xlsx, sheet_name=sheet_name, header=None)
+        if len(df) < 2:
+            logger.warning(f"Sheet {sheet_name} 数据不足，无法获取评分者姓名")
+            self._rater_names = []
+            return self._rater_names
+
+        header_row = df.iloc[1]  # 第 2 行
+        rater1_name = str(header_row.iloc[2]) if pd.notna(header_row.iloc[2]) else ""  # C 列
+        rater2_name = str(header_row.iloc[3]) if pd.notna(header_row.iloc[3]) else ""  # D 列
+
+        self._rater_names = [rater1_name, rater2_name]
+        logger.info(f"获取评分者姓名: {self._rater_names}")
+        return self._rater_names
+
     def load_index(self) -> List[GuideEntry]:
         """
         从Sheet1加载目录页

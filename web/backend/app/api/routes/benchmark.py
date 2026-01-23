@@ -99,6 +99,26 @@ class ItemConsistency(BaseModel):
     consistency: float
 
 
+class GuideItemDetail(BaseModel):
+    """指南条目详情（简化版）"""
+    item_id: str
+    item_name: str
+    human_score1: Optional[int]
+    human_score2: Optional[int]
+    batch1_model_score: Optional[int]
+    batch2_model_score: Optional[int]
+
+
+class GuideDetail(BaseModel):
+    """指南详情"""
+    seq_no: int
+    guide_id: str
+    guide_name: str
+    status: str
+    consistency: float
+    items: List[GuideItemDetail]  # 23个条目
+
+
 class BenchmarkSummary(BaseModel):
     """Benchmark 汇总数据（用于可视化）"""
     total_guides: int
@@ -106,6 +126,8 @@ class BenchmarkSummary(BaseModel):
     overall_consistency: float
     guide_consistencies: List[GuideConsistency]
     item_consistencies: List[ItemConsistency]
+    guide_details: List[GuideDetail] = []  # 指南详情列表
+    rater_names: List[str] = []  # 评分者姓名列表
 
 
 class BenchmarkResultInfo(BaseModel):
@@ -126,6 +148,16 @@ class RunBenchmarkResponse(BaseModel):
     download_url: Optional[str] = None
     summary: Optional[BenchmarkSummary] = None
     error: Optional[str] = None
+
+
+class BenchmarkDetailResponse(BaseModel):
+    """历史结果的详情数据"""
+    xlsx_file: str
+    human_file: str
+    batch_ids: List[str]
+    threshold: int
+    created: str
+    summary: BenchmarkSummary
 
 
 # ===== API 路由 =====
@@ -274,7 +306,8 @@ async def run_benchmark(request: RunBenchmarkRequest):
         total_consistent = 0
         total_matches = 0
         success_count = 0
-        
+        rater_names = []  # 评分者姓名
+
         for result in results:
             consistency = result.metrics.get('consistency_ratio')
             
@@ -293,6 +326,10 @@ async def run_benchmark(request: RunBenchmarkRequest):
                 success_count += 1
                 total_consistent += consistency.details.get('consistent_count', 0)
                 total_matches += consistency.details.get('total_matches', 92)
+
+                # 获取评分者姓名（从第一个成功的指南）
+                if not rater_names:
+                    rater_names = consistency.details.get('rater_names', [])
                 
                 # 统计条目一致性
                 items = consistency.details.get('items', {})
@@ -316,13 +353,66 @@ async def run_benchmark(request: RunBenchmarkRequest):
             ))
         
         overall_consistency = total_consistent / total_matches if total_matches > 0 else 0
-        
+
+        # ========== 构建指南详情 ==========
+        guide_details = []
+        for result in results:
+            if not result.success:
+                continue
+
+            consistency = result.metrics.get('consistency_ratio')
+            if not consistency:
+                continue
+
+            # 获取批次 ID
+            batch_ids = consistency.details.get('batch_ids', request.batch_ids)
+            batch_1_id = batch_ids[0] if len(batch_ids) > 0 else request.batch_ids[0]
+            batch_2_id = batch_ids[1] if len(batch_ids) > 1 else request.batch_ids[1]
+
+            items_data = consistency.details.get('items', {})
+            item_details_list = []
+
+            for i in range(1, 24):
+                item_id = f"item_{i}"
+                item_data = items_data.get(item_id, {})
+
+                # 从 matches 中提取两个批次的模型分
+                matches = item_data.get('matches', [])
+                batch1_score = None
+                batch2_score = None
+
+                for match in matches:
+                    if match.get('batch_id') == batch_1_id and match.get('model_score') is not None:
+                        batch1_score = match['model_score']
+                    elif match.get('batch_id') == batch_2_id and match.get('model_score') is not None:
+                        batch2_score = match['model_score']
+
+                item_details_list.append(GuideItemDetail(
+                    item_id=item_id,
+                    item_name=f"条目{i}",
+                    human_score1=item_data.get('human_score1'),
+                    human_score2=item_data.get('human_score2'),
+                    batch1_model_score=batch1_score,
+                    batch2_model_score=batch2_score,
+                ))
+
+            guide_details.append(GuideDetail(
+                seq_no=result.guide_entry.seq_no,
+                guide_id=result.guide_entry.guide_id,
+                guide_name=result.guide_entry.guide_name,
+                status="success",
+                consistency=consistency.value,
+                items=item_details_list,
+            ))
+
         summary = BenchmarkSummary(
             total_guides=len(results),
             success_count=success_count,
             overall_consistency=overall_consistency,
             guide_consistencies=guide_consistencies,
             item_consistencies=item_consistencies,
+            guide_details=guide_details,
+            rater_names=rater_names,  # 添加评分者姓名
         )
         
         # 保存元数据（可选，用于结果列表显示）
@@ -407,6 +497,112 @@ async def download_benchmark_result(filename: str):
         filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+@router.get("/benchmark/detail/{filename}")
+async def get_benchmark_detail(filename: str):
+    """
+    获取历史 benchmark 结果的详情数据
+
+    从保存的 JSON 元数据文件中读取 guide_details
+    如果元数据文件中没有 guide_details（旧版本），
+    则重新从原始数据计算生成
+    """
+    output_dir = get_output_dir()
+    json_path = output_dir / Path(filename).with_suffix('.json').name
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail=f"结果不存在: {filename}")
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+
+        # 检查元数据中是否已有 guide_details
+        summary_data = meta.get('summary', {})
+
+        # 如果没有 guide_details，需要重新计算（兼容旧版本）
+        if not summary_data.get('guide_details'):
+            # 从原始数据重新生成 guide_details
+            human_file_path = get_uploads_dir() / meta['human_file']
+            output_dir_path = get_model_output_dir()
+
+            benchmark = Benchmark(str(human_file_path), str(output_dir_path))
+            from benchmark.loader import BatchModelScoreLoader
+            benchmark.model_loader = BatchModelScoreLoader(str(output_dir_path), meta['batch_ids'])
+            benchmark.register_metric(ConsistencyMetric(threshold=meta.get('threshold', 2)))
+            results = benchmark.run()
+
+            # 获取评分者姓名
+            rater_names = benchmark.rater_names if hasattr(benchmark, 'rater_names') else []
+
+            # 重新构建 guide_details
+            batch_ids = meta['batch_ids']
+            batch_1_id = batch_ids[0] if len(batch_ids) > 0 else 'batch_1'
+            batch_2_id = batch_ids[1] if len(batch_ids) > 1 else 'batch_2'
+
+            guide_details = []
+            for result in results:
+                if not result.success:
+                    continue
+
+                consistency = result.metrics.get('consistency_ratio')
+                if not consistency:
+                    continue
+
+                items_data = consistency.details.get('items', {})
+                item_details_list = []
+
+                for i in range(1, 24):
+                    item_id = f"item_{i}"
+                    item_data = items_data.get(item_id, {})
+
+                    matches = item_data.get('matches', [])
+                    batch1_score = None
+                    batch2_score = None
+
+                    for match in matches:
+                        if match.get('batch_id') == batch_1_id and match.get('model_score') is not None:
+                            batch1_score = match['model_score']
+                        elif match.get('batch_id') == batch_2_id and match.get('model_score') is not None:
+                            batch2_score = match['model_score']
+
+                    item_details_list.append(GuideItemDetail(
+                        item_id=item_id,
+                        item_name=f"条目{i}",
+                        human_score1=item_data.get('human_score1'),
+                        human_score2=item_data.get('human_score2'),
+                        batch1_model_score=batch1_score,
+                        batch2_model_score=batch2_score,
+                    ))
+
+                guide_details.append(GuideDetail(
+                    seq_no=result.guide_entry.seq_no,
+                    guide_id=result.guide_entry.guide_id,
+                    guide_name=result.guide_entry.guide_name,
+                    status="success",
+                    consistency=consistency.value,
+                    items=item_details_list,
+                ))
+
+            summary_data['guide_details'] = [d.dict() for d in guide_details]
+
+            # 添加评分者姓名
+            if not summary_data.get('rater_names'):
+                summary_data['rater_names'] = rater_names
+
+        return BenchmarkDetailResponse(
+            xlsx_file=filename,
+            human_file=meta.get('human_file', ''),
+            batch_ids=meta.get('batch_ids', []),
+            threshold=meta.get('threshold', 2),
+            created=meta.get('created', ''),
+            summary=BenchmarkSummary(**summary_data),
+        )
+
+    except Exception as e:
+        logger.exception(f"获取详情失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取详情失败: {str(e)}")
 
 
 @router.delete("/benchmark/human-files/{filename}")
