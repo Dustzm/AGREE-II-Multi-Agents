@@ -52,10 +52,17 @@ Extract **complete and exact text fragments** from "Content to Analyze" that hel
 - ✗ BAD: "The authors are listed with affiliations" (summary, not a quote)
 
 ## Output Format
-Return a JSON array of exact quotes:
-["complete quote 1", "complete quote 2", ...]
+Return a JSON object with an "evidence" array. Each item must include the chunk_id where the evidence was found:
+{{
+    "evidence": [
+        {{"chunk_id": "chunk_001", "evidence": "complete quote 1"}},
+        {{"chunk_id": "chunk_002", "evidence": "complete quote 2"}}
+    ]
+}}
 
-Return empty array [] if no relevant content found.
+**IMPORTANT**: The chunk_id must match exactly the "[chunk_XXX]" label shown at the beginning of each content section in "Content to Analyze".
+
+Return {{"evidence": []}} if no relevant content found.
 """
 
 
@@ -238,7 +245,7 @@ def render_final_report_prompt(
     shots: list[str],  # 评分示例（最终报告暂不使用）
     scoring_table: str,
     evidence_cache: list[str],
-    evidence_sources: list[str],
+    evidence_chunk_map: list[str],  # 每条证据对应的 chunk_id（精确映射）
     final_score: int
 ) -> str:
     """
@@ -251,19 +258,18 @@ def render_final_report_prompt(
         shots: 评分示例列表（最终报告暂不使用）
         scoring_table: 评分表格 (markdown)
         evidence_cache: 累积的证据列表
-        evidence_sources: 证据来源 chunk_id 列表
+        evidence_chunk_map: 每条证据对应的 chunk_id 列表（与 evidence_cache 一一对应）
         final_score: 最终评分
     
     Returns:
         渲染后的提示词
     """
     # 带 chunk_id 的证据列表，便于 LLM 引用
-    # 将索引映射到对应的 chunk_id
-    if evidence_cache and evidence_sources:
-        # 为每个证据分配一个 chunk_id，如果证据数量超过 chunk_id 数量，循环使用
+    # 使用 evidence_chunk_map 进行精确映射
+    if evidence_cache and evidence_chunk_map:
         evidence_indexed_parts = []
         for i, e in enumerate(evidence_cache):
-            chunk_id = evidence_sources[i % len(evidence_sources)] if evidence_sources else f"chunk_{i+1:03d}"
+            chunk_id = evidence_chunk_map[i] if i < len(evidence_chunk_map) else f"unknown_{i+1:03d}"
             evidence_indexed_parts.append(f"[{chunk_id}] {e}")
         evidence_indexed = "\n".join(evidence_indexed_parts)
     elif evidence_cache:

@@ -80,8 +80,9 @@ class IterativeEvaluator:
         self.lang = lang
         
         # 累积状态
-        self.evidence_cache: List[str] = []      # 累积的证据
-        self.evidence_sources: List[str] = []    # 证据来源 (chunk_id 列表)
+        self.evidence_cache: List[str] = []      # 累积的证据文本
+        self.evidence_chunk_map: List[str] = []  # 每条证据对应的 chunk_id（与 evidence_cache 一一对应）
+        self.evidence_sources: List[str] = []    # 所有处理过的 chunk_id 列表
         self.current_score: int = 1              # 当前评分
         
         # 加载配置
@@ -168,11 +169,12 @@ class IterativeEvaluator:
             batch_chunks = iterator_list[i:i+batch_size]
             logger.info(f"处理 batch {i//batch_size + 1}/{(len(iterator_list)+batch_size-1)//batch_size}: 包含 {len(batch_chunks)} 个 chunks")
             
-            # 3.1 提取证据 (Batch)
-            new_evidence = self._extract_evidence_batch(batch_chunks)
+            # 3.1 提取证据 (Batch) - 返回 (evidence_texts, chunk_ids)
+            new_evidence, new_chunk_ids = self._extract_evidence_batch(batch_chunks)
             
             if new_evidence:
                 self.evidence_cache.extend(new_evidence)
+                self.evidence_chunk_map.extend(new_chunk_ids)
                 for chunk in batch_chunks:
                     self.evidence_sources.append(chunk.chunk_id)
                 logger.info(f"Batch 提取到 {len(new_evidence)} 条证据")
@@ -190,7 +192,7 @@ class IterativeEvaluator:
         # 4. 生成最终报告
         return self._synthesize_report()
     
-    def _extract_evidence_batch(self, chunks: List[SemanticChunk]) -> List[str]:
+    def _extract_evidence_batch(self, chunks: List[SemanticChunk]) -> tuple[List[str], List[str]]:
         """
         从 batch chunks 提取与评价标准相关的证据
         
@@ -198,17 +200,17 @@ class IterativeEvaluator:
             chunks: 语义块列表
         
         Returns:
-            提取的证据列表
+            (evidence_texts, chunk_ids) 元组：证据文本列表和对应的 chunk_id 列表
         """
         # 记录处理的 chunk 内容
         for c in chunks:
             logger.info(f"Evaluating Chunk: {c.title}")
             logger.info(f"Chunk Content: {c.content}")
 
-        # 拼接 chunk 内容
+        # 拼接 chunk 内容（带 chunk_id 标记，便于 LLM 识别来源）
         combined_content = []
         for c in chunks:
-            combined_content.append(f"## {c.title}\n{c.content}")
+            combined_content.append(f"[{c.chunk_id}] ## {c.title}\n{c.content}")
         
         full_text = "\n\n".join(combined_content)
 
@@ -226,35 +228,37 @@ class IterativeEvaluator:
             chunk_content=full_text,
         )
         
-        # 定义 Pydantic Schema 用于约束输出
+        # 定义 Pydantic Schema 用于约束输出（新格式：包含 chunk_id）
         from pydantic import BaseModel, Field
         
+        class EvidenceItem(BaseModel):
+            chunk_id: str = Field(description="The chunk_id where the evidence was found")
+            evidence: str = Field(description="The extracted evidence text")
+        
         class EvidenceOutput(BaseModel):
-            evidence: List[str] = Field(description="A list of evidence strings extracted from the text")
+            evidence: List[EvidenceItem] = Field(description="List of evidence items with chunk_id")
 
         try:
             # 使用 response_format={ "type": "json_object" } 配合 Pydantic Schema 约束
-            
-            # 临时修改 prompt 结尾以匹配 JSON Object 格式要求
             system_instruction = "You are a strict extraction system. Output JSON only."
-            api_prompt = prompt + "\n\nIMPORTANT: Return a JSON object with a single key 'evidence' containing the list of strings. Example: {\"evidence\": [\"text1\", \"text2\"]}"
+            # 提示词已在 iterative_prompts.py 中修改为新格式
 
             logger.info("=== [Evidence Extraction] Input Prompt ===")
-            logger.info(api_prompt)
+            logger.info(prompt)
             logger.info("==========================================")
 
             response = litellm.completion(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": api_prompt}
+                    {"role": "user", "content": prompt}
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
                 temperature=0.1,  # 提高温度，增加灵活性，避免过度严格
                 top_p=0.9,
                 max_tokens=8192, # Batch 模式下允许提取更多
-                response_format={"type": "json_object"},
+                response_format={"type": "json_object"},  # vLLM 不支持 Pydantic Schema，使用 json_object
                 extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
             )
             
@@ -274,7 +278,10 @@ class IterativeEvaluator:
             logger.info(content)
             logger.info("============================================")
             
-            # 解析 JSON
+            # 解析 JSON（新格式：包含 chunk_id）
+            evidence_texts: List[str] = []
+            chunk_ids: List[str] = []
+            
             try:
                 data = json.loads(content)
                 if isinstance(data, dict):
@@ -283,21 +290,47 @@ class IterativeEvaluator:
                     evidence_list = data
                 else:
                     evidence_list = []
+                
+                # 解析新格式 [{chunk_id, evidence}]
+                for item in evidence_list:
+                    if isinstance(item, dict):
+                        # 新格式：{"chunk_id": "xxx", "evidence": "text"}
+                        chunk_id = item.get("chunk_id", "unknown")
+                        evidence_text = item.get("evidence", "")
+                        if evidence_text:
+                            evidence_texts.append(str(evidence_text))
+                            chunk_ids.append(str(chunk_id))
+                    elif isinstance(item, str) and item:
+                        # 兼容旧格式：纯字符串数组（回退到第一个 chunk）
+                        evidence_texts.append(str(item))
+                        chunk_ids.append(chunks[0].chunk_id if chunks else "unknown")
+                        
             except json.JSONDecodeError:
                 import re
+                # 尝试匹配 JSON 数组
                 match = re.search(r'\[.*\]', content, re.DOTALL)
                 if match:
-                    evidence_list = json.loads(match.group(0))
-                else:
-                    return []
+                    try:
+                        evidence_list = json.loads(match.group(0))
+                        for item in evidence_list:
+                            if isinstance(item, dict):
+                                chunk_id = item.get("chunk_id", "unknown")
+                                evidence_text = item.get("evidence", "")
+                                if evidence_text:
+                                    evidence_texts.append(str(evidence_text))
+                                    chunk_ids.append(str(chunk_id))
+                            elif isinstance(item, str) and item:
+                                evidence_texts.append(str(item))
+                                chunk_ids.append(chunks[0].chunk_id if chunks else "unknown")
+                    except json.JSONDecodeError:
+                        pass
             
-            if isinstance(evidence_list, list):
-                return [str(e) for e in evidence_list if e]
-            return []
+            return evidence_texts, chunk_ids
             
         except Exception as e:
             logger.warning(f"Batch 证据提取失败: {e}")
-            return []
+            return [], []
+
     
     def _score_current(self) -> int:
         """
@@ -419,7 +452,7 @@ class IterativeEvaluator:
             shots=self.skill_config.get("shots", []),
             scoring_table=scoring_table,
             evidence_cache=self.evidence_cache,
-            evidence_sources=self.evidence_sources,
+            evidence_chunk_map=self.evidence_chunk_map,  # 使用精确映射
             final_score=self.current_score,
         )
         
