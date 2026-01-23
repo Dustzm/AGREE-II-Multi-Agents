@@ -1,8 +1,0 @@
-{
-  "track_id": "benchmark_editor_20260123",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-23T00:00:00Z",
-  "updated_at": "2026-01-23T00:00:00Z",
-  "description": "实验界面评分编辑与持久化功能增强"
-}
