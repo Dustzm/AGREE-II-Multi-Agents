@@ -107,6 +107,20 @@ class GuideItemDetail(BaseModel):
     human_score2: Optional[int]
     batch1_model_score: Optional[int]
     batch2_model_score: Optional[int]
+    # 原始值字段（用于标记修改状态）
+    human_score1_original: Optional[int] = None
+    human_score2_original: Optional[int] = None
+    batch1_model_score_original: Optional[int] = None
+    batch2_model_score_original: Optional[int] = None
+
+
+class GuideComment(BaseModel):
+    """指南备注/评论"""
+    id: str
+    author: str
+    content: str
+    created_at: str
+    updated_at: Optional[str] = None
 
 
 class GuideDetail(BaseModel):
@@ -117,6 +131,7 @@ class GuideDetail(BaseModel):
     status: str
     consistency: float
     items: List[GuideItemDetail]  # 23个条目
+    comments: List[GuideComment] = []  # 备注/评论列表
 
 
 class BenchmarkSummary(BaseModel):
@@ -269,9 +284,16 @@ async def save_benchmark_changes(request: SaveBenchmarkRequest):
             if guide:
                 item = next((i for i in guide['items'] if i['item_id'] == update.item_id), None)
                 if item:
+                    field = update.field
+                    original_field = f"{field}_original"
+
+                    # 如果没有原始值记录，先记录当前值作为原始值
+                    if original_field not in item or item.get(original_field) is None:
+                        item[original_field] = item.get(field)
+
                     # 更新字段
-                    if update.field in item:
-                        item[update.field] = update.value
+                    if field in item:
+                        item[field] = update.value
                         updated_count += 1
         
         # 3. 写回文件
@@ -729,6 +751,141 @@ async def get_benchmark_detail(filename: str):
     except Exception as e:
         logger.exception(f"获取详情失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取详情失败: {str(e)}")
+
+
+@router.post("/benchmark/comments")
+async def add_comment(request: dict):
+    """
+    添加指南备注/评论
+    """
+    output_dir = get_output_dir()
+    json_path = output_dir / Path(request['filename']).with_suffix('.json').name
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail=f"结果不存在: {request['filename']}")
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+
+        summary_data = meta.get('summary', {})
+        guide_details = summary_data.get('guide_details', [])
+
+        # 找到对应的指南
+        guide = next((g for g in guide_details if g['guide_id'] == request['guide_id']), None)
+        if not guide:
+            raise HTTPException(status_code=404, detail=f"指南不存在: {request['guide_id']}")
+
+        # 确保 comments 字段存在
+        if 'comments' not in guide:
+            guide['comments'] = []
+
+        # 创建新评论
+        comment = {
+            'id': request.get('comment_id', f"comment_{int(datetime.now().timestamp())}"),
+            'author': request.get('author', '用户'),
+            'content': request['content'],
+            'created_at': datetime.now().isoformat()
+        }
+        guide['comments'].append(comment)
+
+        # 写回文件
+        meta['summary'] = summary_data
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"添加评论: guide_id={request['guide_id']}, comment_id={comment['id']}")
+        return {"status": "success", "comment": comment}
+
+    except Exception as e:
+        logger.exception(f"添加评论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"添加评论失败: {str(e)}")
+
+
+@router.put("/benchmark/comments")
+async def update_comment(request: dict):
+    """
+    更新指南备注/评论
+    """
+    output_dir = get_output_dir()
+    json_path = output_dir / Path(request['filename']).with_suffix('.json').name
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail=f"结果不存在: {request['filename']}")
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+
+        summary_data = meta.get('summary', {})
+        guide_details = summary_data.get('guide_details', [])
+
+        # 找到对应的指南
+        guide = next((g for g in guide_details if g['guide_id'] == request['guide_id']), None)
+        if not guide:
+            raise HTTPException(status_code=404, detail=f"指南不存在: {request['guide_id']}")
+
+        # 找到并更新评论
+        comments = guide.get('comments', [])
+        comment = next((c for c in comments if c['id'] == request['comment_id']), None)
+        if not comment:
+            raise HTTPException(status_code=404, detail=f"评论不存在: {request['comment_id']}")
+
+        comment['content'] = request['content']
+        comment['updated_at'] = datetime.now().isoformat()
+
+        # 写回文件
+        meta['summary'] = summary_data
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"更新评论: guide_id={request['guide_id']}, comment_id={request['comment_id']}")
+        return {"status": "success", "comment": comment}
+
+    except Exception as e:
+        logger.exception(f"更新评论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新评论失败: {str(e)}")
+
+
+@router.delete("/benchmark/comments")
+async def delete_comment(request: dict):
+    """
+    删除指南备注/评论
+    """
+    output_dir = get_output_dir()
+    json_path = output_dir / Path(request['filename']).with_suffix('.json').name
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail=f"结果不存在: {request['filename']}")
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+
+        summary_data = meta.get('summary', {})
+        guide_details = summary_data.get('guide_details', [])
+
+        # 找到对应的指南
+        guide = next((g for g in guide_details if g['guide_id'] == request['guide_id']), None)
+        if not guide:
+            raise HTTPException(status_code=404, detail=f"指南不存在: {request['guide_id']}")
+
+        # 删除评论
+        comments = guide.get('comments', [])
+        original_count = len(comments)
+        guide['comments'] = [c for c in comments if c['id'] != request['comment_id']]
+
+        # 写回文件
+        meta['summary'] = summary_data
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"删除评论: guide_id={request['guide_id']}, comment_id={request['comment_id']}")
+        return {"status": "success", "deleted": original_count != len(guide['comments'])}
+
+    except Exception as e:
+        logger.exception(f"删除评论失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除评论失败: {str(e)}")
 
 
 @router.delete("/benchmark/human-files/{filename}")

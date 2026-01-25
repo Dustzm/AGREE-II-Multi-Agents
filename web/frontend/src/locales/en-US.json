@@ -151,6 +151,7 @@
             "rank": "Guideline Ranking",
             "itemDistribution": "Item Consistency Distribution (by Domain)",
             "noData": "No Data",
+            "guide": "Guide",
             "legend": {
                 "high": "High (≥80%)",
                 "med": "Med (≥60%)",
@@ -180,6 +181,64 @@
             "humanRater2": "Rater 2",
             "batch1": "Batch 1 Model",
             "batch2": "Batch 2 Model"
+        },
+        "sidebar": {
+            "title": "Experiment Records",
+            "history": "History",
+            "newExperiment": "New Experiment",
+            "empty": "No records",
+            "footer": "Select a record to view details or create a new experiment",
+            "selected": "{{count}} selected",
+            "confirmDelete": "Confirm Delete",
+            "delete": "Delete"
+        },
+        "form": {
+            "title": "Create New Experiment",
+            "description": "Select human score files and batches for consistency analysis",
+            "humanFile": {
+                "title": "Human Score Files",
+                "upload": "Upload File",
+                "empty": "No files, please upload first"
+            },
+            "batch": {
+                "title": "Select Batches (Select 2)",
+                "selected": "{{count}}/2 selected",
+                "tasks": "tasks",
+                "empty": "No batch results available"
+            },
+            "threshold": {
+                "title": "Consistency Threshold"
+            },
+            "error": {
+                "selection": "Please select a human score file and exactly two batches",
+                "run": "Execution failed"
+            },
+            "running": "Running...",
+            "start": "Start"
+        },
+        "workspace": {
+            "empty": {
+                "title": "Welcome to Experiment Bench",
+                "description": "Select a history record from the left to view details, or create a new experiment to start analysis"
+            }
+        },
+        "header": {
+            "unsaved": "Unsaved",
+            "guides": "guides",
+            "consistency": "Consistency",
+            "save": "Save",
+            "saving": "Saving...",
+            "saved": "Saved successfully",
+            "refreshed": "Data refreshed",
+            "refreshError": "Refresh failed",
+            "download": "Download Excel",
+            "delete": "Delete",
+            "confirmDelete": "Confirm deletion of this experiment record?"
+        },
+        "tabs": {
+            "consistency": "Consistency Analysis",
+            "guide": "Guide",
+            "current": "Current Guide"
         }
     },
     "reports": {

@@ -392,6 +392,58 @@ export const api = {
         }
         return response.json()
     },
+
+    // 添加评论
+    async addComment(filename: string, guideId: string, content: string): Promise<{ status: string; comment: GuideComment }> {
+        const response = await fetch(`${API_BASE}/benchmark/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename,
+                guide_id: guideId,
+                content
+            }),
+        })
+        if (!response.ok) {
+            throw new Error('添加评论失败')
+        }
+        return response.json()
+    },
+
+    // 更新评论
+    async updateComment(filename: string, guideId: string, commentId: string, content: string): Promise<{ status: string; comment: GuideComment }> {
+        const response = await fetch(`${API_BASE}/benchmark/comments`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename,
+                guide_id: guideId,
+                comment_id: commentId,
+                content
+            }),
+        })
+        if (!response.ok) {
+            throw new Error('更新评论失败')
+        }
+        return response.json()
+    },
+
+    // 删除评论
+    async deleteComment(filename: string, guideId: string, commentId: string): Promise<{ status: string }> {
+        const response = await fetch(`${API_BASE}/benchmark/comments`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename,
+                guide_id: guideId,
+                comment_id: commentId
+            }),
+        })
+        if (!response.ok) {
+            throw new Error('删除评论失败')
+        }
+        return response.json()
+    },
 }
 
 // ===== Benchmark 类型定义 =====
@@ -471,6 +523,11 @@ export interface GuideItemDetail {
     human_score2: number | null
     batch1_model_score: number | null
     batch2_model_score: number | null
+    // 原始值字段（用于标记修改状态）
+    human_score1_original?: number | null
+    human_score2_original?: number | null
+    batch1_model_score_original?: number | null
+    batch2_model_score_original?: number | null
 }
 
 export interface GuideDetail {
@@ -480,6 +537,15 @@ export interface GuideDetail {
     status: string
     consistency: number
     items: GuideItemDetail[]  // 23个条目
+    comments: GuideComment[]  // 备注/评论列表
+}
+
+export interface GuideComment {
+    id: string
+    author: string
+    content: string
+    created_at: string
+    updated_at?: string
 }
 
 export interface BenchmarkDetailResponse {

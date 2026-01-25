@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { Layout } from './components/Layout'
 import { Chat } from './pages/Chat'
 import { Reports } from './pages/Reports'
@@ -11,6 +12,7 @@ import { Benchmark } from './pages/Benchmark'
 function App() {
   return (
     <BrowserRouter basename="/ama">
+      <Toaster position="top-center" />
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/chat" replace />} />

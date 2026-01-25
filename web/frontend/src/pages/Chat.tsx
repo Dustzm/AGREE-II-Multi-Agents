@@ -295,7 +295,7 @@ export function Chat() {
 
     const [connectionError, setConnectionError] = useState(false)
 
-    const { connect, send, isConnected } = useWebSocket({
+    const { connect, send } = useWebSocket({
         onOpen: () => {
             setConnectionError(false)
         },

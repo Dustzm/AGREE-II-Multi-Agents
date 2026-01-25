@@ -1,413 +1,337 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useCallback, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Upload, Download, Play, Trash2, FileSpreadsheet, FolderOpen, Check, AlertCircle, Loader2, BarChart2, Eye } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import { api, HumanFileInfo, BatchInfo, BenchmarkResultInfo, BenchmarkSummary } from '@/services/api'
-import { GuideDetailsPanel } from '@/components/GuideDetailsPanel'
+import { toast } from 'react-hot-toast'
+import { Sidebar } from '@/components/benchmark/Sidebar'
+import { Workspace } from '@/components/benchmark/Workspace'
+
+// ==================== 状态管理 ====================
+
+interface BenchmarkState {
+  // 数据状态
+  humanFiles: HumanFileInfo[]
+  batches: BatchInfo[]
+  results: BenchmarkResultInfo[]
+
+  // UI 状态
+  loading: boolean
+  error: string | null
+  isRunning: boolean
+  loadingDetail: boolean
+
+  // 当前选中的内容
+  selectedResult: string | null
+  viewMode: 'empty' | 'new' | 'detail'
+  currentSummary: BenchmarkSummary | null
+  currentXlsxFile: string
+  currentBatchIds: string[]
+  currentHasChanges: boolean
+  currentIsSaving: boolean
+}
+
+type BenchmarkAction =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_HUMAN_FILES'; payload: HumanFileInfo[] }
+  | { type: 'SET_BATCHES'; payload: BatchInfo[] }
+  | { type: 'SET_RESULTS'; payload: BenchmarkResultInfo[] }
+  | { type: 'SET_RUNNING'; payload: boolean }
+  | { type: 'SET_LOADING_DETAIL'; payload: boolean }
+  | { type: 'SELECT_RESULT'; payload: string | null }
+  | { type: 'SET_VIEW_NEW' }
+  | { type: 'SET_VIEW_DETAIL'; payload: { summary: BenchmarkSummary; xlsxFile: string; batchIds: string[] } }
+  | { type: 'SET_VIEW_EMPTY' }
+  | { type: 'SET_HAS_CHANGES'; payload: boolean }
+  | { type: 'SET_SAVING'; payload: boolean }
+
+const initialState: BenchmarkState = {
+  humanFiles: [],
+  batches: [],
+  results: [],
+  loading: true,
+  error: null,
+  isRunning: false,
+  loadingDetail: false,
+  selectedResult: null,
+  viewMode: 'empty',
+  currentSummary: null,
+  currentXlsxFile: '',
+  currentBatchIds: [],
+  currentHasChanges: false,
+  currentIsSaving: false
+}
+
+function benchmarkReducer(state: BenchmarkState, action: BenchmarkAction): BenchmarkState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload }
+    case 'SET_ERROR':
+      return { ...state, error: action.payload }
+    case 'SET_HUMAN_FILES':
+      return { ...state, humanFiles: action.payload }
+    case 'SET_BATCHES':
+      return { ...state, batches: action.payload }
+    case 'SET_RESULTS':
+      return { ...state, results: action.payload }
+    case 'SET_RUNNING':
+      return { ...state, isRunning: action.payload }
+    case 'SET_LOADING_DETAIL':
+      return { ...state, loadingDetail: action.payload }
+    case 'SELECT_RESULT':
+      return { ...state, selectedResult: action.payload }
+    case 'SET_VIEW_NEW':
+      return { ...state, viewMode: 'new', selectedResult: null }
+    case 'SET_VIEW_DETAIL':
+      return {
+        ...state,
+        viewMode: 'detail',
+        currentSummary: action.payload.summary,
+        currentXlsxFile: action.payload.xlsxFile,
+        currentBatchIds: action.payload.batchIds
+      }
+    case 'SET_VIEW_EMPTY':
+      return { ...state, viewMode: 'empty', selectedResult: null, currentSummary: null }
+    case 'SET_HAS_CHANGES':
+      return { ...state, currentHasChanges: action.payload }
+    case 'SET_SAVING':
+      return { ...state, currentIsSaving: action.payload }
+    default:
+      return state
+  }
+}
 
 export function Benchmark() {
-    const { t } = useTranslation()
+  const { t } = useTranslation()
+  const [state, dispatch] = useReducer(benchmarkReducer, initialState)
 
-    // State
-    const [humanFiles, setHumanFiles] = useState<HumanFileInfo[]>([])
-    const [selectedHumanFile, setSelectedHumanFile] = useState<string | null>(null)
-    const [batches, setBatches] = useState<BatchInfo[]>([])
-    const [selectedBatches, setSelectedBatches] = useState<string[]>([])
-    const [results, setResults] = useState<BenchmarkResultInfo[]>([])
-    const [isRunning, setIsRunning] = useState(false)
-    const [runResult, setRunResult] = useState<{ summary: BenchmarkSummary; xlsxFile: string } | null>(null)
-    const [historyDetail, setHistoryDetail] = useState<{ summary: BenchmarkSummary; batchIds: string[]; xlsxFile: string } | null>(null)
-    const [loadingDetail, setLoadingDetail] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const [loading, setLoading] = useState(true)
+  // ==================== 数据加载 ====================
 
-    const fileInputRef = useRef<HTMLInputElement>(null)
+  const loadData = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: true })
+    dispatch({ type: 'SET_ERROR', payload: null })
 
-    // 加载数据
-    useEffect(() => {
-        loadData()
-    }, [])
+    try {
+      const [humanFilesRes, batchesRes, resultsRes] = await Promise.allSettled([
+        api.listHumanFiles(),
+        api.listBatches(),
+        api.listBenchmarkResults()
+      ])
 
-    const loadData = async () => {
-        setLoading(true)
-        setError(null) // 清除之前的错误
-
-        // 独立加载各项数据，单个失败不影响其他
-        try {
-            const humanFilesRes = await api.listHumanFiles()
-            setHumanFiles(humanFilesRes.files)
-        } catch (err) {
-            console.warn('加载人类评分文件列表失败:', err)
-            setHumanFiles([])
-        }
-
-        try {
-            const batchesRes = await api.listBatches()
-            setBatches(batchesRes.batches)
-        } catch (err) {
-            console.warn('加载 batch 列表失败:', err)
-            setBatches([])
-        }
-
-        try {
-            const resultsRes = await api.listBenchmarkResults()
-            setResults(resultsRes.results)
-        } catch (err) {
-            console.warn('加载结果列表失败:', err)
-            setResults([])
-        }
-
-        setLoading(false)
+      if (humanFilesRes.status === 'fulfilled') {
+        dispatch({ type: 'SET_HUMAN_FILES', payload: humanFilesRes.value.files })
+      }
+      if (batchesRes.status === 'fulfilled') {
+        dispatch({ type: 'SET_BATCHES', payload: batchesRes.value.batches })
+      }
+      if (resultsRes.status === 'fulfilled') {
+        dispatch({ type: 'SET_RESULTS', payload: resultsRes.value.results })
+      }
+    } catch (error) {
+      console.error('加载数据失败:', error)
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false })
     }
+  }, [])
 
-    // 上传文件
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
-        try {
-            await api.uploadHumanFile(file)
-            await loadData()
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '上传失败')
+  // ==================== 事件处理 ====================
+
+  // 选择历史结果
+  const handleSelectResult = useCallback(async (filename: string) => {
+    // 如果已经在加载这个文件，忽略重复点击
+    if (state.loadingDetail) return
+
+    // 如果点击的是当前已选中的文件，不重复加载
+    if (state.selectedResult === filename && state.viewMode === 'detail') return
+
+    // 先设置选中文件，但保持 viewMode 为 'detail'（如果已有数据）
+    // 这样可以保持现有内容显示，只叠加加载覆盖层
+    dispatch({ type: 'SELECT_RESULT', payload: filename })
+    dispatch({ type: 'SET_LOADING_DETAIL', payload: true })
+
+    try {
+      const detail = await api.getBenchmarkDetail(filename)
+      // 数据加载完成后，一次性更新所有状态
+      dispatch({
+        type: 'SET_VIEW_DETAIL',
+        payload: {
+          summary: detail.summary,
+          xlsxFile: detail.xlsx_file,
+          batchIds: detail.batch_ids
         }
-
-        if (fileInputRef.current) {
-            fileInputRef.current.value = ''
-        }
+      })
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : '加载详情失败' })
+    } finally {
+      // 无论成功还是失败，都清空 loadingDetail 状态
+      dispatch({ type: 'SET_LOADING_DETAIL', payload: false })
     }
+  }, [state.selectedResult, state.viewMode, state.loadingDetail])
 
-    // 删除文件
-    const handleDeleteFile = async (filename: string) => {
-        try {
-            await api.deleteHumanFile(filename)
-            if (selectedHumanFile === filename) {
-                setSelectedHumanFile(null)
-            }
-            await loadData()
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '删除失败')
+  // 刷新当前实验详情
+  const handleRefreshDetail = useCallback(async () => {
+    if (!state.currentXlsxFile) return
+
+    dispatch({ type: 'SET_LOADING_DETAIL', payload: true })
+
+    try {
+      const detail = await api.getBenchmarkDetail(state.currentXlsxFile)
+      // 数据加载完成后，一次性更新所有状态
+      dispatch({
+        type: 'SET_VIEW_DETAIL',
+        payload: {
+          summary: detail.summary,
+          xlsxFile: detail.xlsx_file,
+          batchIds: detail.batch_ids
         }
+      })
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : t('benchmark.header.refreshError') })
+    } finally {
+      dispatch({ type: 'SET_LOADING_DETAIL', payload: false })
     }
+  }, [state.currentXlsxFile])
 
-    // 选择 batch
-    const handleBatchSelect = (batchName: string) => {
-        setSelectedBatches(prev => {
-            if (prev.includes(batchName)) {
-                return prev.filter(b => b !== batchName)
-            }
-            if (prev.length >= 2) {
-                // 已选2个，替换最早选的
-                return [prev[1], batchName]
-            }
-            return [...prev, batchName]
+  // 删除历史结果
+  const handleDeleteResult = useCallback(async (filename: string) => {
+    try {
+      // 删除 JSON 文件和 Excel 文件
+      await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:8011'}/api/benchmark/results/${filename}`, {
+        method: 'DELETE'
+      })
+      toast.success('删除成功')
+
+      // 如果删除的是当前选中的，清空视图
+      if (state.selectedResult === filename) {
+        dispatch({ type: 'SET_VIEW_EMPTY' })
+      }
+
+      await loadData()
+    } catch (error) {
+      toast.error('删除失败')
+    }
+  }, [state.selectedResult, loadData])
+
+  // 点击新建实验
+  const handleClickNew = useCallback(() => {
+    dispatch({ type: 'SET_VIEW_NEW' })
+  }, [])
+
+  // 执行实验
+  const handleRun = useCallback(async (humanFile: string, batchIds: string[]) => {
+    dispatch({ type: 'SET_RUNNING', payload: true })
+
+    try {
+      const response = await api.runBenchmark(humanFile, batchIds)
+
+      if (response.status === 'success' && response.summary && response.xlsx_file) {
+        // 刷新结果列表
+        await loadData()
+
+        // 自动切换到详情视图
+        dispatch({
+          type: 'SET_VIEW_DETAIL',
+          payload: {
+            summary: response.summary,
+            xlsxFile: response.xlsx_file,
+            batchIds
+          }
         })
+
+        toast.success('实验执行成功')
+      } else {
+        throw new Error(response.error || response.message)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '执行失败')
+    } finally {
+      dispatch({ type: 'SET_RUNNING', payload: false })
     }
+  }, [loadData])
 
-    // 执行 Benchmark
-    const handleRun = async () => {
-        if (!selectedHumanFile || selectedBatches.length !== 2) {
-            setError('请选择人类评分文件和恰好两个 Batch 目录')
-            return
-        }
+  // 保存修改
+  const handleSave = useCallback(() => {
+    // 这个会在 GuideDetailTab 中处理
+    dispatch({ type: 'SET_HAS_CHANGES', payload: false })
+  }, [])
 
-        setIsRunning(true)
-        setError(null)
-        setRunResult(null)
-
-        try {
-            const response = await api.runBenchmark(selectedHumanFile, selectedBatches)
-            if (response.status === 'success' && response.summary) {
-                setRunResult({
-                    summary: response.summary,
-                    xlsxFile: response.xlsx_file!,
-                })
-                await loadData() // 刷新结果列表
-            } else {
-                setError(response.error || response.message)
-            }
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '执行失败')
-        } finally {
-            setIsRunning(false)
-        }
+  // 下载文件
+  const handleDownload = useCallback(() => {
+    if (state.currentXlsxFile) {
+      window.open(api.getBenchmarkDownloadUrl(state.currentXlsxFile), '_blank')
     }
+  }, [state.currentXlsxFile])
 
-    // 下载结果
-    const handleDownload = (filename: string) => {
-        window.open(api.getBenchmarkDownloadUrl(filename), '_blank')
+  // 删除当前实验
+  const handleDelete = useCallback(async () => {
+    if (state.currentXlsxFile) {
+      await handleDeleteResult(state.currentXlsxFile)
     }
+  }, [state.currentXlsxFile, handleDeleteResult])
 
-    // 加载历史结果详情
-    const handleViewDetail = async (filename: string) => {
-        setLoadingDetail(true)
-        setError(null)
-        setHistoryDetail(null)  // 清除之前的历史详情
-        setRunResult(null)  // 清除当前运行结果
 
-        try {
-            const detail = await api.getBenchmarkDetail(filename)
-            setHistoryDetail({
-                summary: detail.summary,
-                batchIds: detail.batch_ids,
-                xlsxFile: detail.xlsx_file,
-            })
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '加载详情失败')
-        } finally {
-            setLoadingDetail(false)
-        }
-    }
 
-    // 格式化百分比
-    const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
+  // ==================== 渲染 ====================
 
-    if (loading) {
-        return (
-            <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            </div>
-        )
-    }
-
+  if (state.loading) {
     return (
-        <div className="flex-1 p-6 overflow-auto bg-gradient-to-br from-slate-50 to-blue-50/30">
-            {/* Header */}
-            <div className="mb-6">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-purple-500/20">
-                        <BarChart2 className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-800">{t('benchmark.title')}</h1>
-                        <p className="text-sm text-gray-500">{t('benchmark.description')}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Error Alert */}
-            {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                    <span className="text-red-700">{error}</span>
-                    <button
-                        onClick={() => setError(null)}
-                        className="ml-auto text-red-500 hover:text-red-700"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 左侧：人类评分文件 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                            <FileSpreadsheet className="w-5 h-5 text-green-500" />
-                            {t('benchmark.humanFiles.title')}
-                        </h2>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".xlsx"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                        >
-                            <Upload className="w-4 h-4" />
-                        </button>
-                    </div>
-
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {humanFiles.length === 0 ? (
-                            <div className="text-center py-8 text-gray-400">
-                                <FileSpreadsheet className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">{t('benchmark.humanFiles.empty')}</p>
-                            </div>
-                        ) : (
-                            humanFiles.map(file => (
-                                <div
-                                    key={file.name}
-                                    onClick={() => setSelectedHumanFile(file.name)}
-                                    className={`p-3 rounded-xl cursor-pointer transition-all flex items-center gap-3 group ${selectedHumanFile === file.name
-                                        ? 'bg-green-50 border-2 border-green-300'
-                                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                                        }`}
-                                >
-                                    {selectedHumanFile === file.name && (
-                                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
-                                        <p className="text-xs text-gray-400">{file.modified}</p>
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleDeleteFile(file.name)
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* 中间：Batch 选择 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                            <FolderOpen className="w-5 h-5 text-blue-500" />
-                            {t('benchmark.batches.title')}
-                        </h2>
-                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                            {t('benchmark.batches.selectHint', { count: selectedBatches.length })}
-                        </span>
-                    </div>
-
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {batches.length === 0 ? (
-                            <div className="text-center py-8 text-gray-400">
-                                <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">{t('benchmark.batches.empty')}</p>
-                            </div>
-                        ) : (
-                            batches.map(batch => (
-                                <div
-                                    key={batch.name}
-                                    onClick={() => handleBatchSelect(batch.name)}
-                                    className={`p-3 rounded-xl cursor-pointer transition-all flex items-center gap-3 ${selectedBatches.includes(batch.name)
-                                        ? 'bg-blue-50 border-2 border-blue-300'
-                                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                                        }`}
-                                >
-                                    {selectedBatches.includes(batch.name) && (
-                                        <div className="w-5 h-5 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center flex-shrink-0">
-                                            {selectedBatches.indexOf(batch.name) + 1}
-                                        </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-700 truncate">{batch.name}</p>
-                                        <p className="text-xs text-gray-400">
-                                            {batch.task_count} {t('benchmark.batches.tasks')} · {batch.created}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* 右侧：执行与结果 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                    <h2 className="font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                        <Play className="w-5 h-5 text-purple-500" />
-                        {t('benchmark.run.title')}
-                    </h2>
-
-                    {/* 执行按钮 */}
-                    <button
-                        onClick={handleRun}
-                        disabled={isRunning || !selectedHumanFile || selectedBatches.length !== 2}
-                        className={`w-full py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${isRunning || !selectedHumanFile || selectedBatches.length !== 2
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30'
-                            }`}
-                    >
-                        {isRunning ? (
-                            <>
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                {t('benchmark.run.running')}
-                            </>
-                        ) : (
-                            <>
-                                <Play className="w-5 h-5" />
-                                {t('benchmark.run.start')}
-                            </>
-                        )}
-                    </button>
-
-                    {/* 执行结果摘要 */}
-                    {runResult && (
-                        <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Check className="w-5 h-5 text-green-500" />
-                                <span className="font-medium text-green-700">{t('benchmark.run.success')}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                                <div className="bg-white rounded-lg p-2 text-center">
-                                    <p className="text-gray-500">{t('benchmark.summary.guides')}</p>
-                                    <p className="text-lg font-bold text-gray-800">
-                                        {runResult.summary.success_count}/{runResult.summary.total_guides}
-                                    </p>
-                                </div>
-                                <div className="bg-white rounded-lg p-2 text-center">
-                                    <p className="text-gray-500">{t('benchmark.summary.consistency')}</p>
-                                    <p className="text-lg font-bold text-purple-600">
-                                        {formatPercent(runResult.summary.overall_consistency)}
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => handleDownload(runResult.xlsxFile)}
-                                className="w-full py-2 rounded-lg bg-white border border-green-300 text-green-600 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <Download className="w-4 h-4" />
-                                {t('benchmark.run.download')}
-                            </button>
-                        </div>
-                    )}
-
-                    {/* 历史结果列表 */}
-                    {results.length > 0 && (
-                        <div className="mt-4">
-                            <h3 className="text-sm font-medium text-gray-500 mb-2">{t('benchmark.results.title')}</h3>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                                {results.slice(0, 5).map(result => (
-                                    <div
-                                        key={result.name}
-                                        className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm truncate text-gray-700">{result.name}</p>
-                                            <p className="text-xs text-gray-400">{result.created}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => handleViewDetail(result.name)}
-                                            className="p-2 rounded-lg hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"
-                                            disabled={loadingDetail}
-                                            title="查看详情"
-                                        >
-                                            {loadingDetail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                                        </button>
-                                        <button
-                                            onClick={() => handleDownload(result.name)}
-                                            className="p-2 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-blue-600 transition-colors"
-                                        >
-                                            <Download className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* 指南详情面板 - 支持当前运行和历史结果 */}
-            {(runResult?.summary || historyDetail?.summary) && (
-                <GuideDetailsPanel
-                    summary={runResult?.summary ?? historyDetail?.summary!}
-                    batchIds={runResult ? selectedBatches : historyDetail?.batchIds || []}
-                    xlsxFile={runResult?.xlsxFile || historyDetail?.xlsxFile || ''}
-                />
-            )}
-        </div>
+      <div className="flex-1 flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
     )
+  }
+
+  return (
+    <div className="flex-1 flex overflow-hidden bg-slate-100">
+      {/* 左侧边栏 */}
+      <Sidebar
+        results={state.results}
+        selectedResult={state.selectedResult}
+        isLoading={state.loadingDetail}
+        onSelectResult={handleSelectResult}
+        onDeleteResult={handleDeleteResult}
+        onClickNew={handleClickNew}
+        onViewMode={state.viewMode === 'new' ? 'new' : 'history'}
+      />
+
+      {/* 右侧主工作区 */}
+      <Workspace
+        mode={state.viewMode}
+        summary={state.currentSummary}
+        xlsxFile={state.currentXlsxFile}
+        batchIds={state.currentBatchIds}
+        humanFiles={state.humanFiles}
+        batches={state.batches}
+        isRunning={state.isRunning}
+        isLoadingDetail={state.loadingDetail}
+        hasChanges={state.currentHasChanges}
+        isSaving={state.currentIsSaving}
+        onRun={handleRun}
+        onSave={handleSave}
+        onDownload={handleDownload}
+        onDelete={handleDelete}
+        onRefresh={handleRefreshDetail}
+      />
+
+      {/* 错误提示 */}
+      {state.error && (
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 shadow-lg">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <span className="text-red-700 flex-1">{state.error}</span>
+            <button
+              onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
+              className="text-red-500 hover:text-red-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }

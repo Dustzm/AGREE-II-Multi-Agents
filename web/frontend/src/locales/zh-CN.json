@@ -376,6 +376,64 @@
         "results": {
             "title": "历史记录",
             "empty": "暂无历史结果"
+        },
+        "sidebar": {
+            "title": "实验记录",
+            "history": "历史记录",
+            "newExperiment": "新建实验",
+            "empty": "暂无记录",
+            "footer": "选择记录查看详情或创建新实验",
+            "selected": "已选 {{count}} 个",
+            "confirmDelete": "确认删除",
+            "delete": "删除"
+        },
+        "form": {
+            "title": "创建新实验",
+            "description": "选择人类评分文件和批次执行一致性分析",
+            "humanFile": {
+                "title": "人类评分文件",
+                "upload": "上传文件",
+                "empty": "暂无文件，请先上传"
+            },
+            "batch": {
+                "title": "选择批次 (选择2个)",
+                "selected": "已选 {{count}}/2",
+                "tasks": "任务",
+                "empty": "暂无批次结果"
+            },
+            "threshold": {
+                "title": "一致性阈值"
+            },
+            "error": {
+                "selection": "请选择人类评分文件和恰好两个批次",
+                "run": "执行失败"
+            },
+            "running": "执行中...",
+            "start": "开始执行"
+        },
+        "workspace": {
+            "empty": {
+                "title": "欢迎使用实验台",
+                "description": "从左侧选择历史记录查看详情，或创建新实验开始分析"
+            }
+        },
+        "header": {
+            "unsaved": "未保存",
+            "guides": "部指南",
+            "consistency": "一致性",
+            "save": "保存",
+            "saving": "保存中...",
+            "saved": "保存完成",
+            "refreshed": "数据已刷新",
+            "refreshError": "刷新失败",
+            "download": "下载Excel",
+            "delete": "删除",
+            "confirmDelete": "确认删除此实验记录？"
+        },
+        "tabs": {
+            "consistency": "一致性分析",
+            "guide": "指南",
+            "current": "当前指南"
         }
     }
 }
