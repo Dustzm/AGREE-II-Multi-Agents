@@ -295,7 +295,7 @@ export function Chat() {
 
     const [connectionError, setConnectionError] = useState(false)
 
-    const { connect, send } = useWebSocket({
+    const { connect, send, reconnectAttempts } = useWebSocket({
         onOpen: () => {
             setConnectionError(false)
         },
@@ -882,6 +882,22 @@ export function Chat() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {reconnectAttempts > 0 ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 rounded-lg border border-yellow-200">
+                                <Loader2 className="h-3 w-3 text-yellow-600 animate-spin" />
+                                <span className="text-xs text-yellow-700 font-medium">
+                                    重连中 ({reconnectAttempts}/5)
+                                </span>
+                            </div>
+                        ) : connectionError ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-200">
+                                <span className="w-2 h-2 rounded-full bg-red-500" />
+                                <span className="text-xs text-red-600 font-medium">连接断开</span>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
 

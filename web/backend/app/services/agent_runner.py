@@ -3,7 +3,6 @@
 
 封装 Orchestrator 调用，支持 WebSocket 回调
 """
-import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -14,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.preprocessor import process_content_list
-from core.agents.tools.appraiser_batch import register_progress_callbacks, clear_progress_callbacks
+from core.agents.tools.appraiser_batch import clear_progress_callbacks
 from web.backend.app.i18n import t, get_language
 
 logger = logging.getLogger(__name__)
@@ -300,18 +299,25 @@ class AppraisalRunner:
             async def on_batch_summary(total: int, completed: int, elapsed: float):
                 """汇总进度回调"""
                 try:
+                    logger.info(f"on_batch_summary 被调用: {completed}/{total}")
                     if hasattr(self, '_send_batch_summary') and self._send_batch_summary:
                         await self._send_batch_summary(total, completed, elapsed)
                     else:
                         # 回退使用 on_agent 回调（用于批量任务场景）
                         msg = t("agent.batch_progress", self.lang, completed=completed, total=total)
+                        logger.info(f"调用 on_agent: Appraiser, {msg}")
                         self.on_agent("Appraiser", msg, 1, 3, None)
                 except Exception as e:
                     logger.warning(f"发送汇总进度失败: {e}")
-            
-            register_progress_callbacks(on_item_progress, on_batch_summary)
-            
-            orchestrator = create_orchestrator(lang=self.lang)
+
+            # 不再使用全局回调，直接传递给 create_orchestrator
+            # register_progress_callbacks(on_item_progress, on_batch_summary)
+
+            orchestrator = create_orchestrator(
+                lang=self.lang,
+                on_item_progress=on_item_progress,
+                on_summary=on_batch_summary,
+            )
             runner = runners.InMemoryRunner(
                 agent=orchestrator,
                 app_name='ama_web',

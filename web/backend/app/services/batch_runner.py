@@ -444,12 +444,32 @@ class BatchRunner:
         error_message = ""
         
         def on_status(msg_type: str, content: str):
+            # 批量模式下只允许预处理阶段的消息通过，过滤 Orchestrator 的文本输出
+            # 1. 过滤"语义来源池构建完成"（预处理结束标志，不需要显示）
+            if "语义来源池构建完成" in content or "Semantic source pool built" in content:
+                return
+            # 2. 过滤"启动智能体团队"
+            if "启动智能体团队" in content or "Starting agent team" in content:
+                return
+            # 3. 只允许包含预处理关键词的消息通过（白名单）
+            preprocess_keywords = [
+                "初始化", "Initializing",
+                "解析", "Parsing", "parsed",
+                "正在构建", "Building",
+                "📁", "📄", "✓",
+                "失败", "failed", "异常", "error"  # 错误消息也需要显示
+            ]
+            if not any(kw in content for kw in preprocess_keywords):
+                return
             task.current_step = content
             logger.info(f"任务 {task.id} 状态更新: {content}")
             self.on_update(task)
             self._save_state()  # 保存状态更新
 
         def on_agent(agent: str, content: str, progress: int, total: int, prompt: Any = None):
+            # 批量模式下过滤所有 Orchestrator 消息（只显示 Appraiser 和 Reporter）
+            if agent == "Orchestrator":
+                return
             task.current_step = f"{agent}: {content}"
             logger.info(f"任务 {task.id} 智能体更新: {agent} - {content}")
             self.on_update(task)

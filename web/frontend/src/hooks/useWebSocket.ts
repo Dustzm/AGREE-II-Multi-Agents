@@ -1,21 +1,20 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { WS_URL } from '@/config'
 
 export interface ChatMessage {
-    type: 'status' | 'agent' | 'progress' | 'complete' | 'error' | 'item_progress' | 'batch_summary'
+    type: 'status' | 'agent' | 'progress' | 'complete' | 'error' | 'item_progress' | 'batch_summary' | 'pong'
     content?: string
     agent?: string
     progress?: number
     total?: number
     task_id?: string
-    prompt?: string  // Appraiser 的提示词内容
-    // 并发进度相关字段
-    skill_id?: string      // 条目 ID (item_progress)
-    title?: string         // 条目标题 (item_progress)
-    item_status?: 'started' | 'completed' | 'failed'  // 条目状态 (item_progress)
-    duration?: number      // 完成耗时秒数 (item_progress)
-    completed_count?: number  // 已完成数 (batch_summary)
-    elapsed?: number       // 已用时间秒数 (batch_summary)
+    prompt?: string
+    skill_id?: string
+    title?: string
+    item_status?: 'started' | 'completed' | 'failed'
+    duration?: number
+    completed_count?: number
+    elapsed?: number
 }
 
 interface UseWebSocketOptions {
@@ -27,23 +26,73 @@ interface UseWebSocketOptions {
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
     const [isConnected, setIsConnected] = useState(false)
+    const [reconnectAttempts, setReconnectAttempts] = useState(0)
     const wsRef = useRef<WebSocket | null>(null)
     const pendingMessages = useRef<object[]>([])
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
+    const sessionIdRef = useRef<string | null>(null)
+    const maxReconnectAttempts = 5
+
+    const startHeartbeat = useCallback(() => {
+        if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current)
+        }
+        heartbeatIntervalRef.current = setInterval(() => {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'ping' }))
+            }
+        }, 30000)
+    }, [])
+
+    const stopHeartbeat = useCallback(() => {
+        if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current)
+            heartbeatIntervalRef.current = null
+        }
+    }, [])
+
+    const scheduleReconnect = useCallback((sessionId: string, attempt: number) => {
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current)
+        }
+        const delay = Math.min(1000 * Math.pow(2, attempt), 30000)
+        console.log(`将在 ${delay}ms 后尝试重连 (尝试 ${attempt}/${maxReconnectAttempts})`)
+        reconnectTimeoutRef.current = setTimeout(() => {
+            if (attempt < maxReconnectAttempts) {
+                setReconnectAttempts(attempt + 1)
+            } else {
+                console.log('已达到最大重连次数，停止重连')
+                setReconnectAttempts(0)
+            }
+        }, delay)
+    }, [maxReconnectAttempts])
+
+    const stopReconnect = useCallback(() => {
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current)
+            reconnectTimeoutRef.current = null
+        }
+        setReconnectAttempts(0)
+    }, [])
 
     const connect = useCallback((sessionId: string) => {
-        // 如果已连接，先关闭
         if (wsRef.current) {
             wsRef.current.close()
         }
+
+        sessionIdRef.current = sessionId
 
         const ws = new WebSocket(`${WS_URL}/chat/${sessionId}`)
 
         ws.onopen = () => {
             console.log('WebSocket 已连接')
             setIsConnected(true)
+            setReconnectAttempts(0)
+            stopReconnect()
             options.onOpen?.()
+            startHeartbeat()
 
-            // 发送待发送的消息
             while (pendingMessages.current.length > 0) {
                 const msg = pendingMessages.current.shift()
                 if (msg) {
@@ -54,6 +103,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data) as ChatMessage
+            
+            if (message.type === 'pong') {
+                return
+            }
+            
             console.log('WebSocket 消息:', message)
             options.onMessage?.(message)
         }
@@ -66,23 +120,44 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         ws.onclose = () => {
             console.log('WebSocket 已断开')
             setIsConnected(false)
+            stopHeartbeat()
             options.onClose?.()
+
+            if (sessionIdRef.current && reconnectAttempts < maxReconnectAttempts) {
+                scheduleReconnect(sessionIdRef.current, reconnectAttempts + 1)
+            }
         }
 
         wsRef.current = ws
-    }, [options])
+    }, [options, startHeartbeat, stopHeartbeat, stopReconnect, scheduleReconnect, reconnectAttempts])
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && !isConnected && sessionIdRef.current) {
+                console.log('页面重新可见，尝试重连')
+                connect(sessionIdRef.current)
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+        }
+    }, [isConnected, connect])
 
     const disconnect = useCallback(() => {
+        stopReconnect()
+        stopHeartbeat()
         wsRef.current?.close()
         wsRef.current = null
+        sessionIdRef.current = null
         setIsConnected(false)
-    }, [])
+    }, [stopReconnect, stopHeartbeat])
 
     const send = useCallback((data: object) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify(data))
         } else {
-            // 连接未就绪，加入待发送队列
             console.log('WebSocket 未就绪，消息加入队列')
             pendingMessages.current.push(data)
         }
@@ -90,6 +165,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     return {
         isConnected,
+        reconnectAttempts,
         connect,
         disconnect,
         send,

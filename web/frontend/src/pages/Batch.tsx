@@ -15,7 +15,7 @@ import {
 import { cn } from '@/utils/cn'
 import {
     batchApi, createBatchWebSocket,
-    type FolderInfo, type PdfInfo, type BatchTask, type BatchStatus
+    type FolderInfo, type PdfInfo, type BatchTask, type BatchStatus, type BatchWebSocketHandle
 } from '@/services/batch'
 import { api } from '@/services/api'
 
@@ -61,8 +61,21 @@ export function Batch() {
     const [experimentRounds, setExperimentRounds] = useState(1)
 
     // WebSocket
-    const wsRef = useRef<WebSocket | null>(null)
-    const sessionIdRef = useRef(`batch-${Date.now()}`)
+    const wsHandleRef = useRef<BatchWebSocketHandle | null>(null)
+
+    // 初始化 sessionId，优先从 localStorage 读取
+    // 使用 useState lazy init 来保证只执行一次
+    const [sessionId] = useState(() => {
+        const saved = localStorage.getItem('batch_session_id')
+        if (saved) return saved
+        const newId = `batch-${Date.now()}`
+        localStorage.setItem('batch_session_id', newId)
+        return newId
+    })
+
+    const reconnectRef = useRef<(() => void) | null>(null)
+    const [wsConnected, setWsConnected] = useState(false)
+    const [wsReconnectAttempts, setWsReconnectAttempts] = useState(0)
 
     // 文件夹上传
     const [isUploadingFolder, setIsUploadingFolder] = useState(false)
@@ -188,15 +201,80 @@ export function Batch() {
         }
     }, [loadFolders])
 
+    // 建立/恢复 WebSocket 连接
+    const establishWebSocket = useCallback(() => {
+        if (wsHandleRef.current) {
+            // 如果已有连接且 sessionId 相同，则无需重新建立
+            // 这里简单处理：先断开旧的，确保状态一致
+            wsHandleRef.current.disconnect()
+        }
+
+        const handle = createBatchWebSocket({
+            sessionId: sessionId,
+            onTaskUpdate: (task: BatchTask) => {
+                console.log('收到任务更新:', task)
+                setBatchStatus(prev => {
+                    if (!prev) {
+                        // 如果收到更新但本地还没有状态（可能刚刷新），尝试通过 getStatus 同步
+                        // 但这里我们只更新 tasks
+                        return prev
+                    }
+                    // 如果任务列表里没有这个任务（新任务），或者已有任务更新
+                    const existingTaskIndex = prev.tasks.findIndex(t => t.id === task.id)
+                    let newTasks = [...prev.tasks]
+
+                    if (existingTaskIndex >= 0) {
+                        newTasks[existingTaskIndex] = task
+                    } else {
+                        // 新任务（理论上 startSelected 会返回初始列表，但也可能由其他端触发）
+                        newTasks.push(task)
+                    }
+
+                    const counts = { pending: 0, running: 0, done: 0, error: 0, cancelled: 0 }
+                    newTasks.forEach(t => {
+                        const status = t.status
+                        if (status in counts) {
+                            counts[status as keyof typeof counts]++
+                        }
+                    })
+                    return { ...prev, tasks: newTasks, ...counts }
+                })
+            },
+            onComplete: (status: BatchStatus) => {
+                console.log('收到批量状态更新:', status)
+                setBatchStatus(status)
+            },
+            onError: (error: string) => {
+                console.error('WebSocket 错误:', error)
+                // 出错时轮询一次状态
+                batchApi.getStatus().then(setBatchStatus).catch(console.error)
+            },
+            onConnectionChange: (isConnected: boolean, reconnectAttempts: number) => {
+                setWsConnected(isConnected)
+                setWsReconnectAttempts(reconnectAttempts)
+            }
+        })
+        wsHandleRef.current = handle
+        reconnectRef.current = handle.reconnect
+
+        console.log('WebSocket 已建立，sessionId:', sessionId)
+    }, [sessionId])
+
     // 加载当前状态
     const loadStatus = useCallback(async () => {
         try {
             const status = await batchApi.getStatus()
             setBatchStatus(status)
+
+            // 如果正在运行且没有连接 WS，则建立连接
+            if (status.is_running && !wsHandleRef.current) {
+                console.log('检测到正在运行的任务，恢复 WebSocket 连接')
+                establishWebSocket()
+            }
         } catch (e) {
             console.error('加载状态失败:', e)
         }
-    }, [])
+    }, [establishWebSocket])
 
     // 启动批量任务（使用勾选列表）
     const handleStart = useCallback(async () => {
@@ -207,54 +285,12 @@ export function Batch() {
             setBatchStatus(status)
 
             // 建立 WebSocket 连接
-            if (wsRef.current) {
-                wsRef.current.close()
-            }
-            wsRef.current = createBatchWebSocket(
-                sessionIdRef.current,
-                (task) => {
-                    console.log('收到任务更新:', task)
-                    // 更新单个任务
-                    setBatchStatus(prev => {
-                        if (!prev) {
-                            console.warn('收到任务更新但 batchStatus 为空')
-                            return prev
-                        }
-                        const tasks = prev.tasks.map(t =>
-                            t.id === task.id ? task : t
-                        )
-                        // 重新计算统计
-                        const counts = { pending: 0, running: 0, done: 0, error: 0, cancelled: 0 }
-                        tasks.forEach(t => counts[t.status]++)
-                        return { ...prev, tasks, ...counts }
-                    })
-                },
-                (status) => {
-                    console.log('收到批量状态更新:', status)
-                    setBatchStatus(status)
-                },
-                (error) => {
-                    console.error('WebSocket 错误:', error)
-                    // WebSocket错误时降级到轮询
-                    const interval = setInterval(async () => {
-                        try {
-                            const latestStatus = await batchApi.getStatus()
-                            setBatchStatus(latestStatus)
-                        } catch (e) {
-                            console.error('轮询状态失败:', e)
-                        }
-                    }, 3000)
-
-                    // 清理定时器（当组件卸载或任务完成时）
-                    wsRef.current?.addEventListener('close', () => clearInterval(interval), { once: true })
-                }
-            )
-
-            console.log('WebSocket 已创建，sessionId:', sessionIdRef.current)
+            establishWebSocket()
+            console.log('WebSocket 已创建，sessionId:', sessionId)
         } catch (e) {
             alert(e instanceof Error ? e.message : '启动失败')
         }
-    }, [selectedPdfs, concurrency, experimentRounds])
+    }, [selectedPdfs, concurrency, experimentRounds, sessionId, establishWebSocket])
 
     // 停止批量任务
     const handleStop = useCallback(async () => {
@@ -285,7 +321,7 @@ export function Batch() {
         loadStatus()
 
         return () => {
-            wsRef.current?.close()
+            wsHandleRef.current?.disconnect()
         }
     }, [loadFolders, loadStatus])
 
@@ -297,6 +333,25 @@ export function Batch() {
             }
         })
     }, [expandedFolders, folderPdfs, loadPdfs])
+
+    // 页面可见性监听 - 返回页面时自动重连 WebSocket
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' &&
+                !wsConnected &&
+                batchStatus?.is_running &&
+                wsHandleRef.current &&
+                reconnectRef.current) {
+                console.log('页面重新可见，尝试重连 WebSocket')
+                reconnectRef.current()
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+        }
+    }, [wsConnected, batchStatus?.is_running])
 
     const isRunning = batchStatus?.is_running ?? false
 
@@ -574,26 +629,41 @@ export function Batch() {
                                 ) : batchStatus?.total ? t('batch.status.completed') : t('batch.status.waiting')}
                             </p>
                         </div>
-                        {batchStatus && batchStatus.total > 0 && (
-                            <div className="flex items-center gap-4 text-sm">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-green-500" />
-                                    <span className="text-gray-600">{batchStatus.done}</span>
+                        <div className="flex items-center gap-4">
+                            {batchStatus && batchStatus.total > 0 && (
+                                <div className="flex items-center gap-4 text-sm">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                                        <span className="text-gray-600">{batchStatus.done}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                        <span className="text-gray-600">{batchStatus.running}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-gray-300" />
+                                        <span className="text-gray-600">{batchStatus.pending}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                                        <span className="text-gray-600">{batchStatus.error}</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                    <span className="text-gray-600">{batchStatus.running}</span>
+                            )}
+                            {wsReconnectAttempts > 0 ? (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 rounded-lg border border-yellow-200">
+                                    <Loader2 className="h-3 w-3 text-yellow-600 animate-spin" />
+                                    <span className="text-xs text-yellow-700 font-medium">
+                                        重连中 ({wsReconnectAttempts}/5)
+                                    </span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-gray-300" />
-                                    <span className="text-gray-600">{batchStatus.pending}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
+                            ) : !wsConnected && batchStatus?.is_running ? (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-200">
                                     <span className="w-2 h-2 rounded-full bg-red-500" />
-                                    <span className="text-gray-600">{batchStatus.error}</span>
+                                    <span className="text-xs text-red-600 font-medium">连接断开</span>
                                 </div>
-                            </div>
-                        )}
+                            ) : null}
+                        </div>
                     </div>
                 </div>
 

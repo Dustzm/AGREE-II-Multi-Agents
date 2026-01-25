@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 _llm_executor: Optional[ThreadPoolExecutor] = None
 
 
-def _get_llm_executor(max_workers: int = 50) -> ThreadPoolExecutor:
+def _get_llm_executor(max_workers: int = 32) -> ThreadPoolExecutor:
     """
     获取 LLM 调用专用线程池
     
@@ -73,10 +73,11 @@ async def appraise_all(
     skill_ids: Optional[List[str]] = None,
     lang: str = "zh",
     on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
+    on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
 ) -> Dict[str, Any]:
     """
     并发评价所有/指定条目
-    
+
     Args:
         task_id: 任务 ID
         skill_ids: 指定条目列表，None 表示所有启用的条目
@@ -85,7 +86,9 @@ async def appraise_all(
             - 参数: (skill_id, title, status, duration)
             - status: "started" | "completed" | "failed"
             - duration: 完成耗时（秒），仅 completed 时有值
-    
+        on_summary: 汇总进度回调函数
+            - 参数: (total, completed, elapsed)
+
     Returns:
         {
             "status": "success" | "partial" | "error",
@@ -105,10 +108,19 @@ async def appraise_all(
     
     total = len(skill_ids)
     logger.info(f"开始并发评价: task_id={task_id}, 条目数={total}, 最大并发={max_workers}")
-    
+
     # 使用传入的回调或全局回调
     progress_callback = on_item_progress or _global_progress_callback
-    summary_callback = _global_summary_callback
+    summary_callback = on_summary or _global_summary_callback
+
+    # 推送初始进度 0/total
+    if summary_callback:
+        try:
+            logger.info(f"推送初始进度: 0/{total}")
+            await summary_callback(total, 0, 0.0)
+            logger.info(f"初始进度推送完成")
+        except Exception as e:
+            logger.warning(f"推送初始进度失败: {e}")
     
     # 并发控制信号量
     semaphore = asyncio.Semaphore(max_workers)
@@ -172,6 +184,7 @@ async def appraise_all(
                     if summary_callback:
                         try:
                             elapsed = time.time() - start_time
+                            logger.info(f"推送汇总进度: {completed_count}/{total}")
                             await summary_callback(total, completed_count, elapsed)
                         except Exception as e:
                             logger.warning(f"汇总回调失败: {e}")
@@ -243,30 +256,41 @@ async def appraise_all(
     }
 
 
-def create_appraise_all_tool(lang: str = "zh"):
+def create_appraise_all_tool(
+    lang: str = "zh",
+    on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
+    on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
+):
     """
     创建 appraise_all 工具函数（用于 Orchestrator）
-    
+
     Args:
         lang: 语言
-    
+        on_item_progress: 单条目进度回调
+        on_summary: 汇总进度回调
+
     Returns:
         异步工具函数
     """
     async def appraise_all_tool(task_id: str) -> Dict[str, Any]:
         """
         并发评价所有启用的 AGREE-II 条目
-        
+
         使用此工具可以一次性评价所有条目，比逐个调用 Appraiser_item_X 更高效。
         并发数由 APPRAISAL_MAX_CONCURRENCY 环境变量控制。
-        
+
         Args:
             task_id: 任务 ID
-        
+
         Returns:
             评价结果汇总
         """
-        return await appraise_all(task_id, lang=lang)
+        return await appraise_all(
+            task_id,
+            lang=lang,
+            on_item_progress=on_item_progress,
+            on_summary=on_summary,
+        )
     
     appraise_all_tool.__name__ = "appraise_all"
     appraise_all_tool.__doc__ = """并发评价所有启用的 AGREE-II 条目
