@@ -62,6 +62,7 @@ logs/
 benchmark/output/
 benchmark/uploads/
 node_modules/
+.trae/
 .agent/
 .kiro/
 AGENTS.md
