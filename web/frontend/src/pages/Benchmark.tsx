@@ -286,7 +286,7 @@ export function Benchmark() {
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-slate-100">
+    <div className="h-full flex-1 flex overflow-hidden bg-slate-100">
       {/* 左侧边栏 */}
       <Sidebar
         results={state.results}
