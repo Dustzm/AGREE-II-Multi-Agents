@@ -198,9 +198,10 @@ async def list_folder_pdfs(folder_name: str):
     """
     列出指定文件夹下的主 PDF 文件（排除附件）
     
-    附件文件（文件名含 "附件"、"附录"、"appendix" 等）将被过滤，
-    因为它们会在处理主 PDF 时自动被检测和处理。
-    同时返回每个主 PDF 对应的附件数量。
+    采用前缀匹配策略检测附件：
+    1. 获取文件夹下所有文件
+    2. 只有 PDF 文件可以作为主文件
+    3. 如果文件 A 是文件 B 的前缀（且符合分隔符规则），则 A 是主文件，B 是其附件
     """
     input_dir = get_input_dir()
     folder_path = input_dir / folder_name
@@ -211,53 +212,131 @@ async def list_folder_pdfs(folder_name: str):
     if not folder_path.is_dir():
         raise HTTPException(status_code=400, detail=f"不是文件夹: {folder_name}")
     
-    # 收集所有文件（PDF 和非 PDF 附件）
-    all_files = list(folder_path.iterdir())
+    # 1. 获取所有文件
+    all_files = []
+    # 记录所有文件名（小写）以便快速查找
+    all_filenames_map = {} 
     
-    # 分离主 PDF 和附件文件
-    main_pdfs = []
-    attachment_files = []
-    
-    for file_path in all_files:
+    for file_path in folder_path.iterdir():
         if not file_path.is_file():
             continue
-        
-        # PDF 附件
-        if file_path.suffix.lower() == '.pdf' and is_attachment_file(file_path.name):
-            attachment_files.append(file_path)
-        # 非 PDF 附件（同名前缀的其他格式）
-        elif file_path.suffix.lower() in ['.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.mp4', '.mov', '.avi', '.webm', '.mkv']:
-            attachment_files.append(file_path)
-        # 主 PDF
-        elif file_path.suffix.lower() == '.pdf':
-            main_pdfs.append(file_path)
+        # 忽略隐藏文件
+        if file_path.name.startswith('.'):
+            continue
+            
+        all_files.append(file_path)
+        all_filenames_map[file_path.name.lower()] = file_path
+
+    # 2. 识别主文件和附件
+    # 我们认为任何 PDF 都可能是主文件
+    # 但如果一个 PDF 是另一个 PDF 的附件（例如 "A.pdf" 和 "A_appendix.pdf"），
+    # 那么 "A.pdf" 是主文件，"A_appendix.pdf" 是附件。
     
-    # 计算每个主 PDF 的附件数量
-    pdfs = []
+    # 候选主文件列表 (只有 PDF 可以是主文件)
+    potential_mains = [f for f in all_files if f.suffix.lower() == '.pdf']
+    
+    # 按文件名长度排序（短的排前面），这样 "A.pdf" 会在 "A_appendix.pdf" 之前被处理
+    potential_mains.sort(key=lambda x: len(x.stem))
+    
+    main_pdfs = []
+    # 记录已被归类为附件的文件路径，避免重复处理
+    identified_attachments = set()
+    
+    # 辅助函数：判断是否为附件关系
+    def is_sibling_attachment(main_stem: str, suspect_stem: str) -> bool:
+        """
+        判断 suspect 是否为 main 的附件
+        规则：suspect 以 main_stem 开头，且后续接分隔符或中文
+        """
+        if not suspect_stem.startswith(main_stem):
+            return False
+            
+        if len(suspect_stem) <= len(main_stem):
+            return False
+            
+        # 检查分隔符
+        # 取前缀后的第一个字符
+        next_char = suspect_stem[len(main_stem)]
+        
+        # 允许的分隔符：空格、下划线、连字符
+        if next_char in ' _-':
+            return True
+            
+        # 或者是中文字符（通常中文不需要空格分隔，如 "Report附件"）
+        if '\u4e00' <= next_char <= '\u9fff':
+            return True
+            
+        return False
+
+    # 3. 构建主文件列表并计算附件数
+    # 为了正确处理，我们需要先确定哪些文件绝对是附件
+    
+    # 建立附件映射：main_path -> list of attachment_paths
+    attachments_map = {}
+    
+    # 遍历所有潜在主文件
+    for main_pdf in potential_mains:
+        # 如果它已经被识别为别的文件的附件，则跳过
+        if main_pdf in identified_attachments:
+            continue
+            
+        main_stem = main_pdf.stem
+        my_attachments = []
+        
+        # 在所有文件中查找它的附件
+        for file_path in all_files:
+            # 跳过自己
+            if file_path == main_pdf:
+                continue
+                
+            # 如果该文件已经是其他文件的附件，是否还允许属于当前文件？
+            # 这里的逻辑是：最长前缀匹配优先？还是最短？
+            # 简单起见，如果 A.pdf 和 A_v1.pdf 都在，
+            # A.pdf 是 A_v1.pdf 的主文件。
+            # 现有的 potential_mains 是按长度排序的，所以 A.pdf 会先被处理。
+            # 如果 A_v1.pdf 也是 PDF，它稍后会被遍历到，但如果我们把它标记为附件，就跳过它。
+            
+            # 使用现有关键词判断作为补充 (is_attachment_file 是遗留逻辑，仍然有用)
+            keyword_match = is_attachment_file(file_path.name)
+            
+            # 使用前缀匹配
+            prefix_match = is_sibling_attachment(main_stem, file_path.stem)
+            
+            if prefix_match:
+                my_attachments.append(file_path)
+                identified_attachments.add(file_path)
+            elif keyword_match and not prefix_match:
+                # 只有当它不匹配任何前缀时，才回退到纯关键词匹配
+                # 这种情况下，它属于哪个主文件？很难说。
+                # 现有的 is_attachment_file 逻辑是全局的，并不关联到特定主文件。
+                # 在以前的逻辑中，它只是被过滤掉，不显示。
+                # 在新逻辑中，我们希望显示附件数量。
+                # 如果一个文件只是单纯叫 "附件.pdf"，它属于谁？
+                # 这种边缘情况暂不处理，只处理明确归属的。
+                pass
+
+        # 记录结果
+        attachments_map[main_pdf] = my_attachments
+        main_pdfs.append(main_pdf)
+
+    # 4. 生成响应
+    results = []
     for pdf_path in main_pdfs:
         stat = pdf_path.stat()
-        pdf_stem = pdf_path.stem  # 如 "1-2016-011E"
-        
-        # 计算以主 PDF 文件名为前缀的附件数量
-        attachment_count = sum(
-            1 for att in attachment_files
-            if att.stem.startswith(pdf_stem) and att.stem != pdf_stem
-        )
-        
-        pdfs.append(PdfInfo(
+        results.append(PdfInfo(
             name=pdf_path.name,
             path=str(pdf_path),
             size=stat.st_size,
             is_attachment=False,
-            attachment_count=attachment_count,
+            attachment_count=len(attachments_map.get(pdf_path, [])),
         ))
     
     # 按文件名排序
-    pdfs.sort(key=lambda x: x.name)
+    results.sort(key=lambda x: x.name)
     
     return PdfListResponse(
         folder=folder_name,
-        pdfs=pdfs,
+        pdfs=results,
     )
 
 
