@@ -68,6 +68,8 @@ ZH_MESSAGES = {
     "agent.item_failed": "{skill_id} 评价失败",
     "agent.batch_progress": "评价进度: {completed}/{total}",
     "agent.reporter_done": "报告生成完成",
+    "status.retry_appraise": "⚠️ 检测到评价流程异常，正在重试 ({attempt}/{max_retries})...",
+    "error.appraise_not_called": "评价流程异常：Orchestrator 未执行条目评价",
     
     # === chat.py ===
     "chat.default_response": "我是 AMA 评价助手，有什么可以帮你的吗？",
@@ -121,6 +123,8 @@ EN_MESSAGES = {
     "agent.item_failed": "{skill_id} failed",
     "agent.batch_progress": "Progress: {completed}/{total}",
     "agent.reporter_done": "Report generated",
+    "status.retry_appraise": "⚠️ Appraisal flow error detected, retrying ({attempt}/{max_retries})...",
+    "error.appraise_not_called": "Appraisal flow error: Orchestrator did not execute item appraisal",
     
     # === chat.py ===
     "chat.default_response": "I'm AMA evaluation assistant, how can I help you?",

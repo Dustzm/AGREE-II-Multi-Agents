@@ -269,7 +269,10 @@ class AppraisalRunner:
                 else:
                     logger.warning(f"未找到 content_list.json: {content_list_path}")
             
-            # Step 3: 运行 Orchestrator
+            # Step 3: 运行 Orchestrator（带重试机制）
+            max_orchestrator_retries = 3  # 最大重试次数
+            appraise_all_called = False   # 标记是否调用了 appraise_all
+
             self.on_status("status", t("status.starting_agents", self.lang))
             self.on_agent("Orchestrator", t("agent.orchestrator_start", self.lang), 0, 4)
             
@@ -310,14 +313,18 @@ class AppraisalRunner:
                 agent=orchestrator,
                 app_name='ama_web',
             )
-            
-            session = await runner.session_service.create_session(
-                app_name='ama_web',
-                user_id='web_user'
-            )
-            
-            # 构建初始消息（简化流程，无 Initiator）
-            prompt = f"""请开始处理 AGREE-II 指南评价任务。
+
+            # 重试循环
+            for retry_attempt in range(max_orchestrator_retries):
+                appraise_all_called = False  # 每次重试重置标志
+
+                session = await runner.session_service.create_session(
+                    app_name='ama_web',
+                    user_id='web_user'
+                )
+
+                # 构建初始消息（简化流程，无 Initiator）
+                prompt = f"""请开始处理 AGREE-II 指南评价任务。
 
 任务信息：
 - task_id: {actual_task_id}
@@ -328,178 +335,199 @@ class AppraisalRunner:
 2. 调用 Reporter 生成最终报告
 
 开始执行！"""
-            
-            initial_message = types.Content(
-                role='user',
-                parts=[types.Part(text=prompt)]
-            )
-            
-            # 初始化 Token 统计
-            from core.utils.token_tracker import TokenUsageTracker, set_global_tracker
-            self._token_tracker = TokenUsageTracker(task_id=actual_task_id)
-            set_global_tracker(self._token_tracker)  # 设置全局追踪器供 Appraiser 使用
-            self._weaver_dir = Path(task_result["paths"]["weaver_dir"]) if not reuse_task_id else Path(prep_dir).parent
-            
-            # 跟踪当前智能体和调用状态（已移除 Initiator）
-            current_agent = "Orchestrator"
-            agent_progress = {
-                "Appraiser": 1, 
-                "Reporter": 2
-            }
-            agent_messages = {
-                "Appraiser": t("agent.appraiser_working", self.lang),
-                "Reporter": t("agent.reporter_working", self.lang)
-            }
-            
-            # 运行对话
-            async for event in runner.run_async(
-                user_id='web_user',
-                session_id=session.id,
-                new_message=initial_message
-            ):
+
+                initial_message = types.Content(
+                    role='user',
+                    parts=[types.Part(text=prompt)]
+                )
+
+                # 初始化 Token 统计（只在第一次重试时初始化）
+                if retry_attempt == 0:
+                    from core.utils.token_tracker import TokenUsageTracker, set_global_tracker
+                    self._token_tracker = TokenUsageTracker(task_id=actual_task_id)
+                    set_global_tracker(self._token_tracker)  # 设置全局追踪器供 Appraiser 使用
+                    self._weaver_dir = Path(task_result["paths"]["weaver_dir"]) if not reuse_task_id else Path(prep_dir).parent
+
+                # 跟踪当前智能体和调用状态（已移除 Initiator）
+                current_agent = "Orchestrator"
+                agent_progress = {
+                    "Appraiser": 1,
+                    "Reporter": 2
+                }
+                agent_messages = {
+                    "Appraiser": t("agent.appraiser_working", self.lang),
+                    "Reporter": t("agent.reporter_working", self.lang)
+                }
+
+                # 运行对话
+                async for event in runner.run_async(
+                    user_id='web_user',
+                    session_id=session.id,
+                    new_message=initial_message
+                ):
+                    if self._cancelled:
+                        break
+
+                    # 捕获 token 使用统计
+                    if hasattr(event, 'usage_metadata') and event.usage_metadata:
+                        logger.debug(f"收到 usage_metadata: {event.usage_metadata}")
+                        self._token_tracker.add_usage(event.usage_metadata)
+
+                    # 处理事件内容
+                    if hasattr(event, 'content') and event.content:
+                        for part in event.content.parts:
+                            # 1. 检测函数调用（工具调用）
+                            if hasattr(part, 'function_call') and part.function_call:
+                                tool_name = part.function_call.name
+                                logger.info(f"[{actual_task_id}] 检测到工具调用: {tool_name}")
+
+                                # 根据工具名称判断是哪个子代理（已移除 Initiator）
+                                agent_name = None
+                                custom_message = None
+                                appraiser_prompt = None  # 用于存储提示词（移到外部避免作用域问题）
+
+                                if tool_name.lower().startswith('appraiser'):
+                                    agent_name = "Appraiser"
+                                    # 解析 skill_id 以显示具体条目
+                                    try:
+                                        # 从工具名提取 skill_id，如 Appraiser_item_1 -> item_1
+                                        skill_id = ""
+                                        if '_item_' in tool_name.lower():
+                                            skill_id = tool_name.split('_', 1)[1]  # item_1
+                                        else:
+                                            # 从参数中提取
+                                            args = part.function_call.args
+                                            if args:
+                                                if isinstance(args, dict):
+                                                    skill_id = args.get("skill_id", "")
+                                                elif hasattr(args, 'get'):
+                                                    skill_id = args.get("skill_id", "")
+                                                else:
+                                                    import json
+                                                    args_dict = json.loads(str(args)) if isinstance(args, str) else {}
+                                                    skill_id = args_dict.get("skill_id", "")
+
+                                        if skill_id:
+                                            custom_message = t("agent.appraising_item", self.lang, skill_id=skill_id)
+                                            logger.info(f"[{actual_task_id}] Appraiser 正在评价条目: {skill_id}")
+
+                                            # 获取渲染后的提示词
+                                            try:
+                                                from core.prompts.renderer import render_appraiser_prompt
+                                                appraiser_prompt = render_appraiser_prompt(skill_id)
+                                            except Exception as e:
+                                                logger.warning(f"[{actual_task_id}] 获取提示词失败: {e}")
+                                    except Exception as e:
+                                        logger.warning(f"[{actual_task_id}] 解析 Appraiser 参数失败: {e}")
+
+                                elif 'reporter' in tool_name.lower():
+                                    agent_name = "Reporter"
+                                elif 'appraise_all' in tool_name.lower():
+                                    # 批量评价工具开始
+                                    appraise_all_called = True
+                                    logger.info(f"[{actual_task_id}] 检测到 appraise_all 调用，开始批量评价所有条目")
+
+                                # 发送子代理状态更新
+                                if agent_name:
+                                    # 对于 Appraiser，总是发送更新（因为可能是不同条目）
+                                    if agent_name == "Appraiser" or agent_name != current_agent:
+                                        current_agent = agent_name
+                                        progress = agent_progress.get(agent_name, 0)
+                                        message = custom_message or agent_messages.get(agent_name, t("agent.processing", self.lang, agent=agent_name))
+                                        # 发送带提示词的消息（只有 Appraiser 有）
+                                        self.on_agent(agent_name, message, progress, 3, appraiser_prompt if agent_name == "Appraiser" else None)
+                                        logger.info(f"[{actual_task_id}] 切换到代理: {agent_name}, 消息: {message}")
+                                        appraiser_prompt = None  # 重置
+
+                                # 2. 检测函数响应（工具返回）
+                            elif hasattr(part, 'function_response') and part.function_response:
+                                response = part.function_response
+                                tool_name = response.name if hasattr(response, 'name') else ""
+                                logger.info(f"[{actual_task_id}] 工具完成: {tool_name}")
+
+                                # 根据工具名称发送完成状态（已移除 Initiator）
+                                if 'appraise_all' in tool_name.lower():
+                                    self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 1, 3)
+                                    logger.info(f"[{actual_task_id}] 批量评价完成")
+                                elif 'reporter' in tool_name.lower():
+                                    self.on_agent("Reporter", t("agent.reporter_done", self.lang), 2, 3)
+                                    logger.info(f"[{actual_task_id}] Reporter 完成")
+
+                            # 3. 处理文本输出
+                            elif hasattr(part, 'text') and part.text:
+                                text = part.text
+
+                                # 检查是否有 reasoning/reasoning_content (vLLM + reasoning-parser 模式)
+                                # ADK 通过 LiteLLM 返回的消息可能包含 reasoning_content 字段
+                                message = event.content
+                                reasoning_content = None
+
+                                # 检查多种可能的 reasoning 字段位置
+                                if hasattr(message, 'reasoning_content'):
+                                    reasoning_content = message.reasoning_content
+                                elif hasattr(message, 'reasoning'):
+                                    reasoning_content = message.reasoning
+
+                                # 如果有思考内容，记录但不推送到 WebSocket
+                                if reasoning_content:
+                                    logger.info(f"[Thinking] 获取到思考内容 ({len(reasoning_content)} 字符)")
+                                    # 如果当前 text 就是思考内容（被错误地放到了 content 中），跳过
+                                    if text.strip() == reasoning_content.strip():
+                                        logger.debug("[Thinking] text 与 reasoning_content 相同，跳过")
+                                        continue
+
+                                # 回退检测: 如果 text 看起来像是思考内容（以换行开头且包含思考特征）
+                                # vLLM 返回的 reasoning 通常以 \n 开头
+                                if text.startswith('\n') and len(text) > 50:
+                                    # 检测是否是完整的思考内容（通常很长且以分析性语言开头）
+                                    trimmed = text.strip()
+                                    if trimmed.startswith(('好的，', '嗯，', '让我', '首先', '我需要', '根据')):
+                                        logger.debug(f"[Thinking] 检测到可能的思考内容: {text[:50]}...")
+                                        continue
+
+                                # 过滤 <think> 标签内容
+                                if '<think>' in text or '</think>' in text:
+                                    import re
+                                    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+                                    if not text:
+                                        continue
+
+                                # 只显示有意义的输出 (非空且长度足够)
+                                if len(text.strip()) > 20:
+                                    # 截取前 200 字符
+                                    display_text = text[:200] + "..." if len(text) > 200 else text
+                                    self.on_status("status", display_text)
+
+                    # 备用：仍然检查 author（以防某些事件有）
+                    if hasattr(event, 'author') and event.author:
+                        author = event.author
+                        if author != current_agent and author in agent_progress:
+                            current_agent = author
+                            progress = agent_progress.get(author, 0)
+                            message = agent_messages.get(author, t("agent.processing", self.lang, agent=author))
+                            self.on_agent(author, message, progress, 4)
+                            logger.info(f"[{actual_task_id}] 通过 author 切换到代理: {author}")
+
+                # async for 循环结束，检查是否调用了 appraise_all
                 if self._cancelled:
+                    logger.info(f"[{actual_task_id}] 任务已取消")
                     break
-                
-                # 捕获 token 使用统计
-                if hasattr(event, 'usage_metadata') and event.usage_metadata:
-                    logger.debug(f"收到 usage_metadata: {event.usage_metadata}")
-                    self._token_tracker.add_usage(event.usage_metadata)
-                
-                # 处理事件内容
-                if hasattr(event, 'content') and event.content:
-                    for part in event.content.parts:
-                        # 1. 检测函数调用（工具调用）
-                        if hasattr(part, 'function_call') and part.function_call:
-                            tool_name = part.function_call.name
-                            logger.info(f"检测到工具调用: {tool_name}")
-                            
-                            # 根据工具名称判断是哪个子代理（已移除 Initiator）
-                            agent_name = None
-                            custom_message = None
-                            appraiser_prompt = None  # 用于存储提示词（移到外部避免作用域问题）
-                            
-                            if tool_name.lower().startswith('appraiser'):
-                                agent_name = "Appraiser"
-                                # 解析 skill_id 以显示具体条目
-                                try:
-                                    # 从工具名提取 skill_id，如 Appraiser_item_1 -> item_1
-                                    skill_id = ""
-                                    if '_item_' in tool_name.lower():
-                                        skill_id = tool_name.split('_', 1)[1]  # item_1
-                                    else:
-                                        # 从参数中提取
-                                        args = part.function_call.args
-                                        if args:
-                                            if isinstance(args, dict):
-                                                skill_id = args.get("skill_id", "")
-                                            elif hasattr(args, 'get'):
-                                                skill_id = args.get("skill_id", "")
-                                            else:
-                                                import json
-                                                args_dict = json.loads(str(args)) if isinstance(args, str) else {}
-                                                skill_id = args_dict.get("skill_id", "")
-                                    
-                                    if skill_id:
-                                        custom_message = t("agent.appraising_item", self.lang, skill_id=skill_id)
-                                        logger.info(f"Appraiser 正在评价条目: {skill_id}")
-                                        
-                                        # 获取渲染后的提示词
-                                        try:
-                                            from core.prompts.renderer import render_appraiser_prompt
-                                            appraiser_prompt = render_appraiser_prompt(skill_id)
-                                        except Exception as e:
-                                            logger.warning(f"获取提示词失败: {e}")
-                                except Exception as e:
-                                    logger.warning(f"解析 Appraiser 参数失败: {e}")
-                                    
-                            elif 'reporter' in tool_name.lower():
-                                agent_name = "Reporter"
-                            elif 'appraise_all' in tool_name.lower():
-                                # 批量评价工具开始（不在 UI 显示，仅日志记录）
-                                logger.info("开始批量评价所有条目")
-                            
-                            # 发送子代理状态更新
-                            if agent_name:
-                                # 对于 Appraiser，总是发送更新（因为可能是不同条目）
-                                if agent_name == "Appraiser" or agent_name != current_agent:
-                                    current_agent = agent_name
-                                    progress = agent_progress.get(agent_name, 0)
-                                    message = custom_message or agent_messages.get(agent_name, t("agent.processing", self.lang, agent=agent_name))
-                                    # 发送带提示词的消息（只有 Appraiser 有）
-                                    self.on_agent(agent_name, message, progress, 3, appraiser_prompt if agent_name == "Appraiser" else None)
-                                    logger.info(f"切换到代理: {agent_name}, 消息: {message}")
-                                    appraiser_prompt = None  # 重置
-                        
-                        # 2. 检测函数响应（工具返回）
-                        elif hasattr(part, 'function_response') and part.function_response:
-                            response = part.function_response
-                            tool_name = response.name if hasattr(response, 'name') else ""
-                            logger.info(f"工具完成: {tool_name}")
-                            
-                            # 根据工具名称发送完成状态（已移除 Initiator）
-                            if 'appraise_all' in tool_name.lower():
-                                self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 1, 3)
-                                logger.info("批量评价完成")
-                            elif 'reporter' in tool_name.lower():
-                                self.on_agent("Reporter", t("agent.reporter_done", self.lang), 2, 3)
-                                logger.info("Reporter 完成")
-                        
-                        # 3. 处理文本输出
-                        elif hasattr(part, 'text') and part.text:
-                            text = part.text
-                            
-                            # 检查是否有 reasoning/reasoning_content (vLLM + reasoning-parser 模式)
-                            # ADK 通过 LiteLLM 返回的消息可能包含 reasoning_content 字段
-                            message = event.content
-                            reasoning_content = None
-                            
-                            # 检查多种可能的 reasoning 字段位置
-                            if hasattr(message, 'reasoning_content'):
-                                reasoning_content = message.reasoning_content
-                            elif hasattr(message, 'reasoning'):
-                                reasoning_content = message.reasoning
-                            
-                            # 如果有思考内容，记录但不推送到 WebSocket
-                            if reasoning_content:
-                                logger.info(f"[Thinking] 获取到思考内容 ({len(reasoning_content)} 字符)")
-                                # 如果当前 text 就是思考内容（被错误地放到了 content 中），跳过
-                                if text.strip() == reasoning_content.strip():
-                                    logger.debug("[Thinking] text 与 reasoning_content 相同，跳过")
-                                    continue
-                            
-                            # 回退检测: 如果 text 看起来像是思考内容（以换行开头且包含思考特征）
-                            # vLLM 返回的 reasoning 通常以 \n 开头
-                            if text.startswith('\n') and len(text) > 50:
-                                # 检测是否是完整的思考内容（通常很长且以分析性语言开头）
-                                trimmed = text.strip()
-                                if trimmed.startswith(('好的，', '嗯，', '让我', '首先', '我需要', '根据')):
-                                    logger.debug(f"[Thinking] 检测到可能的思考内容: {text[:50]}...")
-                                    continue
-                            
-                            # 过滤 <think> 标签内容
-                            if '<think>' in text or '</think>' in text:
-                                import re
-                                text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-                                if not text:
-                                    continue
-                            
-                            # 只显示有意义的输出 (非空且长度足够)
-                            if len(text.strip()) > 20:
-                                # 截取前 200 字符
-                                display_text = text[:200] + "..." if len(text) > 200 else text
-                                self.on_status("status", display_text)
-                
-                # 备用：仍然检查 author（以防某些事件有）
-                if hasattr(event, 'author') and event.author:
-                    author = event.author
-                    if author != current_agent and author in agent_progress:
-                        current_agent = author
-                        progress = agent_progress.get(author, 0)
-                        message = agent_messages.get(author, t("agent.processing", self.lang, agent=author))
-                        self.on_agent(author, message, progress, 4)
-                        logger.info(f"通过 author 切换到代理: {author}")
-            
-            
+
+                if appraise_all_called:
+                    # 正常完成，跳出重试循环
+                    logger.info(f"[{actual_task_id}] Orchestrator 正常完成，已调用 appraise_all")
+                    break
+                else:
+                    # 未调用 appraise_all，需要重试
+                    if retry_attempt < max_orchestrator_retries - 1:
+                        logger.warning(f"[{actual_task_id}] Orchestrator 未调用 appraise_all，重试 ({retry_attempt + 1}/{max_orchestrator_retries})")
+                        self.on_status("status", t("status.retry_appraise", self.lang, attempt=retry_attempt + 1, max_retries=max_orchestrator_retries))
+                    else:
+                        # 最后一次重试也失败
+                        logger.error(f"[{actual_task_id}] Orchestrator 多次重试后仍未调用 appraise_all")
+                        self.on_error(t("error.appraise_not_called", self.lang))
+                        return
+
             if not self._cancelled:
                 self.on_agent("Reporter", t("agent.report_done", self.lang), 3, 3)
                 
