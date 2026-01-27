@@ -99,7 +99,7 @@ class SemanticLabeler:
             logger.error(f"LLM 调用失败: {str(e)}", exc_info=True)
             return '{"thinking": "LLM调用失败", "tag": "Irrelevant"}'
     
-    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 70, total_pages: int = 0) -> List[SemanticChunk]:
+    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 45, total_pages: int = 0) -> List[SemanticChunk]:
         """
         为所有内容块打标签（并发执行）
         
