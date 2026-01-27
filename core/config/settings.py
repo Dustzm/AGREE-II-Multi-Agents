@@ -90,6 +90,18 @@ class MinerUSettings(BaseSettings):
         description="最大并发请求数"
     )
 
+    # 解析重试次数
+    parse_retry_attempts: int = Field(
+        default=3,
+        description="PDF 解析失败重试次数"
+    )
+
+    # 重试间隔（秒）
+    parse_retry_delay: int = Field(
+        default=5,
+        description="重试间隔时间（秒）"
+    )
+
 
 class ASRSettings(BaseSettings):
     """ASR 语音识别服务配置 (OpenAI Whisper 兼容格式)"""
@@ -141,6 +153,83 @@ class ASRSettings(BaseSettings):
     max_concurrency: int = Field(
         default=1,
         description="ASR 最大并发请求数"
+    )
+
+
+class URLAttachmentSettings(BaseSettings):
+    """URL 附件处理配置"""
+    
+    model_config = SettingsConfigDict(
+        env_prefix="URL_ATTACHMENT_",
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    # 是否启用 URL 附件处理
+    enabled: bool = Field(
+        default=True,
+        description="是否启用 URL 附件处理"
+    )
+    
+    # 下载超时时间（秒）
+    timeout: int = Field(
+        default=30,
+        description="下载超时时间（秒）"
+    )
+    
+    # 最大并发数
+    max_concurrency: int = Field(
+        default=3,
+        description="最大下载数"
+    )
+    
+    # 缓存保留天数
+    cache_days: int = Field(
+        default=7,
+        description="缓存保留天数"
+    )
+    
+    # 最大文件大小（字节）
+    max_size: int = Field(
+        default=10 * 1024 * 1024,
+        description="最大文件大小（字节）"
+    )
+    
+    # httpx 超时（秒）
+    httpx_timeout: int = Field(
+        default=5,
+        description="httpx 超时时间（秒）"
+    )
+    
+    # Playwright 超时（秒）
+    playwright_timeout: int = Field(
+        default=20,
+        description="Playwright 超时时间（秒）"
+    )
+    
+    # 重试次数
+    retry_attempts: int = Field(
+        default=2,
+        description="重试次数"
+    )
+    
+    # 重试间隔（秒）
+    retry_delay: int = Field(
+        default=1,
+        description="重试间隔（秒）"
+    )
+    
+    # 最大内容长度（字符）
+    max_content_length: int = Field(
+        default=50000,
+        description="最大内容长度（字符）"
+    )
+    
+    # 是否启用 LLM 分类
+    enable_llm_classification: bool = Field(
+        default=True,
+        description="是否启用 LLM 分类"
     )
 
 
@@ -226,6 +315,7 @@ class Settings(BaseSettings):
     mineru: MinerUSettings = Field(default_factory=MinerUSettings)
     asr: ASRSettings = Field(default_factory=ASRSettings)
     app: AppSettings = Field(default_factory=AppSettings)
+    url_attachment: URLAttachmentSettings = Field(default_factory=URLAttachmentSettings)
 
 
 @lru_cache

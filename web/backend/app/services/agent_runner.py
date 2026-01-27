@@ -3,6 +3,7 @@
 
 封装 Orchestrator 调用，支持 WebSocket 回调
 """
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -177,77 +178,64 @@ class AppraisalRunner:
             # Step 2: 检查并解析 PDF
             source_file = Path(source_path)
             parse_success = False
-            
+
             if source_file.exists():
                 self.on_status("status", t("status.doc_found_skip", self.lang))
             else:
-                # 尝试使用 MinerU，失败则回退到 PyPDF
+                # 使用 MinerU 解析，支持重试
                 parse_success = False
-                
-                # 首先尝试 MinerU（如果配置了远程服务）
-                try:
-                    settings = get_settings()
-                    mineru_url = settings.mineru.server_url
-                    
-                    # 只要配置了 MinerU URL 就尝试使用
-                    if mineru_url:
-                        self.on_status("status", t("status.parsing_mineru", self.lang))
-                        
-                        parser = MinerUParser()
-                        # 先检查服务是否可用
-                        service_ok = await parser.health_check()
-                        
-                        if service_ok:
-                            parse_result = await parser.parse_pdf_to_file(
-                                pdf_path=str(pdf_file),
-                                source_path=source_path,
-                                prep_dir=prep_dir
-                            )
-                            
-                            if parse_result.get("status") == "success":
-                                pages = parse_result.get("pages", 0)
-                                msg = t("status.parse_done_mineru", self.lang, pages=pages)
-                                logger.info(f"发送解析完成消息: {msg}")
-                                self.on_status("status", msg)
-                                parse_success = True
-                            else:
-                                logger.warning(f"MinerU 解析失败: {parse_result.get('error')}")
-                        else:
-                            logger.warning(f"MinerU 服务不可用 ({mineru_url})，将尝试本地解析")
-                    else:
-                        logger.info("MinerU 未配置 (MINERU_SERVER_URL)，使用本地解析器")
-                        
-                except Exception as e:
-                    logger.warning(f"MinerU 解析异常: {e}，将尝试本地解析")
-                
-                # 如果 MinerU 失败，回退到 PyPDF
-                if not parse_success:
-                    self.on_status("status", t("status.parsing_pypdf", self.lang))
-                    
+                settings = get_settings()
+                mineru_url = settings.mineru.server_url
+                max_retries = settings.mineru.parse_retry_attempts
+                retry_delay = settings.mineru.parse_retry_delay
+
+                if not mineru_url:
+                    self.on_error(t("error.mineru_not_configured", self.lang))
+                    return
+
+                self.on_status("status", t("status.parsing_mineru", self.lang))
+                parser = MinerUParser()
+
+                # 先检查服务是否可用
+                service_ok = await parser.health_check()
+                if not service_ok:
+                    self.on_error(t("error.mineru_unavailable", self.lang))
+                    return
+
+                # 带重试的解析逻辑
+                last_error = None
+                for attempt in range(max_retries):
                     try:
-                        from core.parsers import PyPDFParser
-                        pypdf_parser = PyPDFParser()
-                        
-                        # PyPDFParser.parse_pdf 是同步的
-                        result = pypdf_parser.parse_pdf(str(pdf_file), str(source_file.parent))
-                        
-                        if result.get("status") == "success":
-                            # 确保保存为 source.md
-                            if result.get("output_path") != source_path:
-                                import shutil
-                                if Path(result["output_path"]).exists():
-                                    shutil.move(result["output_path"], source_path)
-                            
-                            pages = result.get("pages", 0)
-                            self.on_status("status", t("status.parse_done_pypdf", self.lang, pages=pages))
+                        parse_result = await parser.parse_pdf_to_file(
+                            pdf_path=str(pdf_file),
+                            source_path=source_path,
+                            prep_dir=prep_dir
+                        )
+
+                        if parse_result.get("status") == "success":
+                            pages = parse_result.get("pages", 0)
+                            msg = t("status.parse_done_mineru", self.lang, pages=pages)
+                            logger.info(f"发送解析完成消息: {msg}")
+                            self.on_status("status", msg)
                             parse_success = True
+                            break
                         else:
-                            self.on_error(t("error.parse_failed", self.lang, error=result.get('error', 'Unknown')))
-                            return
-                            
+                            last_error = parse_result.get('error', 'Unknown error')
+                            logger.warning(f"MinerU 解析失败 (尝试 {attempt + 1}/{max_retries}): {last_error}")
+
                     except Exception as e:
-                        self.on_error(t("error.parse_failed", self.lang, error=str(e)))
-                        return
+                        last_error = str(e)
+                        logger.warning(f"MinerU 解析异常 (尝试 {attempt + 1}/{max_retries}): {e}")
+
+                    # 如果不是最后一次尝试，等待后重试
+                    if attempt < max_retries - 1:
+                        self.on_status("status", t("status.parse_retry", self.lang, delay=retry_delay, attempt=attempt + 1, max_retries=max_retries))
+                        await asyncio.sleep(retry_delay)
+
+                # 所有重试都失败
+                if not parse_success:
+                    self.on_error(t("error.parse_failed", self.lang, error=last_error))
+                    return
             
             if self._cancelled:
                 return
