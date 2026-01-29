@@ -255,7 +255,7 @@ class IterativeEvaluator:
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.1,  # 提高温度，增加灵活性，避免过度严格
+                temperature=0,  # 使用 0 温度以确保确定性，避免漏掉关键证据
                 top_p=0.9,
                 max_tokens=8192, # Batch 模式下允许提取更多
                 response_format={"type": "json_object"},  # vLLM 不支持 Pydantic Schema，使用 json_object

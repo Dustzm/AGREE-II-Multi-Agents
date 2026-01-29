@@ -62,6 +62,30 @@ class AppraisalRunner:
         self._token_tracker = None
         self._weaver_dir = None  # 保存路径
     
+    async def _handle_item_progress(self, skill_id: str, title: str, status: str, duration: float = None):
+        """单条目进度回调"""
+        try:
+            # 优先使用 WebSocket 专用回调（仅用于 Chat 单任务场景）
+            if hasattr(self, '_send_item_progress') and self._send_item_progress:
+                await self._send_item_progress(skill_id, title, status, duration)
+            # 批量场景不更新单条目进度，由 on_batch_summary 统一更新
+        except Exception as e:
+            logger.warning(f"发送条目进度失败: {e}")
+
+    async def _handle_batch_summary(self, total: int, completed: int, elapsed: float):
+        """汇总进度回调"""
+        try:
+            logger.info(f"on_batch_summary 被调用: {completed}/{total}")
+            if hasattr(self, '_send_batch_summary') and self._send_batch_summary:
+                await self._send_batch_summary(total, completed, elapsed)
+            else:
+                # 回退使用 on_agent 回调（用于批量任务场景）
+                msg = t("agent.batch_progress", self.lang, completed=completed, total=total)
+                logger.info(f"调用 on_agent: Appraiser, {msg}")
+                self.on_agent("Appraiser", msg, 1, 3, None)
+        except Exception as e:
+            logger.warning(f"发送汇总进度失败: {e}")
+    
     def cancel(self):
         """取消当前任务"""
         self._cancelled = True
@@ -276,38 +300,13 @@ class AppraisalRunner:
             self.on_status("status", t("status.starting_agents", self.lang))
             self.on_agent("Orchestrator", t("agent.orchestrator_start", self.lang), 0, 4)
             
-            # 注册并发评价进度回调
-            async def on_item_progress(skill_id: str, title: str, status: str, duration: float = None):
-                """单条目进度回调"""
-                try:
-                    # 优先使用 WebSocket 专用回调（仅用于 Chat 单任务场景）
-                    if hasattr(self, '_send_item_progress') and self._send_item_progress:
-                        await self._send_item_progress(skill_id, title, status, duration)
-                    # 批量场景不更新单条目进度，由 on_batch_summary 统一更新
-                except Exception as e:
-                    logger.warning(f"发送条目进度失败: {e}")
-            
-            async def on_batch_summary(total: int, completed: int, elapsed: float):
-                """汇总进度回调"""
-                try:
-                    logger.info(f"on_batch_summary 被调用: {completed}/{total}")
-                    if hasattr(self, '_send_batch_summary') and self._send_batch_summary:
-                        await self._send_batch_summary(total, completed, elapsed)
-                    else:
-                        # 回退使用 on_agent 回调（用于批量任务场景）
-                        msg = t("agent.batch_progress", self.lang, completed=completed, total=total)
-                        logger.info(f"调用 on_agent: Appraiser, {msg}")
-                        self.on_agent("Appraiser", msg, 1, 3, None)
-                except Exception as e:
-                    logger.warning(f"发送汇总进度失败: {e}")
-
             # 不再使用全局回调，直接传递给 create_orchestrator
-            # register_progress_callbacks(on_item_progress, on_batch_summary)
+            # register_progress_callbacks(self._handle_item_progress, self._handle_batch_summary)
 
             orchestrator = create_orchestrator(
                 lang=self.lang,
-                on_item_progress=on_item_progress,
-                on_summary=on_batch_summary,
+                on_item_progress=self._handle_item_progress,
+                on_summary=self._handle_batch_summary,
             )
             runner = runners.InMemoryRunner(
                 agent=orchestrator,
@@ -459,20 +458,23 @@ class AppraisalRunner:
 
                                 # 检查是否有 reasoning/reasoning_content (vLLM + reasoning-parser 模式)
                                 # ADK 通过 LiteLLM 返回的消息可能包含 reasoning_content 字段
-                                message = event.content
+                                current_content = event.content
                                 reasoning_content = None
 
                                 # 检查多种可能的 reasoning 字段位置
-                                if hasattr(message, 'reasoning_content'):
-                                    reasoning_content = message.reasoning_content
-                                elif hasattr(message, 'reasoning'):
-                                    reasoning_content = message.reasoning
+                                if hasattr(current_content, 'reasoning_content'):
+                                    reasoning_content = current_content.reasoning_content
+                                elif hasattr(current_content, 'reasoning'):
+                                    reasoning_content = current_content.reasoning
 
                                 # 如果有思考内容，记录但不推送到 WebSocket
                                 if reasoning_content:
                                     logger.info(f"[Thinking] 获取到思考内容 ({len(reasoning_content)} 字符)")
                                     # 如果当前 text 就是思考内容（被错误地放到了 content 中），跳过
-                                    if text.strip() == reasoning_content.strip():
+                                    # 增加对 reasoning_content 非空的保护，并确保 text 和 reasoning_content 都是字符串
+                                    s_text = text.strip() if text else ""
+                                    s_reasoning = reasoning_content.strip() if reasoning_content else ""
+                                    if s_text and s_text == s_reasoning:
                                         logger.debug("[Thinking] text 与 reasoning_content 相同，跳过")
                                         continue
 
