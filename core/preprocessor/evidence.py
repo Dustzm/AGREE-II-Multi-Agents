@@ -21,7 +21,7 @@ DOMAIN_LABEL_MAPPING: Dict[int, List[SemanticLabel]] = {
     3: [SemanticLabel.METHOD, SemanticLabel.RECOMMENDATION, SemanticLabel.APPENDIX],      # Rigour of Development
     4: [SemanticLabel.EXECUTIVE_SUMMARY, SemanticLabel.RECOMMENDATION],                                  # Clarity of Presentation
     5: [SemanticLabel.RECOMMENDATION, SemanticLabel.APPENDIX],                                  # Applicability
-    6: [SemanticLabel.OVERVIEW, SemanticLabel.OTHERS, SemanticLabel.APPENDIX],                              # Editorial Independence
+    6: [SemanticLabel.OVERVIEW, SemanticLabel.OTHERS, SemanticLabel.APPENDIX, SemanticLabel.CONCLUSION],                              # Editorial Independence
 }
 
 

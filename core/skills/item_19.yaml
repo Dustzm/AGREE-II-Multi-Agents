@@ -12,28 +12,40 @@ description_zh: "要使一个指南更为有效，需要一些附加的材料使
 locating_info: Check Recommendations, Implementation, Appendices sections.
 locating_info_zh: 查看推荐意见、实施、附录章节。
 criteria:
-- 例如，这些附加的材料可能包括：一个简介，一个快速参考手册，教具，来自于探索试验的结果，病人活页，计算机支持，以及提供任何和指南一起的附加材料。
+- tool definition:a summary document, educational tools, results from a pilot test,
+  patient leaflets, computer support, guideline summary documents, check lists, algorithms,
+  links to how-to manuals, solutions linked to barrier analysis, tools to capitalize
+  on guideline facilitators, or outcome of pilot test and lessons learned. EXCLUDE:pharmacokinetic/pharmacologic
+  tables, drug classification tables, evidence background tables, or general clinical
+  advice unless explicitly provided as an implementation tool/resource.
 scoring_principle:
 - range: '1'
-  condition: Not mentioned
-  condition_zh: 未提及
+  condition: Not mentioned (no implementation advice AND no explicit tools/resources).
+  condition_zh: 未提及（既无实施性建议，也无明确实施工具/资源）。
 - range: 2-4
-  condition: Implementation section or paragraph
-  condition_zh: 若指南含有独立实施部分或章节
+  condition: Implementation section or paragraph (implementation advice is present,
+    but NO explicit tools/resources are provided).
+  condition_zh: 有实施性建议/段落（可在推荐或正文中体现），但未提供明确实施工具/资源（仅有背景表格或一般性建议不算工具）。
 - range: 5-6
-  condition: Implementation section with tools/resources provided
-  condition_zh: 若指南含有独立实施部分或章节，且提供了工具/资源
+  condition: Implementation section with tools/resources provided (separate implementation
+    section AND at least one explicit tool/resource). DO NOT use background tables
+    as tools.
+  condition_zh: 有独立实施章节/部分，且至少提供1个明确实施工具/资源（算法/路径/清单/宣教/审计/电子支持等；药代/分类表不得作为工具计入）。
 - range: '7'
-  condition: Implementation section, tools provided, and usage guidance
-  condition_zh: 若指南含有独立实施部分或章节，且提供了工具/资源，且提供工具/资源的使用说明或步骤
+  condition: Implementation section, tools provided, and usage guidance (separate
+    implementation section + explicit tools/resources + explicit instructions on how
+    to use the tools).
+  condition_zh: 有独立实施章节/部分，提供明确工具/资源，并给出“如何使用该工具”的步骤/规则/触发条件（仅描述推荐本身用法不等同于工具使用说明）。
 - range: 2-3
   condition: Provided one tool/resource when no separate implementation chapter exists
-  condition_zh: 若指南没有独立实施部分或章节，提供一个工具/资源，但未说明如何使用
+    (ONE explicit tool/resource only; no usage guidance).
+  condition_zh: 无独立实施章节/部分，但提供1个明确工具/资源（必须是可直接用于落地的附加材料），且未说明如何使用。
 - range: 4-5
   condition: Provided two and more tools/resources when no separate implementation
-    chapter exists
-  condition_zh: 若指南没有独立实施部分或章节，提供两个及以上工具/资源，但未说明如何使用
+    chapter exists (TWO OR MORE explicit tools/resources; no usage guidance).
+  condition_zh: 无独立实施章节/部分，但提供≥2个明确工具/资源（附加材料），且未说明如何使用。
 - range: 6-7
   condition: Provided tools/resources and usage guidance when no separate implementation
-    chapter exists
-  condition_zh: 若指南没有独立实施部分或章节，提供了工具/资源且提供使用说明或步骤
+    chapter exists (explicit tools/resources + explicit instructions on how to use
+    the tools).
+  condition_zh: 无独立实施章节/部分，但提供明确工具/资源，并给出“如何使用该工具”的说明/步骤/规则（不是仅有一般建议）。
