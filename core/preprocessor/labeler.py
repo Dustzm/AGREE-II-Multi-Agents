@@ -84,10 +84,12 @@ class SemanticLabeler:
             response = await litellm.acompletion(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                top_p=0.9,
-                max_tokens=2500,  # 限制输出长度，防止模型退化导致无止境输出
-                response_format=SemanticLabelOutput  # 使用 Pydantic schema 强制 JSON 输出
+                temperature=0,    # 标签分类是确定性任务，使用贪婪解码
+                top_p=0.1,
+                seed=42,          # 固定随机种子，保证可复现性
+                max_tokens=2500,
+                response_format={"type": "json_object"},  # 使用 json_object 避免 SGLang xgrammar 兼容性问题
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},  # 关闭 thinking 模式
             )
             
             # 提取文本响应

@@ -97,6 +97,46 @@ class IterativeEvaluator:
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
     
+    def _log_llm_call(
+        self,
+        stage: str,
+        response,
+        content: str,
+        reasoning_content: str | None,
+    ) -> None:
+        """
+        统一记录 LLM 调用的完整日志
+        
+        Args:
+            stage: 调用阶段名称 (如 "Evidence Extraction", "Dynamic Scoring")
+            response: LiteLLM 响应对象
+            content: 提取的最终输出内容
+            reasoning_content: 思考内容 (可能为 None)
+        """
+        # 调用元信息
+        usage = getattr(response, 'usage', None)
+        model_used = getattr(response, 'model', self.model)
+        
+        logger.info(f"=== [{stage}] LLM Call Meta ===")
+        logger.info(f"  Model: {model_used}")
+        logger.info(f"  Skill: {self.skill_id}")
+        if usage:
+            prompt_tokens = getattr(usage, 'prompt_tokens', 'N/A')
+            completion_tokens = getattr(usage, 'completion_tokens', 'N/A')
+            total_tokens = getattr(usage, 'total_tokens', 'N/A')
+            logger.info(f"  Tokens: prompt={prompt_tokens}, completion={completion_tokens}, total={total_tokens}")
+        
+        # 完整思考内容（不截断）
+        if reasoning_content:
+            logger.info(f"=== [{stage}] Reasoning Content (full) ===")
+            logger.info(reasoning_content)
+            logger.info(f"=== [{stage}] End Reasoning Content ===")
+        
+        # 最终输出内容
+        logger.info(f"=== [{stage}] Output Content ===")
+        logger.info(content)
+        logger.info(f"=== [{stage}] End Output Content ===")
+    
     def _clean_thinking_content(self, content: str) -> str:
         """
         移除内容中的 <think>...</think> 标签及其内容
@@ -210,7 +250,15 @@ class IterativeEvaluator:
         # 拼接 chunk 内容（带 chunk_id 标记，便于 LLM 识别来源）
         combined_content = []
         for c in chunks:
-            combined_content.append(f"[{c.chunk_id}] ## {c.title}\n{c.content}")
+            chunk_text = f"[{c.chunk_id}] ## {c.title}\n{c.content}"
+            
+            # 条目17：注入格式元数据供 LLM 评价推荐意见呈现方式
+            if self.skill_id == "item_17" and getattr(c, "format_hints", None):
+                format_desc = c.format_hints.get("format_description", "")
+                if format_desc:
+                    chunk_text += f"\n\n{format_desc}"
+            
+            combined_content.append(chunk_text)
         
         full_text = "\n\n".join(combined_content)
 
@@ -255,11 +303,12 @@ class IterativeEvaluator:
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0,  # 使用 0 温度以确保确定性，避免漏掉关键证据
-                top_p=0.9,
-                max_tokens=8192, # Batch 模式下允许提取更多
-                response_format={"type": "json_object"},  # vLLM 不支持 Pydantic Schema，使用 json_object
-                extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
+                temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
+                top_p=0.1,
+                seed=42,          # 固定随机种子
+                max_tokens=8192,
+                response_format={"type": "json_object"},
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
             
             # 统计 Token 使用
@@ -268,15 +317,13 @@ class IterativeEvaluator:
             # 提取内容和思考内容
             content, reasoning_content = self._extract_content_from_response(response)
             
-            # 记录思考内容 (如果存在)
-            if reasoning_content:
-                logger.info("=== [Evidence Extraction] Reasoning Content ===")
-                logger.info(reasoning_content[:500] + "..." if len(reasoning_content) > 500 else reasoning_content)
-                logger.info("===============================================")
-            
-            logger.info("=== [Evidence Extraction] Output Content ===")
-            logger.info(content)
-            logger.info("============================================")
+            # 记录完整 LLM 调用日志
+            self._log_llm_call(
+                stage="Evidence Extraction",
+                response=response,
+                content=content,
+                reasoning_content=reasoning_content,
+            )
             
             # 解析 JSON（新格式：包含 chunk_id）
             evidence_texts: List[str] = []
@@ -355,9 +402,9 @@ class IterativeEvaluator:
             n_sources=len(self.evidence_sources),
         )
         
-        # 修改 prompt 以输出 JSON 格式
+        # prompt 模板已统一为 JSON 输出格式，与 response_format 一致
         system_instruction = "You are a scoring assistant. Output JSON only."
-        api_prompt = prompt + "\n\nIMPORTANT: Return a JSON object with exactly two keys:\n1. 'analysis': brief explanation of which criteria are met\n2. 'score': integer 1-7\n\nExample: {\"analysis\": \"The evidence covers...\", \"score\": 5}"
+        api_prompt = prompt
         
         logger.info("=== [Dynamic Scoring] Input Prompt ===")
         logger.info(api_prompt)
@@ -372,11 +419,12 @@ class IterativeEvaluator:
                 ],
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0.1,
-                top_p=0.9,
-                max_tokens=8096,  # 给评分分析留足空间
-                response_format={"type": "json_object"},  # 强制 JSON 输出
-                extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
+                temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
+                top_p=0.1,
+                seed=42,
+                max_tokens=8096,
+                response_format={"type": "json_object"},
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
             
             # 统计 Token 使用
@@ -384,17 +432,14 @@ class IterativeEvaluator:
             
             # 提取内容和思考内容
             content, reasoning_content = self._extract_content_from_response(response)
-            logger.debug(f"动态评分 JSON 输出: {content[:200]}...")
 
-            # 记录思考内容 (如果存在)
-            if reasoning_content:
-                logger.info("=== [Dynamic Scoring] Reasoning Content ===")
-                logger.info(reasoning_content[:500] + "..." if len(reasoning_content) > 500 else reasoning_content)
-                logger.info("============================================")
-
-            logger.info("=== [Dynamic Scoring] Output Content ===")
-            logger.info(content)
-            logger.info("========================================")
+            # 记录完整 LLM 调用日志
+            self._log_llm_call(
+                stage="Dynamic Scoring",
+                response=response,
+                content=content,
+                reasoning_content=reasoning_content,
+            )
             
             # 解析 JSON
             data = json.loads(content)
@@ -460,97 +505,111 @@ class IterativeEvaluator:
         logger.info(prompt)
         logger.info("===================================")
         
-        try:
-            # 使用 Pydantic Schema 强制输出结构
-            system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
-            
-            response = litellm.completion(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ],
-                api_base=self.llm_base_url,
-                api_key=self.llm_api_key,
-                temperature=0.1,
-                top_p=0.9,
-                max_tokens=16384,
-                response_format=FinalReportOutput,  # 使用 Pydantic Schema 强制验证
-                extra_body={"chat_template_kwargs": {"enable_thinking": True}},  # vLLM Qwen3 启用思考模式
-            )
-            
-            # 统计 Token 使用
-            add_litellm_usage(response)
-            
-            # 提取内容和思考内容
-            content, reasoning_content = self._extract_content_from_response(response)
-            logger.debug(f"LLM 原始输出: {content[:500]}...")
-
-            # 记录思考内容 (如果存在)
-            if reasoning_content:
-                logger.info("=== [Final Report] Reasoning Content ===")
-                logger.info(reasoning_content[:500] + "..." if len(reasoning_content) > 500 else reasoning_content)
-                logger.info("=========================================")
-
-            logger.info("=== [Final Report] Output Content ===")
-            logger.info(content)
-            logger.info("=====================================")
-            
-            # 解析 JSON 并验证结构
-            import re
-            # 移除可能的 markdown 代码块
-            if "```json" in content:
-                content = content.split("```json")[1]
-                if "```" in content:
-                    content = content.split("```")[0]
-            content = content.strip()
-            
-            # 尝试提取 JSON 对象
-            json_match = re.search(r'\{[\s\S]*\}', content)
-            if json_match:
-                content = json_match.group(0)
-            
-            cot = json.loads(content)
-            
-            # 使用 Pydantic 验证结构，确保字段完整
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
             try:
-                validated = FinalReportOutput.model_validate(cot)
-                step3_reasoning = validated.step3_reasoning.model_dump()
-                step1_locate = validated.step1_locate
-            except Exception as validation_error:
-                logger.warning(f"Schema 验证失败，使用原始数据: {validation_error}")
-                step3_reasoning = cot.get("step3_reasoning", "")
-                step1_locate = cot.get("step1_locate", f"证据来自以下章节: {', '.join(self.evidence_sources)}")
-            
-            return {
-                "status": "success",
-                "skill_id": self.skill_id,
-                "domain": self.domain_id,
-                "title": self.skill_config.get("title", ""),
-                "chain_of_thought": {
-                    "step1_locate": step1_locate,  # 使用已验证的变量
-                    "step2_evidence": self.evidence_cache,
-                    "step3_reasoning": step3_reasoning,  # 已验证的结构化 dict
-                    "score": self.current_score,
-                },
-                "evidence_sources": self.evidence_sources,
-                "iteration_stats": {
-                    "total_chunks": len(self.evidence_sources) if self.evidence_sources else 0,
-                    "evidence_count": len(self.evidence_cache),
-                    "early_stopped": self.current_score == 7,
-                },
-            }
-            
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON 解析失败: {e}, 使用简化报告")
-            return self._simple_report()
-            
-        except Exception as e:
-            logger.warning(f"报告生成失败: {e}, 使用简化报告")
-            return self._simple_report()
+                # 使用 Pydantic Schema 强制输出结构
+                system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
+                
+                response = litellm.completion(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": prompt}
+                    ],
+                    api_base=self.llm_base_url,
+                    api_key=self.llm_api_key,
+                    temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
+                    top_p=0.1,
+                    seed=42,
+                    max_tokens=16384,
+                    response_format={"type": "json_object"},  # 使用简单 json_object 避免 SGLang xgrammar 兼容性问题
+                    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                )
+                
+                # 统计 Token 使用
+                add_litellm_usage(response)
+                
+                # 提取内容和思考内容
+                content, reasoning_content = self._extract_content_from_response(response)
+
+                # 记录完整 LLM 调用日志
+                self._log_llm_call(
+                    stage=f"Final Report (attempt {attempt}/{max_retries})",
+                    response=response,
+                    content=content,
+                    reasoning_content=reasoning_content,
+                )
+                
+                # 解析 JSON 并验证结构
+                import re
+                # 移除可能的 markdown 代码块
+                if "```json" in content:
+                    content = content.split("```json")[1]
+                    if "```" in content:
+                        content = content.split("```")[0]
+                content = content.strip()
+                
+                # 尝试提取 JSON 对象
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if json_match:
+                    content = json_match.group(0)
+                
+                cot = json.loads(content)
+                
+                # 使用 Pydantic 验证结构，确保字段完整
+                try:
+                    validated = FinalReportOutput.model_validate(cot)
+                    step3_reasoning = validated.step3_reasoning.model_dump()
+                    step1_locate = validated.step1_locate
+                except Exception as validation_error:
+                    logger.warning(f"Schema 验证失败，使用原始数据: {validation_error}")
+                    step3_reasoning = cot.get("step3_reasoning", "")
+                    step1_locate = cot.get("step1_locate", f"证据来自以下章节: {', '.join(self.evidence_sources)}")
+                
+                return {
+                    "status": "success",
+                    "skill_id": self.skill_id,
+                    "domain": self.domain_id,
+                    "title": self.skill_config.get("title", ""),
+                    "chain_of_thought": {
+                        "step1_locate": step1_locate,
+                        "step2_evidence": self.evidence_cache,
+                        "step3_reasoning": step3_reasoning,
+                        "score": self.current_score,
+                    },
+                    "evidence_sources": self.evidence_sources,
+                    "iteration_stats": {
+                        "total_chunks": len(self.evidence_sources) if self.evidence_sources else 0,
+                        "evidence_count": len(self.evidence_cache),
+                        "early_stopped": self.current_score == 7,
+                    },
+                }
+                
+            except json.JSONDecodeError as e:
+                last_error = e
+                logger.warning(f"最终报告 JSON 解析失败 (第 {attempt}/{max_retries} 次): {e}")
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"最终报告生成失败 (第 {attempt}/{max_retries} 次): {e}")
+        
+        # 所有重试均失败，使用简化报告
+        logger.error(f"最终报告生成在 {max_retries} 次尝试后均失败，回退到简化报告。最后错误: {last_error}")
+        return self._simple_report()
     
     def _simple_report(self) -> Dict[str, Any]:
         """生成简化报告（LLM 调用失败时的回退）"""
+        # 安全检查：如果有证据但评分为最低分，说明评分可能不准确
+        if self.evidence_cache and self.current_score == 1:
+            logger.warning(
+                f"⚠️ 简化报告异常检测: 已提取 {len(self.evidence_cache)} 条证据，"
+                f"但当前评分为 1（最低分），评分可能因 LLM 调用失败而不准确。"
+                f"证据摘要: {[e[:80] + '...' for e in self.evidence_cache[:3]]}"
+            )
+        
         # 尝试从评分标准中找到对应的条件描述
         scoring_principles = self.skill_config.get("scoring_principle", [])
         matched_condition = ""
@@ -566,14 +625,18 @@ class IterativeEvaluator:
                 matched_condition = sp.get("condition", sp.get("condition_zh", ""))
                 break
         
-        reasoning = f"基于 {len(self.evidence_cache)} 条证据进行评价。"
+        reasoning = f"基于 {len(self.evidence_cache)} 条证据进行评价（注意：最终报告 LLM 调用失败，此为简化回退报告）。"
         if matched_condition:
             reasoning += f" 根据评分标准，符合【{matched_condition}】条件，评分为 {self.current_score}。"
         else:
             reasoning += f" 评分为 {self.current_score}。"
         
+        # 如果有证据但评分异常低，在报告中明确标注
+        if self.evidence_cache and self.current_score == 1:
+            reasoning += f" ⚠️ 警告：已提取到 {len(self.evidence_cache)} 条证据但评分为最低分，建议人工复核。"
+        
         return {
-            "status": "success",
+            "status": "fallback",  # 标记为回退报告，区别于正常 success
             "skill_id": self.skill_id,
             "domain": self.domain_id,
             "title": self.skill_config.get("title", ""),

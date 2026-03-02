@@ -266,32 +266,37 @@ class AppraisalRunner:
             
             # Step 2.5: 语义证据池构建
             if parse_success or source_file.exists():
-                self.on_status("status", t("status.building_evidence", self.lang))
-                
                 pdf_stem = pdf_file.stem  # 不带 .pdf 后缀
                 content_list_path = Path(prep_dir) / f"{pdf_stem}_content_list.json"
                 evidence_pool_path = Path(prep_dir) / f"{pdf_stem}_evidence_pool.json"
                 
-                # 检查 content_list.json 是否存在
-                if content_list_path.exists():
-                    try:
-                        preprocess_result = await process_content_list(
-                            content_list_path=str(content_list_path),
-                            output_path=str(evidence_pool_path),
-                            pdf_path=str(pdf_file),  # 添加 PDF 路径以构建 docindex
-                            lang=self.lang  # 使用实例的语言设置
-                        )
-                        
-                        if preprocess_result["status"] == "success":
-                            self.on_status("status", t("status.evidence_done", self.lang))
-                        else:
-                            logger.warning(f"预处理失败: {preprocess_result.get('error')}")
-                            self.on_status("status", t("status.evidence_failed", self.lang))
-                    except Exception as e:
-                        logger.error(f"预处理过程异常: {e}")
-                        self.on_status("status", t("status.preprocess_error", self.lang))
+                # 如果是复用模式且证据池已存在，跳过预处理（直接使用第一轮的证据池）
+                if reuse_task_id and evidence_pool_path.exists():
+                    logger.info(f"复用第一轮证据池，跳过预处理: {evidence_pool_path}")
+                    self.on_status("status", t("status.reusing_evidence", self.lang))
                 else:
-                    logger.warning(f"未找到 content_list.json: {content_list_path}")
+                    self.on_status("status", t("status.building_evidence", self.lang))
+                    
+                    # 检查 content_list.json 是否存在
+                    if content_list_path.exists():
+                        try:
+                            preprocess_result = await process_content_list(
+                                content_list_path=str(content_list_path),
+                                output_path=str(evidence_pool_path),
+                                pdf_path=str(pdf_file),  # 添加 PDF 路径以构建 docindex
+                                lang=self.lang  # 使用实例的语言设置
+                            )
+                            
+                            if preprocess_result["status"] == "success":
+                                self.on_status("status", t("status.evidence_done", self.lang))
+                            else:
+                                logger.warning(f"预处理失败: {preprocess_result.get('error')}")
+                                self.on_status("status", t("status.evidence_failed", self.lang))
+                        except Exception as e:
+                            logger.error(f"预处理过程异常: {e}")
+                            self.on_status("status", t("status.preprocess_error", self.lang))
+                    else:
+                        logger.warning(f"未找到 content_list.json: {content_list_path}")
             
             # Step 3: 运行 Orchestrator（带重试机制）
             max_orchestrator_retries = 3  # 最大重试次数
@@ -495,7 +500,8 @@ class AppraisalRunner:
                                         continue
 
                                 # 只显示有意义的输出 (非空且长度足够)
-                                if len(text.strip()) > 20:
+                                # 过滤 Orchestrator 的文本输出（任务指令复述，不应推送到前端）
+                                if len(text.strip()) > 20 and current_agent != "Orchestrator":
                                     # 截取前 200 字符
                                     display_text = text[:200] + "..." if len(text) > 200 else text
                                     self.on_status("status", display_text)

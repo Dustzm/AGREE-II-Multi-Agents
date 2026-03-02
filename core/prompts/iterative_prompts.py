@@ -93,6 +93,11 @@ The following are reference examples showing how similar guidelines were scored.
 ## Task
 Based on the accumulated evidence, determine which scoring condition is best matched.
 
+**Evidence Anchor**:
+- {n_sources} evidence sections were provided for analysis
+- If evidence sections exist (n > 0), relevant information IS present in the document — a score of 1 ("no information found") is almost certainly incorrect
+- A score of 1 is ONLY appropriate when n_sources = 0 or ALL evidence is completely irrelevant to the evaluation criteria
+
 **Scoring Steps**:
 1. Review the evidence against the scoring rubric
 2. Compare the evidence coverage against each scoring condition
@@ -105,10 +110,11 @@ You MUST strictly adhere to the "Score Range" defined in the Scoring Rubric.
 - STRICTLY NO hallucinations of scores outside the provided ranges.
 
 ## Output Format
-Provide your analysis and score in the following format:
+Return a JSON object with exactly two keys:
+1. 'analysis': brief explanation of which criteria are met and why this score range was selected
+2. 'score': integer (must be strictly within one of the valid score ranges from the Scoring Rubric)
 
-Analysis: [Brief explanation of which scoring condition matches and why]
-Score: [integer] (A value strictly within the valid ranges from the Scoring Rubric)
+Example: {{"analysis": "The evidence covers...", "score": 5}}
 """
 
 

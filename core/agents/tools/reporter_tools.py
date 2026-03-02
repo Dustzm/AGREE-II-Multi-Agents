@@ -176,10 +176,33 @@ def load_all_evaluations(task_id: str) -> dict:
             }
         
         logger.info(f"加载评价结果: {len(all_evaluations)} 个条目")
+        
+        # compact evaluations 数据，只保留 Reporter 需要的字段
+        slim_evaluations = []
+        for ev in all_evaluations:
+            cot = ev.get("chain_of_thought", {})
+            reasoning = cot.get("step3_reasoning", "")
+            # 如果 reasoning 是 dict，提取 score_justification
+            if isinstance(reasoning, dict):
+                reasoning_text = reasoning.get("score_justification", str(reasoning))
+            else:
+                reasoning_text = str(reasoning)
+            # 截断过长的 reasoning
+            if len(reasoning_text) > 500:
+                reasoning_text = reasoning_text[:500] + "..."
+            
+            slim_evaluations.append({
+                "skill_id": ev.get("skill_id", ""),
+                "title": ev.get("title", ""),
+                "domain": ev.get("domain", ""),
+                "score": cot.get("score", 0),
+                "reasoning_summary": reasoning_text,
+            })
+        
         return {
             "status": "success",
             "domain_scores": domain_scores,
-            "evaluations": all_evaluations,
+            "evaluations": slim_evaluations,
             "error": ""
         }
     except Exception as e:
@@ -237,8 +260,12 @@ def generate_appraisal_report(
         total_raw_score = 0
         if evaluations_result["status"] == "success":
             for evaluation in evaluations_result["evaluations"]:
-                cot = evaluation.get("chain_of_thought", {})
-                score = cot.get("score", 0)
+                # 适配精简后的数据格式（score 现在是顶级字段）
+                score = evaluation.get("score", 0)
+                if not isinstance(score, (int, float)):
+                    # 兼容旧格式（chain_of_thought.score）
+                    cot = evaluation.get("chain_of_thought", {})
+                    score = cot.get("score", 0)
                 if isinstance(score, (int, float)):
                     total_raw_score += score
         
