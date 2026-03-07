@@ -35,6 +35,29 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("🚀 AMA Web API 正在启动...")
     
+    # 检查 LLM 服务可达性
+    try:
+        from core.config.settings import get_settings
+        import httpx
+        settings = get_settings()
+        if settings.llm.base_url:
+            llm_url = f"{settings.llm.base_url.rstrip('/')}/models"
+            logger.info(f"🔍 检查 LLM 服务可达性: {llm_url}")
+            headers = {}
+            if settings.llm.api_key:
+                headers["Authorization"] = f"Bearer {settings.llm.api_key}"
+            
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(llm_url, headers=headers)
+                if response.status_code in [200, 401, 403, 404]:
+                    logger.info("✅ LLM 服务检查通过，服务可达")
+                else:
+                    logger.warning(f"⚠️ LLM 服务可能异常，响应状态码: {response.status_code}")
+        else:
+            logger.warning("⚠️ 未配置 LLM 基础 URL")
+    except Exception as e:
+        logger.warning(f"❌ LLM 服务不可达或请求超时: {str(e)}")
+    
     # 确保数据目录存在
     data_root = Path(os.environ.get("DATA_ROOT", "./output"))
     data_root.mkdir(parents=True, exist_ok=True)
