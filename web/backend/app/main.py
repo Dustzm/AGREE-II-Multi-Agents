@@ -49,10 +49,16 @@ async def lifespan(app: FastAPI):
             
             async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.get(llm_url, headers=headers)
-                if response.status_code in [200, 401, 403, 404]:
+                if response.status_code == 200:
                     logger.info("✅ LLM 服务检查通过，服务可达")
+                elif response.status_code == 401:
+                    logger.warning(f"⚠️ LLM 服务未授权(401)，请检查 API_KEY。响应: {response.text[:100]}")
+                elif response.status_code == 403:
+                    logger.warning(f"⚠️ LLM 服务拒绝访问(403)。响应: {response.text[:100]}")
+                elif response.status_code == 404:
+                    logger.warning(f"⚠️ LLM 服务端点未找到(404)，URL 可能有误。响应: {response.text[:100]}")
                 else:
-                    logger.warning(f"⚠️ LLM 服务可能异常，响应状态码: {response.status_code}")
+                    logger.warning(f"⚠️ LLM 服务状态异常。状态码: {response.status_code}, 响应: {response.text[:100]}")
         else:
             logger.warning("⚠️ 未配置 LLM 基础 URL")
     except Exception as e:

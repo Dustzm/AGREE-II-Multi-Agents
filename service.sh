@@ -185,15 +185,31 @@ show_status() {
         LLM_API_KEY=$(grep -E '^LLM_API_KEY=' "$SCRIPT_DIR/.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d '\r' || true)
         if [ -n "$LLM_BASE_URL" ]; then
             LLM_TEST_URL="${LLM_BASE_URL%/}/models"
+            
+            # 使用临时文件捕获 HTTP 状态码和响应内容
+            TMP_RESP=$(mktemp)
             if [ -n "$LLM_API_KEY" ]; then
-                LLM_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 4 -H "Authorization: Bearer $LLM_API_KEY" "$LLM_TEST_URL" 2>/dev/null || echo "000")
+                LLM_HTTP_CODE=$(curl -s -w "%{http_code}" -o "$TMP_RESP" --connect-timeout 2 --max-time 4 -H "Authorization: Bearer $LLM_API_KEY" "$LLM_TEST_URL" 2>/dev/null || echo "000")
             else
-                LLM_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 4 "$LLM_TEST_URL" 2>/dev/null || echo "000")
+                LLM_HTTP_CODE=$(curl -s -w "%{http_code}" -o "$TMP_RESP" --connect-timeout 2 --max-time 4 "$LLM_TEST_URL" 2>/dev/null || echo "000")
             fi
-            if [ "$LLM_HTTP_CODE" = "200" ] || [ "$LLM_HTTP_CODE" = "401" ] || [ "$LLM_HTTP_CODE" = "403" ] || [ "$LLM_HTTP_CODE" = "404" ]; then
+            
+            # 解析响应内容 (限制长度)
+            LLM_MSG=$(cat "$TMP_RESP" | grep -oE '"message"\s*:\s*"[^"]+"|"error"\s*:\s*\{[^}]+\}|[Uu]nauthorized|[Ff]orbidden' | head -n 1 | cut -c 1-30)
+            rm -f "$TMP_RESP"
+            
+            if [ "$LLM_HTTP_CODE" = "200" ]; then
                 echo -e "║  LLM 服务: ${GREEN}健康${NC} (服务可达)                   ║"
+            elif [ "$LLM_HTTP_CODE" = "401" ]; then
+                echo -e "║  LLM 服务: ${RED}未授权 (401)${NC} ${LLM_MSG}      ║"
+            elif [ "$LLM_HTTP_CODE" = "403" ]; then
+                echo -e "║  LLM 服务: ${RED}拒绝访问 (403)${NC} ${LLM_MSG}    ║"
+            elif [ "$LLM_HTTP_CODE" = "404" ]; then
+                echo -e "║  LLM 服务: ${RED}未找到 (404)${NC} ${LLM_MSG}      ║"
+            elif [ "$LLM_HTTP_CODE" = "000" ]; then
+                echo -e "║  LLM 服务: ${RED}连接失败 / 超时${NC}                 ║"
             else
-                echo -e "║  LLM 服务: ${RED}不可达${NC} (状态码: $LLM_HTTP_CODE)            ║"
+                echo -e "║  LLM 服务: ${RED}异常${NC} (状态码: $LLM_HTTP_CODE) ${LLM_MSG}      ║"
             fi
         else
             echo -e "║  LLM 服务: ${YELLOW}未配置 URL${NC}                       ║"
