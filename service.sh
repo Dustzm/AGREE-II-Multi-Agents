@@ -182,9 +182,14 @@ show_status() {
     # 检查 LLM 服务状态
     if [ -f "$SCRIPT_DIR/.env" ]; then
         LLM_BASE_URL=$(grep -E '^LLM_BASE_URL=' "$SCRIPT_DIR/.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d '\r' || true)
+        LLM_API_KEY=$(grep -E '^LLM_API_KEY=' "$SCRIPT_DIR/.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d '\r' || true)
         if [ -n "$LLM_BASE_URL" ]; then
             LLM_TEST_URL="${LLM_BASE_URL%/}/models"
-            LLM_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 4 "$LLM_TEST_URL" 2>/dev/null || echo "000")
+            if [ -n "$LLM_API_KEY" ]; then
+                LLM_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 4 -H "Authorization: Bearer $LLM_API_KEY" "$LLM_TEST_URL" 2>/dev/null || echo "000")
+            else
+                LLM_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 4 "$LLM_TEST_URL" 2>/dev/null || echo "000")
+            fi
             if [ "$LLM_HTTP_CODE" = "200" ] || [ "$LLM_HTTP_CODE" = "401" ] || [ "$LLM_HTTP_CODE" = "403" ] || [ "$LLM_HTTP_CODE" = "404" ]; then
                 echo -e "║  LLM 服务: ${GREEN}健康${NC} (服务可达)                   ║"
             else
