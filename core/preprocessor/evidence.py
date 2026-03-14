@@ -119,6 +119,7 @@ class EvidencePool:
                     "end_page": chunk.end_page,
                     "block_ids": chunk.block_ids or [],
                     "section": chunk.section,  # 保存 section
+                    "format_hints": chunk.format_hints,  # 保存格式元数据
                 }
                 for chunk in self.chunks
             ],
@@ -169,6 +170,7 @@ class EvidencePool:
                 reasoning=chunk_data.get("reasoning", ""),
                 block_ids=chunk_data.get("block_ids", []),
                 section=chunk_data.get("section", ""),  # 读取 section
+                format_hints=chunk_data.get("format_hints"),  # 读取格式元数据
             )
             for chunk_data in data["chunks"]
         ]

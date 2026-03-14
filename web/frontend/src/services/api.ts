@@ -218,7 +218,8 @@ export const api = {
 
         pdfFiles.forEach(file => {
             // 使用 webkitRelativePath 作为 filename，保持目录结构
-            const relativePath = (file as any).webkitRelativePath || file.name
+            const enhancedFile = file as File & { webkitRelativePath?: string };
+            const relativePath = enhancedFile.webkitRelativePath || file.name
             formData.append('files', file, relativePath)
         })
 
@@ -444,6 +445,62 @@ export const api = {
         }
         return response.json()
     },
+
+    // ===== 配置管理 API =====
+
+    // 获取 LLM 配置
+    async getLLMConfig(): Promise<LLMConfigResponse> {
+        const response = await fetch(`${API_BASE}/config/llm`)
+        if (!response.ok) {
+            throw new Error('获取 LLM 配置失败')
+        }
+        return response.json()
+    },
+
+    // 更新 LLM 配置
+    async updateLLMConfig(config: LLMConfigUpdate): Promise<LLMConfigResponse> {
+        const response = await fetch(`${API_BASE}/config/llm`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: '更新失败' }))
+            throw new Error(error.detail || '更新 LLM 配置失败')
+        }
+        return response.json()
+    },
+
+    // 测试 LLM 连接
+    async testLLMConnection(): Promise<ConnectionTestResult> {
+        const response = await fetch(`${API_BASE}/config/llm/test`, {
+            method: 'POST',
+        })
+        if (!response.ok) {
+            throw new Error('测试连接失败')
+        }
+        return response.json()
+    },
+
+    // LLM 健康验证
+    async checkLLMHealth(): Promise<HealthCheckResult> {
+        const response = await fetch(`${API_BASE}/config/llm/health`, {
+            method: 'POST',
+        })
+        if (!response.ok) {
+            throw new Error('健康验证失败')
+        }
+        return response.json()
+    },
+
+    // 获取提供商预设列表
+    async getProviders(): Promise<Record<string, ProviderInfo>> {
+        const response = await fetch(`${API_BASE}/config/providers`)
+        if (!response.ok) {
+            throw new Error('获取提供商列表失败')
+        }
+        return response.json()
+    },
 }
 
 // ===== Benchmark 类型定义 =====
@@ -556,3 +613,54 @@ export interface BenchmarkDetailResponse {
     created: string
     summary: BenchmarkSummary
 }
+
+// ===== 配置管理 类型定义 =====
+
+export interface LLMConfigResponse {
+    provider: string
+    base_url: string
+    api_key_masked: string
+    model_name: string
+    timeout: number
+    is_vision_model: boolean
+}
+
+export interface LLMConfigUpdate {
+    provider?: string
+    base_url?: string
+    api_key?: string
+    model_name?: string
+    timeout?: number
+    is_vision_model?: boolean
+}
+
+export interface ProviderModelInfo {
+    id: string
+    vision: boolean
+}
+
+export interface ProviderInfo {
+    name: string
+    prefix: string
+    default_base_url: string
+    need_base_url: boolean
+    env_key: string
+    env_base?: string
+    models: ProviderModelInfo[]
+}
+
+export interface ConnectionTestResult {
+    success: boolean
+    message: string
+    latency_ms?: number
+    models?: string[]
+}
+
+export interface HealthCheckResult {
+    success: boolean
+    message: string
+    latency_ms?: number
+    model_name?: string
+    reply?: string
+}
+

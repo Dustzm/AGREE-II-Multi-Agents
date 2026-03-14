@@ -12,6 +12,7 @@ import litellm
 from pydantic import BaseModel, Field
 
 from core.utils.token_tracker import add_litellm_usage
+from core.agents.base.model_config import get_provider_kwargs
 
 from core.config import get_settings
 from core.skills import load_skill_config
@@ -24,6 +25,7 @@ from core.preprocessor import EvidencePool
 from core.preprocessor.iterator import EvidenceIterator
 from core.preprocessor.pojo import SemanticChunk
 from .tools.public_tools import get_task_paths
+from core.utils.pdf_vision import get_stitched_pdf_pages_as_base64
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +92,47 @@ class IterativeEvaluator:
         self.domain_id = self.skill_config.get("domain", 1)
         
         # LLM 配置
+        from core.agents.base.model_config import get_provider_config_for
         settings = get_settings()
-        self.model = f"openai/{settings.llm.model_name}"
-        self.llm_base_url = settings.llm.base_url
+        provider_cfg = get_provider_config_for(settings.llm.provider)
+        prefix = provider_cfg["prefix"]
+        self.model = f"{prefix}/{settings.llm.model_name}"
+        # 优先使用用户配置的 base_url，其次使用 providers.json 中的 default_base_url
+        self.llm_base_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
         self.llm_api_key = settings.llm.api_key or "dummy-key"
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
+    
+    def _find_source_pdf(self) -> str:
+        """
+        根据 task_id 在 input 目录下递归查找原始 PDF 文件
+        
+        task_id 格式形如 '1-2023-015E-03021630'，其中前缀 '1-2023-015E' 即为 PDF 文件名。
+        
+        Returns:
+            PDF 文件的绝对路径，找不到时返回空字符串
+        """
+        settings = get_settings()
+        input_dir = Path(settings.app.dir_input)
+        
+        # 从 task_id 提取 PDF 文件名前缀：去掉最后的时间戳后缀
+        # 例如 '1-2023-015E-03021630' -> '1-2023-015E'
+        parts = self.task_id.split('-')
+        # task_id 末尾是一个纯数字时间戳(如03021630)，去掉它
+        if parts and parts[-1].isdigit() and len(parts[-1]) >= 8:
+            pdf_stem = '-'.join(parts[:-1])
+        else:
+            pdf_stem = self.task_id
+        
+        pdf_filename = f"{pdf_stem}.pdf"
+        
+        # 递归搜索 input 目录
+        for pdf_file in input_dir.rglob(pdf_filename):
+            logger.info(f"找到源 PDF: {pdf_file}")
+            return str(pdf_file)
+        
+        logger.warning(f"未找到源 PDF: {pdf_filename} (搜索目录: {input_dir})")
+        return ""
     
     def _log_llm_call(
         self,
@@ -308,7 +345,7 @@ class IterativeEvaluator:
                 seed=42,          # 固定随机种子
                 max_tokens=8192,
                 response_format={"type": "json_object"},
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                **get_provider_kwargs(),
             )
             
             # 统计 Token 使用
@@ -411,12 +448,61 @@ class IterativeEvaluator:
         logger.info("======================================")
         
         try:
+            messages = [
+                {"role": "system", "content": system_instruction}
+            ]
+            
+            # 条目17应用多模态特供处理（仅当模型具备视觉能力时）
+            if self.skill_id == "item_17" and get_settings().llm.is_vision_model:
+                vision_prompt = self.skill_config.get(
+                    f"vision_prompt_{self.lang}", 
+                    self.skill_config.get("vision_prompt_en", "Please judge based on the provided images.")
+                )
+                
+                # 从证据池里捞页码
+                paths = get_task_paths(self.task_id)
+                pool = EvidencePool.load(paths["prep_dir"])
+                from collections import Counter
+                page_counter = Counter()
+                # 提取 evidence_chunk_map 中的 ID
+                for cid in self.evidence_chunk_map:
+                    chunk = next((c for c in pool.chunks if c.chunk_id == cid), None)
+                    if chunk and chunk.start_page is not None:
+                        # 用 start_page 作为主要抓图目标密度统计
+                        page_counter[chunk.start_page] += 1
+                
+                if page_counter:
+                    # 获取提及频数最高的前 2 页
+                    most_common_pages = [page for page, count in page_counter.most_common(2)]
+                    target_pages = sorted(most_common_pages)
+                    logger.info(f"多模态评分(item_17)：按密度选取最高频的 {len(target_pages)} 页生成长图 {target_pages}")
+                    pdf_path = self._find_source_pdf()
+                    b64_img = get_stitched_pdf_pages_as_base64(pdf_path, target_pages)
+                    
+                    full_text_prompt = api_prompt + "\n\n" + vision_prompt
+                    logger.info("=== [Dynamic Scoring] Vision Prompt Attached ===")
+                    logger.info(vision_prompt)
+                    logger.info("================================================")
+                    
+                    if b64_img:
+                        messages.append({
+                            "role": "user", 
+                            "content": [
+                                {"type": "text", "text": full_text_prompt},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
+                            ]
+                        })
+                        logger.info(">> 已成功挂载 VLM 长拼接单图数据")
+                    else:
+                        messages.append({"role": "user", "content": api_prompt})
+                else:
+                    messages.append({"role": "user", "content": api_prompt})
+            else:
+                messages.append({"role": "user", "content": api_prompt})
+
             response = litellm.completion(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": api_prompt}
-                ],
+                messages=messages,
                 api_base=self.llm_base_url,
                 api_key=self.llm_api_key,
                 temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
@@ -424,7 +510,7 @@ class IterativeEvaluator:
                 seed=42,
                 max_tokens=8096,
                 response_format={"type": "json_object"},
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                **get_provider_kwargs(),
             )
             
             # 统计 Token 使用
@@ -513,12 +599,53 @@ class IterativeEvaluator:
                 # 使用 Pydantic Schema 强制输出结构
                 system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
                 
+                messages = [
+                    {"role": "system", "content": system_instruction}
+                ]
+                
+                # 条目17同样在综合报告阶段注入图片（仅当模型具备视觉能力时）
+                if self.skill_id == "item_17" and get_settings().llm.is_vision_model:
+                    vision_prompt = self.skill_config.get(
+                        f"vision_prompt_{self.lang}", 
+                        self.skill_config.get("vision_prompt_en", "")
+                    )
+                    paths = get_task_paths(self.task_id)
+                    pool = EvidencePool.load(paths["prep_dir"])
+                    from collections import Counter
+                    page_counter = Counter()
+                    for cid in self.evidence_chunk_map:
+                        chunk = next((c for c in pool.chunks if c.chunk_id == cid), None)
+                        if chunk and chunk.start_page is not None:
+                            page_counter[chunk.start_page] += 1
+                    
+                    if page_counter:
+                        most_common_pages = [page for page, count in page_counter.most_common(2)]
+                        target_pages = sorted(most_common_pages)
+                        logger.info(f"多模态报告(item_17) attempt {attempt}：按密度选取最高频的 {len(target_pages)} 页成图 {target_pages}")
+                        pdf_path = self._find_source_pdf()
+                        # 使用 pdf_vision.py 中用户默认设置的高 DPI
+                        b64_img = get_stitched_pdf_pages_as_base64(pdf_path, target_pages)
+                        
+                        full_text_prompt = prompt + "\n\n" + vision_prompt
+                        
+                        if b64_img:
+                            messages.append({
+                                "role": "user", 
+                                "content": [
+                                    {"type": "text", "text": full_text_prompt},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
+                                ]
+                            })
+                        else:
+                            messages.append({"role": "user", "content": prompt})
+                    else:
+                        messages.append({"role": "user", "content": prompt})
+                else:
+                    messages.append({"role": "user", "content": prompt})
+                
                 response = litellm.completion(
                     model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": prompt}
-                    ],
+                    messages=messages,
                     api_base=self.llm_base_url,
                     api_key=self.llm_api_key,
                     temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
@@ -526,7 +653,7 @@ class IterativeEvaluator:
                     seed=42,
                     max_tokens=16384,
                     response_format={"type": "json_object"},  # 使用简单 json_object 避免 SGLang xgrammar 兼容性问题
-                    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                    **get_provider_kwargs(),
                 )
                 
                 # 统计 Token 使用

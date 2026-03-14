@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, FileText, Settings, PlayCircle, BarChart2 } from 'lucide-react'
+import { MessageSquare, FileText, Settings, PlayCircle, BarChart2, Sliders } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { LanguageSwitch } from './LanguageSwitch'
 
@@ -11,6 +11,7 @@ const navItems = [
     { to: '/reports', icon: FileText, labelKey: 'nav.reports' },
     { to: '/skills', icon: Settings, labelKey: 'nav.skills' },
     // { to: '/agents', icon: Bot, labelKey: 'nav.agents' },  // 已隐藏
+    { to: '/config', icon: Sliders, labelKey: 'nav.config' },
 ]
 
 export function Sidebar() {

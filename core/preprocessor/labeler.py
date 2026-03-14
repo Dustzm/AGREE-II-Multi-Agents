@@ -27,6 +27,7 @@ class SemanticLabeler:
             lang: Prompt 语言（zh/en）
         """
         from core.agents.base import get_model
+        from core.agents.base.model_config import get_provider_kwargs
         
         self.model = model or get_model()
         self.lang = lang
@@ -76,9 +77,21 @@ class SemanticLabeler:
             import litellm
             from core.config import get_settings
             from core.agents.base.schemas import SemanticLabelOutput
+            from core.agents.base.model_config import get_provider_kwargs, get_provider_config_for
             
             settings = get_settings()
-            model_name = f"openai/{settings.llm.model_name}"
+            provider_cfg = get_provider_config_for(settings.llm.provider)
+            prefix = provider_cfg["prefix"]
+            model_name = f"{prefix}/{settings.llm.model_name}"
+            
+            # 构建 kwargs：显式传入 api_key / api_base 以及 provider 专属参数
+            kwargs = get_provider_kwargs()
+            if settings.llm.api_key:
+                kwargs["api_key"] = settings.llm.api_key
+            if provider_cfg.get("need_base_url"):
+                effective_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
+                if effective_url:
+                    kwargs["api_base"] = effective_url
             
             # 使用 litellm 的异步接口，配合 response_format 强制 JSON 输出
             response = await litellm.acompletion(
@@ -89,7 +102,7 @@ class SemanticLabeler:
                 seed=42,          # 固定随机种子，保证可复现性
                 max_tokens=2500,
                 response_format={"type": "json_object"},  # 使用 json_object 避免 SGLang xgrammar 兼容性问题
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},  # 关闭 thinking 模式
+                **kwargs,
             )
             
             # 提取文本响应
@@ -101,7 +114,7 @@ class SemanticLabeler:
             logger.error(f"LLM 调用失败: {str(e)}", exc_info=True)
             return '{"thinking": "LLM调用失败", "tag": "Irrelevant"}'
     
-    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 45, total_pages: int = 0) -> List[SemanticChunk]:
+    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 0, total_pages: int = 0) -> List[SemanticChunk]:
         """
         为所有内容块打标签（并发执行）
         
@@ -119,6 +132,11 @@ class SemanticLabeler:
         if total_pages <= 0:
             total_pages = max((c.title_page_idx for c in chunks), default=1) + 1
         
+        # 从配置读取并发度（若未显式传入）
+        from core.config import get_settings
+        if max_concurrency <= 0:
+            max_concurrency = get_settings().app.labeler_max_concurrency
+            
         semaphore = asyncio.Semaphore(max_concurrency)
         tasks = []
         
@@ -233,25 +251,18 @@ class SemanticLabeler:
         # 解析 JSON
         try:
             data = json.loads(json_str)
-            # 优先使用 reason，兼容旧的 thinking 字段
-            reasoning = data.get("reason", data.get("thinking", ""))
-            tag_str = data.get("tag", "Irrelevant")
+            reasoning = self._extract_reasoning_from_json(data)
+            label = self._extract_label_from_json(data)
             
             logger.info(f"LLM 理由: {reasoning}")
-            logger.info(f"LLM 标签: {tag_str}")
-            
-            # 解析标签
-            tag_upper = tag_str.upper().strip()
-            for label in SemanticLabel:
-                if label.value.upper() == tag_upper:
-                    return label, reasoning
-            
-            # 模糊匹配
-            for label in SemanticLabel:
-                if label.value.lower() in tag_str.lower():
-                    return label, reasoning
-            
-            logger.warning(f"无法解析标签: {tag_str}，默认为 Irrelevant")
+            logger.info(f"LLM 标签: {label.value if label else 'N/A'}")
+
+            if label is not None:
+                return label, reasoning
+
+            logger.warning(
+                f"无法从 JSON 响应中解析标签，keys={list(data.keys())}，默认为 Irrelevant"
+            )
             return SemanticLabel.IRRELEVANT, reasoning
             
         except json.JSONDecodeError as e:
@@ -259,6 +270,90 @@ class SemanticLabeler:
             # 回退到文本解析
             label = self._parse_label_fallback(response_str)
             return label, ""
+
+    def _extract_reasoning_from_json(self, data: dict) -> str:
+        """从 JSON 响应中提取分类理由。"""
+        reasoning_keys = [
+            "reason",
+            "thinking",
+            "rationale",
+            "explanation",
+            "analysis",
+            "理由",
+            "说明",
+        ]
+
+        for key in reasoning_keys:
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+        answer = data.get("answer")
+        if isinstance(answer, str) and answer.strip():
+            answer = answer.strip()
+            if self._extract_label_from_text(answer) is None:
+                return answer
+
+        return ""
+
+    def _extract_label_from_json(self, data: dict) -> Optional[SemanticLabel]:
+        """从 JSON 响应中提取标签，兼容多种字段命名。"""
+        label_keys = [
+            "tag",
+            "label",
+            "category",
+            "classification",
+            "class",
+            "type",
+            "标签",
+            "分类",
+            "类别",
+            "answer",
+            "答案",
+        ]
+
+        for key in label_keys:
+            value = data.get(key)
+            if isinstance(value, str):
+                label = self._extract_label_from_text(value)
+                if label is not None:
+                    return label
+
+        for value in data.values():
+            if isinstance(value, str):
+                label = self._extract_label_from_text(value)
+                if label is not None:
+                    return label
+
+        return None
+
+    def _extract_label_from_text(self, text: str) -> Optional[SemanticLabel]:
+        """从自由文本中提取标签，不在无法确认时误判为 Irrelevant。"""
+        import re
+
+        if not text:
+            return None
+
+        normalized = re.sub(r"\s+", " ", text).strip()
+        normalized_lower = normalized.lower()
+
+        for label in SemanticLabel:
+            value = label.value
+            value_lower = value.lower()
+            compact = value_lower.replace(" ", "")
+            normalized_compact = normalized_lower.replace(" ", "")
+
+            if normalized_lower == value_lower or normalized_compact == compact:
+                return label
+
+            if normalized_lower.startswith(value_lower):
+                return label
+
+            pattern = r"(?<![a-z])" + re.escape(value_lower) + r"(?![a-z])"
+            if re.search(pattern, normalized_lower):
+                return label
+
+        return None
     
     def _parse_label_fallback(self, label_str: str) -> SemanticLabel:
         """回退的标签解析方法（文本匹配）"""
@@ -284,4 +379,3 @@ class SemanticLabeler:
                 return label
         
         return SemanticLabel.IRRELEVANT
-

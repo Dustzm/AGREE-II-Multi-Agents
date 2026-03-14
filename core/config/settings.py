@@ -3,7 +3,6 @@ KG-Weaver 配置管理模块
 
 使用 pydantic-settings 从环境变量加载配置
 """
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -23,6 +22,12 @@ class LLMSettings(BaseSettings):
         env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore"
+    )
+    
+    # 提供商标识
+    provider: str = Field(
+        default="vllm",
+        description="LLM 提供商: vllm / openai_compatible / openai / zhipu / anthropic / deepseek / gemini"
     )
     
     # API 基础地址
@@ -47,6 +52,12 @@ class LLMSettings(BaseSettings):
     timeout: int = Field(
         default=120,
         description="请求超时时间 (秒)"
+    )
+    
+    # 模型是否支持视觉（多模态）能力
+    is_vision_model: bool = Field(
+        default=True,
+        description="当前模型是否具备视觉能力（VLM），用于控制条目17是否注入图片"
     )
 
 
@@ -279,6 +290,15 @@ class AppSettings(BaseSettings):
         le=20
     )
     
+    # 标签分类并发配置
+    labeler_max_concurrency: int = Field(
+        default=45,
+        alias="LABELER_MAX_CONCURRENCY",
+        description="标签分类(语义池构建)最大并发数",
+        ge=1,
+        le=100
+    )
+    
     # 数据存储根目录 (向后兼容，实际使用 dir_output)
     @property
     def data_root(self) -> str:
@@ -318,7 +338,67 @@ class Settings(BaseSettings):
     url_attachment: URLAttachmentSettings = Field(default_factory=URLAttachmentSettings)
 
 
-@lru_cache
+# 可刷新的配置单例
+_settings_instance: Settings | None = None
+
+
 def get_settings() -> Settings:
-    """获取全局配置单例"""
-    return Settings()
+    """获取全局配置（可刷新的单例）"""
+    global _settings_instance
+    if _settings_instance is None:
+        _settings_instance = Settings()
+    return _settings_instance
+
+
+def refresh_settings() -> Settings:
+    """强制刷新配置，重新从 .env 文件加载"""
+    global _settings_instance
+    _settings_instance = None
+    return get_settings()
+
+
+def update_env_file(updates: dict[str, str]) -> None:
+    """
+    更新 .env 文件中的配置项
+    
+    Args:
+        updates: 要更新的键值对，如 {"LLM_BASE_URL": "http://..."}
+    """
+    env_path = _ENV_FILE
+    
+    if not env_path.exists():
+        # 文件不存在则直接写入
+        lines = [f"{k}={v}\n" for k, v in updates.items()]
+        env_path.write_text("".join(lines), encoding="utf-8")
+        return
+    
+    # 读取现有内容
+    content = env_path.read_text(encoding="utf-8")
+    lines = content.splitlines(keepends=True)
+    
+    updated_keys = set()
+    new_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        # 跳过注释和空行
+        if stripped.startswith("#") or not stripped:
+            new_lines.append(line)
+            continue
+        
+        # 匹配 KEY=VALUE 格式
+        if "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in updates:
+                new_lines.append(f"{key}={updates[key]}\n")
+                updated_keys.add(key)
+                continue
+        
+        new_lines.append(line)
+    
+    # 追加未找到的新键
+    for key, value in updates.items():
+        if key not in updated_keys:
+            new_lines.append(f"{key}={value}\n")
+    
+    env_path.write_text("".join(new_lines), encoding="utf-8")

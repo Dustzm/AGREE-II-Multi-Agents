@@ -31,6 +31,7 @@ dependencies = [
     # PDF 解析
     "pypdf>=5.6.0",
     "pdfplumber>=0.11.0",
+    "PyMuPDF>=1.24.0",
     
     # CLI 界面
     "rich>=13.0.0",
@@ -64,6 +65,12 @@ dependencies = [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.0",
     "python-pptx>=1.0.0",
+        
+    # URL 附件处理
+    "playwright>=1.40.0",
+    "trafilatura>=1.6.0",
+    "markdownify>=0.11.6",
+    "lxml>=4.9.0",
 ]
 
 [project.optional-dependencies]
@@ -90,4 +97,3 @@ exclude = ["input", "output", "tests*", "mineru*"]
 
 [tool.setuptools]
 py-modules = ["cli"]
-

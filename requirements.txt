@@ -20,6 +20,7 @@ pydantic-settings>=2.0.0
 # PDF 解析
 pypdf>=5.6.0
 pdfplumber>=0.11.0
+PyMuPDF>=1.24.0
 
 # CLI 界面
 rich>=13.0.0
@@ -56,8 +57,11 @@ qwen-vl-utils>=0.0.14,<1
 python-docx>=1.2.0
 openpyxl>=3.1.0
 python-pptx>=1.0.0
+playwright>=1.40.0
+trafilatura>=1.6.0
+markdownify>=0.11.6
+lxml>=4.9.0
 
 # 开发依赖
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
-

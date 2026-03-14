@@ -88,4 +88,11 @@ page: {page} / {total_pages}
 {content}
 
 ## 输出要求
-请输出1-2句客观简洁的分类理由（聚焦于标题、section路径、内容类型等关键证据），然后输出标签。**请勿使用第一人称或描述思考过程**。
+只输出一个 JSON 对象，不要输出 Markdown、代码块或额外说明。
+
+JSON 格式必须严格为：
+{{"reason": "1-2句客观简洁的分类理由，聚焦标题、section路径、页码位置、内容类型等关键证据", "tag": "Overview | Executive Summary | Method | Recommendation | Conclusion | Others | Appendix | Irrelevant"}}
+
+要求：
+- `reason` 必须是字符串，且不得使用第一人称或描述思考过程
+- `tag` 必须严格等于以上 8 个英文标签之一

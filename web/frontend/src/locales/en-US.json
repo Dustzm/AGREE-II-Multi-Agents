@@ -12,7 +12,8 @@
         "benchmark": "Experiment",
         "reports": "Reports",
         "skills": "Items",
-        "agents": "Agents"
+        "agents": "Agents",
+        "config": "Config"
     },
     "sidebar": {
         "subtitle": "Appraisal System",
@@ -437,5 +438,53 @@
         "title": "Prompt Context",
         "copy": "Copy Prompt",
         "empty": "No prompt content"
+    },
+    "config": {
+        "title": "Configuration",
+        "loading": "Loading config...",
+        "subtitle": "Configure LLM service provider, model and capability settings",
+        "llm": {
+            "title": "LLM Service Config",
+            "provider": "Service Provider",
+            "providers": {
+                "vllm": "Self-hosted (e.g. vLLM / sglang)",
+                "openai_compatible": "Third-Party (OpenAI Compatible)",
+                "openai": "OpenAI Official",
+                "anthropic": "Anthropic (Claude)",
+                "deepseek": "DeepSeek",
+                "gemini": "Google Gemini"
+            },
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "apiKeyPlaceholder": "Enter API Key (leave empty to keep current)",
+            "apiKeyEdited": "API Key has been modified, will take effect after saving",
+            "modelName": "Model Name",
+            "visionModel": "Vision Capability (Multimodal)",
+            "visionModelHint": "When enabled, Item 17 uses images for assessment; otherwise text-only",
+            "visionModelLocked": "Vision capability is automatically locked for this predefined model",
+            "modelNamePlaceholder": "qwen2.5",
+            "timeout": "Timeout (seconds)"
+        },
+        "button": {
+            "save": "Save Config",
+            "saving": "Saving...",
+            "testConnection": "Test Connection",
+            "healthCheck": "LLM Health Check"
+        },
+        "toast": {
+            "saved": "Config saved",
+            "loadFailed": "Failed to load config",
+            "saveFailed": "Save failed"
+        },
+        "test": {
+            "latency": "Latency:",
+            "models": "Available models:"
+        },
+        "health": {
+            "title": "LLM Health Check Result",
+            "latency": "Latency:",
+            "model": "Model:",
+            "reply": "LLM Reply:"
+        }
     }
 }

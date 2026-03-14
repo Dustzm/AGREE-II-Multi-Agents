@@ -183,7 +183,12 @@ show_status() {
     if [ -f "$SCRIPT_DIR/.env" ]; then
         LLM_BASE_URL=$(grep -E '^LLM_BASE_URL=' "$SCRIPT_DIR/.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d '\r' || true)
         LLM_API_KEY=$(grep -E '^LLM_API_KEY=' "$SCRIPT_DIR/.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d '\r' || true)
-        if [ -n "$LLM_BASE_URL" ]; then
+        LLM_PROVIDER=$(grep -E '^LLM_PROVIDER=' "$SCRIPT_DIR/.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d '\r' || true)
+        
+        # 对于非自部署的官方服务商，跳过 GET /models 探活
+        if [ -n "$LLM_PROVIDER" ] && [ "$LLM_PROVIDER" != "vllm" ] && [ "$LLM_PROVIDER" != "openai_compatible" ]; then
+            echo -e "║  LLM 服务: ${GREEN}已配置${NC} ($LLM_PROVIDER) 请用健康验证测试 ║"
+        elif [ -n "$LLM_BASE_URL" ]; then
             LLM_TEST_URL="${LLM_BASE_URL%/}/models"
             
             # 使用临时文件捕获 HTTP 状态码和响应内容

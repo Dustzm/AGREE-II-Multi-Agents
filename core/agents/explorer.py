@@ -1,7 +1,7 @@
 """
 Explorer (附件探索智能体)
 
-负责检测和解析指南文档的附件内容，包括 PDF、Word、Excel 和视频文件。
+负责检测和解析指南文档的附件内容，包括 PDF、Word、Excel、视频和 URL 链接。
 """
 import logging
 from pathlib import Path
@@ -14,6 +14,7 @@ from .base import get_model
 from core.prompts import load_prompt
 from core.attachment import AttachmentProcessor
 from core.agents.tools.public_tools import get_task_paths
+from core.attachment.url import URLCacheManager, URLClassifier, ContentLinkDetector, AttachmentDownloader, HTMLAttachmentParser
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,13 @@ logger = logging.getLogger(__name__)
 # 工具函数
 # ============================================================================
 
-def detect_attachments(task_id: str) -> Dict[str, Any]:
+async def detect_attachments(task_id: str, detect_urls: bool = False) -> Dict[str, Any]:
     """
     检测任务相关的附件文件
     
     Args:
         task_id: 任务 ID
+        detect_urls: 是否检测 URL 链接附件
         
     Returns:
         检测结果，包含附件列表
@@ -44,14 +46,34 @@ def detect_attachments(task_id: str) -> Dict[str, Any]:
     detector = SiblingFileDetector()
     attachments = detector.detect(Path(pdf_path))
     
+    if detect_urls:
+        content_list_path = Path(paths["prep_dir"]) / f"{Path(pdf_path).stem}_content_list.json"
+        if content_list_path.exists():
+            from core.attachment.url import URLClassifier, ContentLinkDetector
+            
+            settings = paths.get("settings")
+            lang = settings.get("lang", "zh") if settings else "zh"
+            
+            url_classifier = URLClassifier(lang=lang)
+            url_detector = ContentLinkDetector()
+            
+            url_attachments = await url_detector.detect(
+                source_path=Path(pdf_path),
+                content_list_path=content_list_path,
+                classifier=url_classifier
+            )
+            
+            attachments.extend(url_attachments)
+    
     return {
         "status": "success",
         "count": len(attachments),
         "attachments": [
             {
                 "path": str(a.path),
-                "name": a.path.name,
+                "name": a.path.name if isinstance(a.path, Path) else a.metadata.get("url", "unknown"),
                 "type": a.type,
+                "is_url": a.metadata.get("detection_method") == "content_link",
             }
             for a in attachments
         ]

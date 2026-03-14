@@ -12,6 +12,8 @@ from .settings import (
     MinerUSettings,
     AppSettings,
     get_settings,
+    refresh_settings,
+    update_env_file,
 )
 
 # 系统配置 (AMA 专有)

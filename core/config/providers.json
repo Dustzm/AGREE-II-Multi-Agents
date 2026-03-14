@@ -1,0 +1,120 @@
+{
+    "providers": {
+        "vllm": {
+            "name": "自部署模型 (vLLM / sglang)",
+            "prefix": "openai",
+            "default_base_url": "http://10.99.24.182:30001/v1",
+            "need_base_url": true,
+            "env_key": "OPENAI_API_KEY",
+            "env_base": "OPENAI_API_BASE",
+            "models": []
+        },
+        "openai_compatible": {
+            "name": "第三方兼容 (OpenAI Compatible)",
+            "prefix": "openai",
+            "default_base_url": "",
+            "need_base_url": true,
+            "env_key": "OPENAI_API_KEY",
+            "env_base": "OPENAI_API_BASE",
+            "models": []
+        },
+        "openai": {
+            "name": "OpenAI",
+            "prefix": "openai",
+            "default_base_url": "",
+            "need_base_url": false,
+            "env_key": "OPENAI_API_KEY",
+            "models": [
+                {
+                    "id": "gpt-4o",
+                    "vision": true
+                },
+                {
+                    "id": "gpt-4o-mini",
+                    "vision": true
+                },
+                {
+                    "id": "gpt-5.4",
+                    "vision": true
+                },
+                {
+                    "id": "o3-mini",
+                    "vision": false
+                }
+            ]
+        },
+        "anthropic": {
+            "name": "Anthropic (Claude)",
+            "prefix": "anthropic",
+            "default_base_url": "",
+            "need_base_url": false,
+            "env_key": "ANTHROPIC_API_KEY",
+            "models": [
+                {
+                    "id": "claude-opus-4-6",
+                    "vision": true
+                },
+                {
+                    "id": "claude-sonnet-4-6",
+                    "vision": true
+                }
+            ]
+        },
+        "deepseek": {
+            "name": "DeepSeek",
+            "prefix": "deepseek",
+            "default_base_url": "",
+            "need_base_url": false,
+            "env_key": "DEEPSEEK_API_KEY",
+            "models": [
+                {
+                    "id": "deepseek-chat",
+                    "vision": false
+                },
+                {
+                    "id": "deepseek-reasoner",
+                    "vision": false
+                }
+            ]
+        },
+        "gemini": {
+            "name": "Google Gemini",
+            "prefix": "gemini",
+            "default_base_url": "",
+            "need_base_url": false,
+            "env_key": "GEMINI_API_KEY",
+            "models": [
+                {
+                    "id": "gemini-2.5-flash",
+                    "vision": true
+                },
+                {
+                    "id": "gemini-3.1-pro-preview",
+                    "vision": true
+                },
+                {
+                    "id": "gemini-3-flash-preview",
+                    "vision": true
+                }
+            ]
+        },
+        "zhipu": {
+            "name": "智谱 (BigModel)",
+            "prefix": "openai",
+            "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
+            "need_base_url": true,
+            "env_key": "OPENAI_API_KEY",
+            "env_base": "OPENAI_API_BASE",
+            "models": [
+                {
+                    "id": "glm-5",
+                    "vision": false
+                },
+                {
+                    "id": "glm-4-flash",
+                    "vision": false
+                }
+            ]
+        }
+    }
+}

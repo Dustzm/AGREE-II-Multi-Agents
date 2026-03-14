@@ -1,9 +1,9 @@
 """
 预处理相关数据结构定义
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 @dataclass
 class ContentItem:
@@ -51,3 +51,4 @@ class SemanticChunk:
     reasoning: str = ""         # 分类理由（LLM thinking）
     block_ids: List[str] = None  # block_id 列表（用于精确匹配）
     section: str = ""            # 层级路径（如 "预防 > 生活方式干预"）
+    format_hints: Optional[Dict[str, Any]] = None  # 格式元数据（粗体/字号/下划线等）

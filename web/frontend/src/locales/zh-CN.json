@@ -12,7 +12,8 @@
         "benchmark": "实验",
         "reports": "报告",
         "skills": "条目",
-        "agents": "智能体"
+        "agents": "智能体",
+        "config": "配置"
     },
     "sidebar": {
         "subtitle": "评价系统",
@@ -434,6 +435,54 @@
             "consistency": "一致性分析",
             "guide": "指南",
             "current": "当前指南"
+        }
+    },
+    "config": {
+        "title": "配置管理",
+        "loading": "加载配置中...",
+        "subtitle": "配置 LLM 服务提供商、模型及能力参数",
+        "llm": {
+            "title": "LLM 服务配置",
+            "provider": "服务提供商",
+            "providers": {
+                "vllm": "自部署模型 (如 vLLM / sglang)",
+                "openai_compatible": "第三方通用 (OpenAI 兼容)",
+                "openai": "OpenAI 官方",
+                "anthropic": "Anthropic (Claude)",
+                "deepseek": "DeepSeek",
+                "gemini": "Google Gemini"
+            },
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "apiKeyPlaceholder": "输入 API Key（留空则不修改）",
+            "apiKeyEdited": "API Key 已修改，保存后生效",
+            "modelName": "模型名称",
+            "visionModel": "视觉能力 (多模态)",
+            "visionModelHint": "开启后条目17将使用图像辅助评估，关闭则纯文本模式",
+            "visionModelLocked": "当前预设模型的视觉能力已被自动识别并锁定",
+            "modelNamePlaceholder": "qwen2.5",
+            "timeout": "超时时间（秒）"
+        },
+        "button": {
+            "save": "保存配置",
+            "saving": "保存中...",
+            "testConnection": "测试连接",
+            "healthCheck": "LLM 健康验证"
+        },
+        "toast": {
+            "saved": "配置已保存",
+            "loadFailed": "加载配置失败",
+            "saveFailed": "保存失败"
+        },
+        "test": {
+            "latency": "响应延迟:",
+            "models": "可用模型:"
+        },
+        "health": {
+            "title": "LLM 健康验证结果",
+            "latency": "延迟:",
+            "model": "模型:",
+            "reply": "LLM 回复:"
         }
     }
 }

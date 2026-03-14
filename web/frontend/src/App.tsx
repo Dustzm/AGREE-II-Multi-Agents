@@ -8,6 +8,7 @@ import { Skills } from './pages/Skills'
 import { Agents } from './pages/Agents'
 import { Batch } from './pages/Batch'
 import { Benchmark } from './pages/Benchmark'
+import { Config } from './pages/Config'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="agents" element={<Agents />} />
           <Route path="batch" element={<Batch />} />
           <Route path="benchmark" element={<Benchmark />} />
+          <Route path="config" element={<Config />} />
         </Route>
       </Routes>
     </BrowserRouter>

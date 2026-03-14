@@ -14,6 +14,7 @@ from .video import VideoAttachmentParser
 from .word_parser import WordAttachmentParser
 from .excel_parser import ExcelAttachmentParser
 from .pptx_parser import PPTXAttachmentParser
+from .url import  HTMLAttachmentParser
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class AttachmentProcessor:
         self.add_parser(ExcelAttachmentParser())
         self.add_parser(VideoAttachmentParser())
         self.add_parser(PPTXAttachmentParser())
+        self.add_parser(HTMLAttachmentParser())
     
     def add_detector(self, detector: AttachmentDetector) -> "AttachmentProcessor":
         """添加检测器（支持链式调用）"""

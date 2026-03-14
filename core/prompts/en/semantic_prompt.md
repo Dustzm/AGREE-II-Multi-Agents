@@ -64,7 +64,7 @@ Follow this priority order:
    - If title contains [Abstract], [Introduction], [Foreword], [Preface], [Authors] → **Overview**
    - If title contains [Executive Summary], [Key Recommendations], [Summary of Recommendations] → **Executive Summary**
    - If title contains [Conclusion], [Summary], [Future Directions], [Limitations] → **Conclusion**
-   - If title contains [Appendix], [Supplementary], [Annex] → **Appendix**![1767948778875](image/semantic_prompt/1767948778875.png)
+   - If title contains [Appendix], [Supplementary], [Annex] → **Appendix**
 4. **Section Context Detection**:
    - If section path contains "Appendix" or "Supplementary" → **Appendix**
    - The section field shows the **ancestor path** in the document tree, helping determine chapter belonging
@@ -88,4 +88,11 @@ page: {page} / {total_pages}
 {content}
 
 ## Output Requirements
-Provide a brief, objective classification rationale in 1-2 sentences (focus on key evidence: title, section path, page position, and content type), then output the tag. **Do NOT use first person or describe your thinking process**.
+Output exactly one JSON object. Do not output Markdown, code fences, or any extra text.
+
+The JSON format must be:
+{{"reason": "A brief objective rationale in 1-2 sentences, focusing on title, section path, page position, and content type.", "tag": "Overview | Executive Summary | Method | Recommendation | Conclusion | Others | Appendix | Irrelevant"}}
+
+Requirements:
+- `reason` must be a string and must not use first person or describe hidden reasoning
+- `tag` must be exactly one of the 8 English labels above

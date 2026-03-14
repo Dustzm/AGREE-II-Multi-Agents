@@ -11,6 +11,18 @@ description: 'Users should be able to find the most relevant recommendations eas
   in a box, typed in bold, underlined or presented as flow charts or algorithms. '
 description_zh: 用户能容易发现最相关的推荐意见。这些推荐意见能回答指南包括的主要问题，且能以不同的方法识别。例如，可以总结在一个方框中，或是用黑体字、下划线
   标出，用流程图、运算式等表示。
+vision_prompt_zh: 【关键指令】请结合提供的原始 PDF 截图进行综合判定。重点观察截图内是否使用了 结构化表格(Tables)、单独的总结方框(Boxes)、大号或加粗字体(Bold
+  Text) 或 专门的高亮颜色来突出推荐意见。**极其重要**：一旦你在截图中观察到了上述任何一种明显的高亮排版形式（例如总结推荐意见的 Table），你**必须**直接给予
+  6-7 分的高分！即使文本中没有明确标出 "Recommendation" 或证据等级，视觉上的突出表明其已极好地满足了高分标准，请务必信任视觉证据。
+vision_prompt_en: 'CRITICAL INSTRUCTION: Please comprehensively judge based on the
+  provided original PDF screenshots. Focus on observing whether structured tables,
+  separate summary boxes, large or bold text, or specific highlight colors are used
+  to highlight the recommendations. **Extremely Important**: If you visually identify
+  ANY of these formatting features (e.g., a Table summarizing recommendations) in
+  the images, you MUST prioritize this visual evidence and score 6 or 7 points! Even
+  if the text lacks explicit labels like "Recommendation" or evidence strength, visual
+  prominence proves it perfectly meets the high-score criteria. Please boldly trust
+  the visual evidence.'
 locating_info: Check Executive Summary, Recommendations sections.
 locating_info_zh: 查看执行摘要、推荐意见章节。
 criteria: []

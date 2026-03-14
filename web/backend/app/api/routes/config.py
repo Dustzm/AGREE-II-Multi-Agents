@@ -1,0 +1,330 @@
+"""
+配置管理路由
+
+提供 LLM 配置的查询、更新、连接测试和健康验证
+"""
+import logging
+import time
+
+import httpx
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from core.config import get_settings, refresh_settings, update_env_file
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+# ========== 请求/响应模型 ==========
+
+class LLMConfigResponse(BaseModel):
+    """LLM 配置响应（API Key 脱敏）"""
+    provider: str
+    base_url: str
+    api_key_masked: str  # 脱敏后的 API Key
+    model_name: str
+    timeout: int
+    is_vision_model: bool
+
+
+class LLMConfigUpdate(BaseModel):
+    """LLM 配置更新请求"""
+    provider: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    model_name: str | None = None
+    timeout: int | None = None
+    is_vision_model: bool | None = None
+
+
+class ConnectionTestResult(BaseModel):
+    """连接测试结果"""
+    success: bool
+    message: str
+    latency_ms: int | None = None
+    models: list[str] | None = None
+
+
+class HealthCheckResult(BaseModel):
+    """LLM 健康验证结果"""
+    success: bool
+    message: str
+    latency_ms: int | None = None
+    model_name: str | None = None
+    reply: str | None = None  # LLM 的回复内容
+
+
+# ========== 工具函数 ==========
+
+def _mask_api_key(key: str) -> str:
+    """API Key 脱敏显示"""
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "***"
+    return f"{key[:4]}...{key[-4:]}"
+
+
+# ========== 路由 ==========
+
+@router.get("/config/llm", response_model=LLMConfigResponse)
+async def get_llm_config():
+    """获取当前 LLM 配置（API Key 脱敏显示）"""
+    settings = get_settings()
+    return LLMConfigResponse(
+        provider=settings.llm.provider,
+        base_url=settings.llm.base_url,
+        api_key_masked=_mask_api_key(settings.llm.api_key),
+        model_name=settings.llm.model_name,
+        timeout=settings.llm.timeout,
+        is_vision_model=settings.llm.is_vision_model,
+    )
+
+
+@router.put("/config/llm", response_model=LLMConfigResponse)
+async def update_llm_config(config: LLMConfigUpdate):
+    """
+    更新 LLM 配置
+    
+    热更新内存配置 + 持久化到 .env 文件
+    """
+    # 构建要更新的环境变量
+    env_updates: dict[str, str] = {}
+    
+    if config.provider is not None:
+        env_updates["LLM_PROVIDER"] = config.provider
+        # 切换提供商时，自动回填该提供商的 default_base_url
+        # 防止旧提供商的 base_url 残留在 .env 导致请求打错地址
+        from core.agents.base.model_config import get_provider_config_for
+        new_provider_cfg = get_provider_config_for(config.provider)
+        default_url = new_provider_cfg.get("default_base_url", "")
+        if config.base_url is None:
+            # 前端没有显式传 base_url（例如输入框被隐藏），使用 default_base_url
+            env_updates["LLM_BASE_URL"] = default_url
+        
+    if config.base_url is not None:
+        env_updates["LLM_BASE_URL"] = config.base_url
+    if config.api_key is not None:
+        env_updates["LLM_API_KEY"] = config.api_key
+    if config.model_name is not None:
+        env_updates["LLM_MODEL_NAME"] = config.model_name
+    if config.timeout is not None:
+        env_updates["LLM_TIMEOUT"] = str(config.timeout)
+    if config.is_vision_model is not None:
+        env_updates["LLM_IS_VISION_MODEL"] = str(config.is_vision_model)
+    
+    if not env_updates:
+        raise HTTPException(status_code=400, detail="没有提供需要更新的配置项")
+    
+    try:
+        # 1. 持久化到 .env 文件
+        update_env_file(env_updates)
+        
+        # 2. 刷新内存配置
+        new_settings = refresh_settings()
+        
+        # 3. 刷新模型实例和环境变量
+        try:
+            from core.agents.base.model_config import refresh_model
+            refresh_model()
+        except Exception as e:
+            logger.warning(f"刷新模型实例时出错（不影响配置保存）: {e}")
+        
+        logger.info(f"LLM 配置已更新: {list(env_updates.keys())}")
+        
+        return LLMConfigResponse(
+            provider=new_settings.llm.provider,
+            base_url=new_settings.llm.base_url,
+            api_key_masked=_mask_api_key(new_settings.llm.api_key),
+            model_name=new_settings.llm.model_name,
+            timeout=new_settings.llm.timeout,
+            is_vision_model=new_settings.llm.is_vision_model,
+        )
+    except Exception as e:
+        logger.error(f"更新 LLM 配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
+
+
+@router.post("/config/llm/test", response_model=ConnectionTestResult)
+async def test_llm_connection():
+    """
+    测试 LLM 连接
+    
+    对于需要 base_url 的提供商，向 /models 尝试探活；
+    对于原生公有云提供商，直接返回可用。
+    """
+    from core.agents.base.model_config import _setup_llm_env
+    _setup_llm_env()
+    
+    settings = get_settings()
+    
+    if settings.llm.provider not in ["vllm", "openai_compatible"]:
+        return ConnectionTestResult(
+            success=True,
+            message=f"已选择官方提供商 ({settings.llm.provider})，请运行健康验证测试实际可用性",
+            latency_ms=0,
+            models=[settings.llm.model_name]
+        )
+    
+    if not settings.llm.base_url:
+        return ConnectionTestResult(
+            success=False,
+            message="未配置 LLM Base URL",
+        )
+    
+    url = f"{settings.llm.base_url.rstrip('/')}/models"
+    headers = {}
+    if settings.llm.api_key:
+        headers["Authorization"] = f"Bearer {settings.llm.api_key}"
+    
+    start_time = time.time()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url, headers=headers)
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        if response.status_code == 200:
+            models = []
+            try:
+                data = response.json()
+                if "data" in data:
+                    models = [m.get("id", "") for m in data["data"]]
+            except Exception:
+                pass
+            
+            return ConnectionTestResult(
+                success=True,
+                message="连接成功",
+                latency_ms=latency_ms,
+                models=models,
+            )
+        elif response.status_code == 401:
+            return ConnectionTestResult(
+                success=False,
+                message="认证失败 (401)，请检查 API Key",
+                latency_ms=latency_ms,
+            )
+        elif response.status_code == 403:
+            return ConnectionTestResult(
+                success=False,
+                message="访问被拒绝 (403)",
+                latency_ms=latency_ms,
+            )
+        elif response.status_code == 404:
+            # 某些兼容网关可能不提供 /models 接口
+            return ConnectionTestResult(
+                success=True,
+                message="服务连通 (但提供商不支持获取模型列表)，请运行健康验证确认推理",
+                latency_ms=latency_ms,
+            )
+        else:
+            return ConnectionTestResult(
+                success=False,
+                message=f"服务返回异常状态码: {response.status_code}",
+                latency_ms=latency_ms,
+            )
+    except httpx.ConnectError:
+        return ConnectionTestResult(
+            success=False,
+            message=f"无法连接到 {url}，请检查 URL 是否正确",
+        )
+    except httpx.TimeoutException:
+        return ConnectionTestResult(
+            success=False,
+            message="连接超时，服务可能不可用",
+        )
+    except Exception as e:
+        return ConnectionTestResult(
+            success=False,
+            message=f"连接测试异常: {str(e)}",
+        )
+
+
+@router.post("/config/llm/health", response_model=HealthCheckResult)
+async def check_llm_health():
+    """
+    LLM 健康验证
+    
+    统一使用 LiteLLM 路由以兼容各类提供商
+    """
+    import litellm
+    from core.agents.base.model_config import PROVIDER_CONFIG, get_provider_kwargs, _setup_llm_env
+    
+    _setup_llm_env()
+    settings = get_settings()
+    provider_cfg = PROVIDER_CONFIG.get(settings.llm.provider, PROVIDER_CONFIG["vllm"])
+    
+    if provider_cfg["need_base_url"] and not settings.llm.base_url:
+        return HealthCheckResult(
+            success=False,
+            message=f"提供商 '{settings.llm.provider}' 要求配置 LLM Base URL",
+        )
+    
+    model_string = f"{provider_cfg['prefix']}/{settings.llm.model_name}"
+    
+    kwargs = get_provider_kwargs()
+    if settings.llm.api_key:
+        kwargs["api_key"] = settings.llm.api_key
+    if provider_cfg.get("need_base_url"):
+        effective_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
+        if effective_url:
+            kwargs["api_base"] = effective_url
+            
+    start_time = time.time()
+    try:
+        response = await litellm.acompletion(
+            model=model_string,
+            messages=[{"role": "user", "content": "hello"}],
+            max_tokens=60,
+            temperature=0.1,
+            timeout=min(settings.llm.timeout, 30),
+            **kwargs,
+        )
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        model_name = getattr(response, "model", settings.llm.model_name)
+        choices = getattr(response, "choices", [])
+        
+        reply = ""
+        if choices:
+            message_obj = getattr(choices[0], "message", None)
+            if message_obj:
+                content = getattr(message_obj, "content", "")
+                if content:
+                    reply = content.strip()
+                else:
+                    reasoning = getattr(message_obj, "reasoning_content", "")
+                    if reasoning:
+                        reply = f"[思考模式] {reasoning[:200].strip()}"
+                    else:
+                        reply = "(模型已响应，但未返回文本内容)"
+        
+        return HealthCheckResult(
+            success=True,
+            message="LLM 服务正常，推理可用",
+            latency_ms=latency_ms,
+            model_name=model_name,
+            reply=reply,
+        )
+    except Exception as e:
+        latency_ms = int((time.time() - start_time) * 1000)
+        return HealthCheckResult(
+            success=False,
+            message=f"健康验证异常: {str(e)}",
+            latency_ms=latency_ms,
+        )
+
+
+@router.get("/config/providers")
+async def get_providers():
+    """
+    获取所有提供商及其推荐模型列表
+    
+    直接从 providers.json 读取并返回
+    """
+    from core.agents.base.model_config import load_providers_config
+    return load_providers_config()
