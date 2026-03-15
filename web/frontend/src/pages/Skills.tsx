@@ -505,7 +505,7 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                             variant="ghost"
                             size="icon"
                             onClick={onEdit}
-                            className="h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                            className="hidden h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
                             title="编辑条目"
                         >
                             <Pencil className="h-4 w-4" />
