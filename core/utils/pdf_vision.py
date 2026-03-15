@@ -47,54 +47,50 @@ def get_stitched_pdf_pages_as_base64(
         return ""
         
     try:
-        doc = fitz.open(pdf_path)
         images = []
-        
-        for p_idx in page_indices:
-            if p_idx < 0 or p_idx >= len(doc):
-                continue
-                
-            page = doc.load_page(p_idx)
-            # 采用恰当的 DPI 进行栅格化
-            pix = page.get_pixmap(dpi=dpi)
-            
-            # 转换为 PIL Image 以便拼接
-            # Pixmap 返回可能是 RGB 或 RGBA，统一转为 RGB 以备保存为 JPEG
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            
-            # 如果单张图片高度失控过大，等比缩放
-            if img.height > max_height_per_page:
-                ratio = max_height_per_page / img.height
-                new_size = (int(img.width * ratio), int(img.height * ratio))
-                img = img.resize(new_size, Image.Resampling.LANCZOS)
-                
-            images.append(img)
-            
-        doc.close()
-        
+        with fitz.open(pdf_path) as doc:
+            for p_idx in page_indices:
+                if p_idx < 0 or p_idx >= len(doc):
+                    continue
+
+                page = doc.load_page(p_idx)
+                pix = page.get_pixmap(dpi=dpi)
+
+                # Pixmap 返回可能是 RGB 或 RGBA，统一转为 RGB 以备保存为 JPEG
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                pix = None
+
+                if img.height > max_height_per_page:
+                    ratio = max_height_per_page / img.height
+                    new_size = (int(img.width * ratio), int(img.height * ratio))
+                    resized = img.resize(new_size, Image.Resampling.LANCZOS)
+                    img.close()
+                    img = resized
+
+                images.append(img)
+
         if not images:
             return ""
-            
-        # 计算拼接后的总宽高
+
         total_width = max(img.width for img in images)
         total_height = sum(img.height for img in images)
-        
-        # 创建空白长图底板
+
         stitched_image = Image.new("RGB", (total_width, total_height), (255, 255, 255))
-        
-        # 逐个贴入底板
-        current_y = 0
-        for img in images:
-            # 居中贴或者靠左贴皆可，这里采用居中
-            x_offset = (total_width - img.width) // 2
-            stitched_image.paste(img, (x_offset, current_y))
-            current_y += img.height
-            
-        # 存入 BytesIO 并转 Base64，大幅降低 Quality 有助于减少 Payload 开销
-        buffer = io.BytesIO()
-        stitched_image.save(buffer, format="JPEG", quality=quality)
-        b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        
+        try:
+            current_y = 0
+            for img in images:
+                x_offset = (total_width - img.width) // 2
+                stitched_image.paste(img, (x_offset, current_y))
+                current_y += img.height
+
+            with io.BytesIO() as buffer:
+                stitched_image.save(buffer, format="JPEG", quality=quality)
+                b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        finally:
+            stitched_image.close()
+            for img in images:
+                img.close()
+
         return b64_str
         
     except Exception as e:

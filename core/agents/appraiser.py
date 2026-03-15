@@ -29,6 +29,9 @@ from core.utils.pdf_vision import get_stitched_pdf_pages_as_base64
 
 logger = logging.getLogger(__name__)
 
+_INFO_LOG_PREVIEW_LIMIT = 1200
+_DEBUG_LOG_PREVIEW_LIMIT = 4000
+
 
 # ============================================================================
 # Pydantic Schema 定义 - 强制 LLM 输出结构
@@ -102,6 +105,16 @@ class IterativeEvaluator:
         self.llm_api_key = settings.llm.api_key or "dummy-key"
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
+
+    def _preview_text(self, text: str, limit: int = _INFO_LOG_PREVIEW_LIMIT) -> str:
+        """生成适合日志的文本预览，避免超长内容压垮日志与 I/O。"""
+        if not text:
+            return ""
+
+        if len(text) <= limit:
+            return text
+
+        return f"{text[:limit]}\n... [截断，原始长度 {len(text)} 字符]"
     
     def _find_source_pdf(self) -> str:
         """
@@ -162,17 +175,21 @@ class IterativeEvaluator:
             completion_tokens = getattr(usage, 'completion_tokens', 'N/A')
             total_tokens = getattr(usage, 'total_tokens', 'N/A')
             logger.info(f"  Tokens: prompt={prompt_tokens}, completion={completion_tokens}, total={total_tokens}")
-        
-        # 完整思考内容（不截断）
+        logger.info(f"  Output Length: {len(content)}")
         if reasoning_content:
-            logger.info(f"=== [{stage}] Reasoning Content (full) ===")
-            logger.info(reasoning_content)
-            logger.info(f"=== [{stage}] End Reasoning Content ===")
+            logger.info(f"  Reasoning Length: {len(reasoning_content)}")
         
-        # 最终输出内容
-        logger.info(f"=== [{stage}] Output Content ===")
-        logger.info(content)
-        logger.info(f"=== [{stage}] End Output Content ===")
+        # INFO 级别只保留摘要，完整内容仅在 DEBUG 时输出
+        if reasoning_content:
+            logger.info(f"=== [{stage}] Reasoning Preview ===")
+            logger.info(self._preview_text(reasoning_content))
+            logger.info(f"=== [{stage}] End Reasoning Preview ===")
+            logger.debug(f"=== [{stage}] Reasoning Content (full) ===\n{reasoning_content}\n=== [{stage}] End Reasoning Content ===")
+        
+        logger.info(f"=== [{stage}] Output Preview ===")
+        logger.info(self._preview_text(content))
+        logger.info(f"=== [{stage}] End Output Preview ===")
+        logger.debug(f"=== [{stage}] Output Content (full) ===\n{content}\n=== [{stage}] End Output Content ===")
     
     def _clean_thinking_content(self, content: str) -> str:
         """
@@ -282,7 +299,7 @@ class IterativeEvaluator:
         # 记录处理的 chunk 内容
         for c in chunks:
             logger.info(f"Evaluating Chunk: {c.title}")
-            logger.info(f"Chunk Content: {c.content}")
+            logger.debug(f"Chunk Content: {self._preview_text(c.content, limit=_DEBUG_LOG_PREVIEW_LIMIT)}")
 
         # 拼接 chunk 内容（带 chunk_id 标记，便于 LLM 识别来源）
         combined_content = []
@@ -328,9 +345,10 @@ class IterativeEvaluator:
             system_instruction = "You are a strict extraction system. Output JSON only."
             # 提示词已在 iterative_prompts.py 中修改为新格式
 
-            logger.info("=== [Evidence Extraction] Input Prompt ===")
-            logger.info(prompt)
+            logger.info("=== [Evidence Extraction] Input Prompt Preview ===")
+            logger.info(self._preview_text(prompt))
             logger.info("==========================================")
+            logger.debug(f"=== [Evidence Extraction] Input Prompt (full) ===\n{prompt}\n==========================================")
 
             response = litellm.completion(
                 model=self.model,
@@ -443,9 +461,10 @@ class IterativeEvaluator:
         system_instruction = "You are a scoring assistant. Output JSON only."
         api_prompt = prompt
         
-        logger.info("=== [Dynamic Scoring] Input Prompt ===")
-        logger.info(api_prompt)
+        logger.info("=== [Dynamic Scoring] Input Prompt Preview ===")
+        logger.info(self._preview_text(api_prompt))
         logger.info("======================================")
+        logger.debug(f"=== [Dynamic Scoring] Input Prompt (full) ===\n{api_prompt}\n======================================")
         
         try:
             messages = [
@@ -480,8 +499,8 @@ class IterativeEvaluator:
                     b64_img = get_stitched_pdf_pages_as_base64(pdf_path, target_pages)
                     
                     full_text_prompt = api_prompt + "\n\n" + vision_prompt
-                    logger.info("=== [Dynamic Scoring] Vision Prompt Attached ===")
-                    logger.info(vision_prompt)
+                    logger.info("=== [Dynamic Scoring] Vision Prompt Preview ===")
+                    logger.info(self._preview_text(vision_prompt))
                     logger.info("================================================")
                     
                     if b64_img:
@@ -587,9 +606,10 @@ class IterativeEvaluator:
             final_score=self.current_score,
         )
         
-        logger.info("=== [Final Report] Input Prompt ===")
-        logger.info(prompt)
+        logger.info("=== [Final Report] Input Prompt Preview ===")
+        logger.info(self._preview_text(prompt))
         logger.info("===================================")
+        logger.debug(f"=== [Final Report] Input Prompt (full) ===\n{prompt}\n===================================")
         
         max_retries = 3
         last_error = None

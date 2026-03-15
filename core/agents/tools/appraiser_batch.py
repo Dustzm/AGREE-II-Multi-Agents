@@ -22,18 +22,21 @@ logger = logging.getLogger(__name__)
 # 全局线程池（扩展默认12线程限制，支持更高并发）
 # ============================================================================
 _llm_executor: Optional[ThreadPoolExecutor] = None
+_llm_executor_workers: Optional[int] = None
 
 
-def _get_llm_executor(max_workers: int = 32) -> ThreadPoolExecutor:
+def _get_llm_executor(max_workers: int) -> ThreadPoolExecutor:
     """
     获取 LLM 调用专用线程池
     
-    默认 Python 线程池只有 min(32, cpu_count+4) 个线程，
-    对于多 PDF 并发评价场景不够用。
+    线程池大小与实际条目评价并发保持一致，避免后台长期保留过多空闲线程。
     """
-    global _llm_executor
-    if _llm_executor is None:
+    global _llm_executor, _llm_executor_workers
+    if _llm_executor is None or _llm_executor_workers != max_workers:
+        if _llm_executor is not None:
+            _llm_executor.shutdown(wait=False, cancel_futures=False)
         _llm_executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="llm_eval_")
+        _llm_executor_workers = max_workers
         logger.info(f"创建 LLM 评价线程池: max_workers={max_workers}")
     return _llm_executor
 
@@ -148,7 +151,7 @@ async def appraise_all(
             try:
                 # 使用自定义线程池执行同步评价（突破默认12线程限制）
                 loop = asyncio.get_running_loop()
-                executor = _get_llm_executor()
+                executor = _get_llm_executor(max_workers)
                 result = await loop.run_in_executor(
                     executor,
                     run_iterative_evaluation,

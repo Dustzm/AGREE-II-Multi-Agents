@@ -11,6 +11,8 @@ from .pojo import TitleContentBlock, SemanticChunk, SemanticLabel
 
 logger = logging.getLogger(__name__)
 
+_PROMPT_PREVIEW_LIMIT = 1200
+
 class SemanticLabeler:
     """
     语义标签分类器
@@ -32,6 +34,16 @@ class SemanticLabeler:
         self.model = model or get_model()
         self.lang = lang
         self.prompt_template = self._load_prompt_template()
+
+    def _preview_text(self, text: str, limit: int = _PROMPT_PREVIEW_LIMIT) -> str:
+        """生成简短的日志预览，避免把完整提示词刷进日志。"""
+        if not text:
+            return ""
+
+        if len(text) <= limit:
+            return text
+
+        return f"{text[:limit]}\n... [截断，原始长度 {len(text)} 字符]"
     
     def _load_prompt_template(self) -> str:
         """加载 Prompt 模板"""
@@ -186,7 +198,8 @@ class SemanticLabeler:
                 logger.info(f"=== 标签分配开始 [{idx+1}/{total}] ===")
                 logger.info(f"标题: {chunk.title[:50]}...")
                 logger.info(f"Section: {chunk.section if chunk.section else '(无父级)'}")
-                logger.info(f"--- 完整提示词示例 ---\n{prompt}\n--- 示例结束 ---")
+                logger.info(f"--- 提示词预览 ---\n{self._preview_text(prompt)}\n--- 预览结束 ---")
+                logger.debug(f"--- 完整提示词示例 ---\n{prompt}\n--- 示例结束 ---")
             
             # 调用 LLM
             response_str = await self._call_llm(prompt)

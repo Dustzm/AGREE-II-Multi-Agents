@@ -292,7 +292,7 @@ class AppSettings(BaseSettings):
     
     # 标签分类并发配置
     labeler_max_concurrency: int = Field(
-        default=45,
+        default=8,
         alias="LABELER_MAX_CONCURRENCY",
         description="标签分类(语义池构建)最大并发数",
         ge=1,
