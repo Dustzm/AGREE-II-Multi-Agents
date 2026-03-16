@@ -31,7 +31,7 @@ export function Config() {
     const providerSelectRef = useRef<HTMLDivElement>(null)
     const [isModelOpen, setIsModelOpen] = useState(false)
     const modelSelectRef = useRef<HTMLDivElement>(null)
-    const [baseUrl, setBaseUrl] = useState('')
+    const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({})
     const [apiKey, setApiKey] = useState('')
     const [apiKeyMasked, setApiKeyMasked] = useState('')
     const [modelName, setModelName] = useState('')
@@ -42,6 +42,17 @@ export function Config() {
 
     // 提供商预设数据
     const [providersData, setProvidersData] = useState<Record<string, ProviderInfo>>({})
+
+    const getBaseUrlValue = (
+        providerId: string,
+        drafts: Record<string, string> = baseUrlDrafts,
+        providers: Record<string, ProviderInfo> = providersData
+    ) => {
+        if (Object.prototype.hasOwnProperty.call(drafts, providerId)) {
+            return drafts[providerId]
+        }
+        return providers[providerId]?.default_base_url || ''
+    }
 
     // 加载 / 保存状态
     const [loading, setLoading] = useState(true)
@@ -77,8 +88,17 @@ export function Config() {
                 api.getLLMConfig(),
                 api.getProviders(),
             ])
-            setProvider(config.provider || 'vllm')
-            setBaseUrl(config.base_url)
+            const nextProvider = config.provider || 'vllm'
+            const nextBaseUrlDrafts = Object.fromEntries(
+                Object.entries(providers).map(([providerId, providerInfo]) => [
+                    providerId,
+                    providerId === nextProvider
+                        ? (config.base_url || providerInfo.default_base_url || '')
+                        : (providerInfo.default_base_url || ''),
+                ])
+            )
+            setProvider(nextProvider)
+            setBaseUrlDrafts(nextBaseUrlDrafts)
             setApiKeyMasked(config.api_key_masked)
             setModelName(config.model_name)
             setTimeout_(config.timeout)
@@ -107,12 +127,9 @@ export function Config() {
                 timeout: timeout,
                 is_vision_model: isVisionModel,
             }
-            // 仅当 Base URL 输入框实际可见时才传递 base_url
-            // 否则让后端自动使用 providers.json 中的 default_base_url
             const providerCfg = providersData[provider]
-            const showBaseUrl = providerCfg?.need_base_url && !providerCfg?.default_base_url
-            if (showBaseUrl) {
-                update.base_url = baseUrl
+            if (providerCfg?.need_base_url) {
+                update.base_url = getBaseUrlValue(provider)
             }
             if (apiKeyEdited && apiKey) {
                 update.api_key = apiKey
@@ -257,14 +274,20 @@ export function Config() {
                             </AnimatePresence>
                         </div>
 
-                        {/* Base URL (仅当提供商需要且无预设地址时才显示) */}
-                        {providersData[provider]?.need_base_url && !providersData[provider]?.default_base_url && (
+                        {/* Base URL（只要提供商需要就显示，默认值由 providers.json 预填） */}
+                        {providersData[provider]?.need_base_url && (
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium text-gray-700">{t('config.llm.baseUrl')}</label>
                                 <input
                                     type="text"
-                                    value={baseUrl}
-                                    onChange={(e) => setBaseUrl(e.target.value)}
+                                    value={getBaseUrlValue(provider)}
+                                    onChange={(e) => {
+                                        const nextBaseUrl = e.target.value
+                                        setBaseUrlDrafts((current) => ({
+                                            ...current,
+                                            [provider]: nextBaseUrl,
+                                        }))
+                                    }}
                                     placeholder={'http://localhost:8080/v1'}
                                     className="flex h-10 w-full rounded-xl border border-gray-200 bg-white/50 px-4 py-2 text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-teal-600/30 focus:border-teal-400"
                                 />
