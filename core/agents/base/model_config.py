@@ -97,7 +97,12 @@ def get_model() -> LiteLlm:
             kwargs["api_base"] = effective_url
 
     # 设置较低温度以提高工具调用的可靠性
-    _model_instance = LiteLlm(model=model_string, temperature=0.2, **kwargs)
+    _model_instance = LiteLlm(
+        model=model_string,
+        temperature=0.2,
+        timeout=settings.llm.timeout,
+        **kwargs,
+    )
     return _model_instance
 
 
