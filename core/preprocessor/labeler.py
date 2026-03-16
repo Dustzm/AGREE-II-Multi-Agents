@@ -114,6 +114,7 @@ class SemanticLabeler:
                 seed=42,          # 固定随机种子，保证可复现性
                 max_tokens=2500,
                 response_format={"type": "json_object"},  # 使用 json_object 避免 SGLang xgrammar 兼容性问题
+                timeout=settings.llm.timeout,
                 **kwargs,
             )
             

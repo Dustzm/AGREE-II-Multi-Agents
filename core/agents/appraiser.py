@@ -103,6 +103,7 @@ class IterativeEvaluator:
         # 优先使用用户配置的 base_url，其次使用 providers.json 中的 default_base_url
         self.llm_base_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
         self.llm_api_key = settings.llm.api_key or "dummy-key"
+        self.llm_timeout = settings.llm.timeout
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
 
@@ -363,6 +364,7 @@ class IterativeEvaluator:
                 seed=42,          # 固定随机种子
                 max_tokens=8192,
                 response_format={"type": "json_object"},
+                timeout=self.llm_timeout,
                 **get_provider_kwargs(),
             )
             
@@ -529,6 +531,7 @@ class IterativeEvaluator:
                 seed=42,
                 max_tokens=8096,
                 response_format={"type": "json_object"},
+                timeout=self.llm_timeout,
                 **get_provider_kwargs(),
             )
             
@@ -673,6 +676,7 @@ class IterativeEvaluator:
                     seed=42,
                     max_tokens=16384,
                     response_format={"type": "json_object"},  # 使用简单 json_object 避免 SGLang xgrammar 兼容性问题
+                    timeout=self.llm_timeout,
                     **get_provider_kwargs(),
                 )
                 

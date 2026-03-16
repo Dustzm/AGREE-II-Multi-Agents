@@ -302,7 +302,8 @@ Please return in JSON format, strictly following the schema requirements."""
                 response_format=URLClassificationOutput,
                 temperature=0.1,
                 api_base=self.api_base,
-                api_key=self.api_key
+                api_key=self.api_key,
+                timeout=get_settings().llm.timeout,
             )
             
             result = response.choices[0].message.parsed

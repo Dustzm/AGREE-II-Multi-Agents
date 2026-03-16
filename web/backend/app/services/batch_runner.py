@@ -99,6 +99,7 @@ class BatchRunner:
         self._running = False
         self._cancelled = False
         self._current_runners: list[AppraisalRunner] = []
+        self._background_task: Optional[asyncio.Task] = None
         
         # 轮次相关
         self.current_round: int = 0  # 当前轮次 (1-based)
@@ -325,6 +326,7 @@ class BatchRunner:
         self._cancelled = False
         self._tasks.clear()
         self._current_runners.clear()
+        self._background_task = None
         self._semaphore = asyncio.Semaphore(self.concurrency)
         
         # 保存 PDF 路径列表用于多轮执行
@@ -343,9 +345,19 @@ class BatchRunner:
         self._save_state()
 
         # 异步启动多轮执行
-        asyncio.create_task(self._run_all_rounds())
+        self._background_task = asyncio.create_task(self._run_all_rounds())
+        self._background_task.add_done_callback(self._handle_background_task_done)
 
         return self.get_status()
+
+    def _handle_background_task_done(self, task: asyncio.Task):
+        """记录后台批量任务的结束状态，避免静默停工。"""
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            logger.info("批量后台任务已取消")
+        except Exception:
+            logger.exception("批量后台任务异常结束")
     
     async def stop(self):
         """停止批量任务"""
@@ -354,6 +366,9 @@ class BatchRunner:
         # 取消所有运行中的 runner
         for runner in self._current_runners:
             runner.cancel()
+
+        if self._background_task and not self._background_task.done():
+            self._background_task.cancel()
 
         # 将所有 pending 任务标记为 cancelled
         for task in self._tasks.values():
@@ -398,7 +413,9 @@ class BatchRunner:
                 
                 # 保存轮次完成状态
                 self._save_state()
-                
+        except Exception:
+            logger.exception("批量任务执行过程中发生未捕获异常")
+            raise
         finally:
             self._running = False
             self.current_round = self.experiment_rounds  # 确保显示最终轮次
