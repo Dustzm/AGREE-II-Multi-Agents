@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field
 
 import litellm
 
+from core.agents.base.model_config import (
+    get_compatible_reasoning_kwargs,
+    get_compatible_sampling_kwargs,
+)
 from core.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -300,10 +304,11 @@ Please return in JSON format, strictly following the schema requirements."""
                     {"role": "user", "content": prompt}
                 ],
                 response_format=URLClassificationOutput,
-                temperature=0.1,
-                api_base=self.api_base,
+                base_url=self.api_base,
                 api_key=self.api_key,
                 timeout=get_settings().llm.timeout,
+                **get_compatible_reasoning_kwargs(self.model),
+                **get_compatible_sampling_kwargs(self.model, temperature=0.1),
             )
             
             result = response.choices[0].message.parsed

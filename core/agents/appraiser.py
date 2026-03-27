@@ -3,8 +3,10 @@
 
 使用 LiteLLM 逐个遍历 chunks，累积证据并动态评分
 """
+import math
 import json
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -12,7 +14,12 @@ import litellm
 from pydantic import BaseModel, Field
 
 from core.utils.token_tracker import add_litellm_usage
-from core.agents.base.model_config import get_provider_kwargs
+from core.utils.unicode_sanitizer import sanitize_unicode, strip_surrogates
+from core.agents.base.model_config import (
+    get_compatible_reasoning_kwargs,
+    get_compatible_sampling_kwargs,
+    get_provider_kwargs,
+)
 
 from core.config import get_settings
 from core.skills import load_skill_config
@@ -31,6 +38,15 @@ logger = logging.getLogger(__name__)
 
 _INFO_LOG_PREVIEW_LIMIT = 1200
 _DEBUG_LOG_PREVIEW_LIMIT = 4000
+_ITEM17_ESTIMATED_CHARS_PER_TOKEN = 3.5
+_ITEM17_SCORING_TEXT_BUDGET_TOKENS = 30000
+_ITEM17_SCORING_MULTIMODAL_BUDGET_TOKENS = 30000
+_ITEM17_SCORING_IMAGE_TOKEN_OVERHEAD = 14000
+_ITEM17_REPORT_BUDGET_TOKENS = 30000
+_ITEM17_SCORING_MAX_EVIDENCE_ITEMS = 16
+_ITEM17_REPORT_MAX_EVIDENCE_ITEMS = 20
+_ITEM17_SCORING_MAX_CHARS_PER_EVIDENCE = 1200
+_ITEM17_REPORT_MAX_CHARS_PER_EVIDENCE = 1800
 
 
 # ============================================================================
@@ -89,6 +105,7 @@ class IterativeEvaluator:
         self.evidence_chunk_map: List[str] = []  # 每条证据对应的 chunk_id（与 evidence_cache 一一对应）
         self.evidence_sources: List[str] = []    # 所有处理过的 chunk_id 列表
         self.current_score: int = 1              # 当前评分
+        self._chunk_lookup: Dict[str, SemanticChunk] = {}
         
         # 加载配置
         self.skill_config = load_skill_config(skill_id, check_enabled=True, lang=lang)
@@ -107,8 +124,13 @@ class IterativeEvaluator:
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
 
+    @property
+    def _is_item17(self) -> bool:
+        return self.skill_id == "item_17"
+
     def _preview_text(self, text: str, limit: int = _INFO_LOG_PREVIEW_LIMIT) -> str:
         """生成适合日志的文本预览，避免超长内容压垮日志与 I/O。"""
+        text = strip_surrogates(text)
         if not text:
             return ""
 
@@ -147,6 +169,328 @@ class IterativeEvaluator:
         
         logger.warning(f"未找到源 PDF: {pdf_filename} (搜索目录: {input_dir})")
         return ""
+
+    def _estimate_token_count(self, text: str) -> int:
+        """基于字符数的轻量级 token 估算，用于 item_17 预算控制。"""
+        clean_text = strip_surrogates(text)
+        if not clean_text:
+            return 0
+        return max(1, math.ceil(len(clean_text) / _ITEM17_ESTIMATED_CHARS_PER_TOKEN))
+
+    def _normalize_evidence_key(self, text: str) -> str:
+        """对证据做轻量规范化，用于去重近似重复内容。"""
+        normalized = " ".join(strip_surrogates(text).lower().split())
+        return normalized[:400]
+
+    def _trim_evidence_text(self, text: str, max_chars: int) -> str:
+        """裁剪单条证据长度，避免少数超长引文独占预算。"""
+        clean_text = strip_surrogates(text)
+        if len(clean_text) <= max_chars:
+            return clean_text
+
+        truncated = clean_text[:max_chars].rsplit(" ", 1)[0].strip()
+        if not truncated:
+            truncated = clean_text[:max_chars].strip()
+        return f"{truncated}\n... [证据已截断]"
+
+    def _get_chunk_by_id(self, chunk_id: str) -> Optional[SemanticChunk]:
+        return self._chunk_lookup.get(chunk_id)
+
+    def _get_item17_target_pages(self) -> list[int]:
+        """根据当前证据分布选出高频页码，供 item_17 评分阶段优先保留。"""
+        page_counter: Counter[int] = Counter()
+        for chunk_id in self.evidence_chunk_map:
+            chunk = self._get_chunk_by_id(chunk_id)
+            if chunk and chunk.start_page is not None:
+                page_counter[chunk.start_page] += 1
+        return sorted(page for page, _count in page_counter.most_common(2))
+
+    def _collect_item17_candidates(self, max_chars_per_evidence: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """收集 item_17 的证据候选，并做去重/裁剪。"""
+        target_pages = self._get_item17_target_pages()
+        seen_keys: set[str] = set()
+        candidates: list[dict[str, Any]] = []
+
+        raw_pairs = list(zip(self.evidence_cache, self.evidence_chunk_map))
+        for recency_rank, (evidence, chunk_id) in enumerate(reversed(raw_pairs)):
+            normalized_key = self._normalize_evidence_key(evidence)
+            if not normalized_key or normalized_key in seen_keys:
+                continue
+            seen_keys.add(normalized_key)
+
+            chunk = self._get_chunk_by_id(chunk_id)
+            page = chunk.start_page if chunk else None
+            candidates.append({
+                "evidence": self._trim_evidence_text(evidence, max_chars_per_evidence),
+                "chunk_id": strip_surrogates(chunk_id),
+                "page": page,
+                "is_target_page": page in target_pages,
+                "recency_rank": recency_rank,
+            })
+
+        meta = {
+            "original_count": len(self.evidence_cache),
+            "deduped_count": len(candidates),
+            "target_pages": target_pages,
+        }
+        return candidates, meta
+
+    def _prioritize_item17_candidates(
+        self,
+        candidates: list[dict[str, Any]],
+        *,
+        prefer_unique_chunks: bool,
+    ) -> list[dict[str, Any]]:
+        """按目标页、最近性和 chunk 多样性排序 item_17 证据候选。"""
+        ordered: list[dict[str, Any]] = []
+        seen_chunks: set[str] = set()
+
+        partitions = [
+            [candidate for candidate in candidates if candidate["is_target_page"]],
+            [candidate for candidate in candidates if not candidate["is_target_page"]],
+        ]
+
+        if prefer_unique_chunks:
+            for partition in partitions:
+                for candidate in partition:
+                    chunk_id = candidate["chunk_id"]
+                    if chunk_id not in seen_chunks:
+                        ordered.append(candidate)
+                        seen_chunks.add(chunk_id)
+                for candidate in partition:
+                    if candidate["chunk_id"] in seen_chunks and candidate not in ordered:
+                        ordered.append(candidate)
+        else:
+            for partition in partitions:
+                ordered.extend(partition)
+
+        return ordered
+
+    def _fit_item17_candidates_to_budget(
+        self,
+        *,
+        stage: str,
+        candidates: list[dict[str, Any]],
+        build_prompt,
+        token_budget: int,
+        max_items: int,
+        original_count: int,
+        deduped_count: int,
+        target_pages: list[int],
+    ) -> dict[str, Any]:
+        """在预算内为 item_17 选择证据子集。"""
+        selected_evidence: list[str] = []
+        selected_chunk_ids: list[str] = []
+        selected_pages: list[int] = []
+        selected_chunks: set[str] = set()
+        selected_signatures: set[tuple[str, str]] = set()
+
+        for unique_only in (True, False):
+            for candidate in candidates:
+                if len(selected_evidence) >= max_items:
+                    break
+                signature = (candidate["chunk_id"], candidate["evidence"])
+                if signature in selected_signatures:
+                    continue
+                if unique_only and candidate["chunk_id"] in selected_chunks:
+                    continue
+
+                trial_evidence = selected_evidence + [candidate["evidence"]]
+                trial_chunk_ids = selected_chunk_ids + [candidate["chunk_id"]]
+                prompt_text = build_prompt(trial_evidence, trial_chunk_ids)
+                estimated_tokens = self._estimate_token_count(prompt_text)
+
+                if estimated_tokens <= token_budget:
+                    selected_evidence = trial_evidence
+                    selected_chunk_ids = trial_chunk_ids
+                    if candidate["page"] is not None:
+                        selected_pages.append(candidate["page"])
+                    selected_chunks.add(candidate["chunk_id"])
+                    selected_signatures.add(signature)
+
+        if not selected_evidence:
+            base_prompt = build_prompt([], [])
+            estimated_tokens = self._estimate_token_count(base_prompt)
+            return {
+                "status": "error",
+                "error": f"{stage}超长：估算输入约 {estimated_tokens} tokens，超过预算 {token_budget}。",
+                "estimated_tokens": estimated_tokens,
+                "selected_count": 0,
+                "selected_evidence": [],
+                "selected_chunk_ids": [],
+                "selected_pages": [],
+                "original_count": original_count,
+                "deduped_count": deduped_count,
+                "target_pages": target_pages,
+            }
+
+        prompt_text = build_prompt(selected_evidence, selected_chunk_ids)
+        estimated_tokens = self._estimate_token_count(prompt_text)
+        if estimated_tokens > token_budget:
+            return {
+                "status": "error",
+                "error": f"{stage}超长：估算输入约 {estimated_tokens} tokens，超过预算 {token_budget}。",
+                "estimated_tokens": estimated_tokens,
+                "selected_count": len(selected_evidence),
+                "selected_evidence": selected_evidence,
+                "selected_chunk_ids": selected_chunk_ids,
+                "selected_pages": selected_pages,
+                "original_count": original_count,
+                "deduped_count": deduped_count,
+                "target_pages": target_pages,
+            }
+
+        return {
+            "status": "success",
+            "prompt": prompt_text,
+            "estimated_tokens": estimated_tokens,
+            "selected_count": len(selected_evidence),
+            "selected_evidence": selected_evidence,
+            "selected_chunk_ids": selected_chunk_ids,
+            "selected_pages": selected_pages,
+            "original_count": original_count,
+            "deduped_count": deduped_count,
+            "target_pages": target_pages,
+        }
+
+    def _log_item17_budget(self, stage: str, payload: dict[str, Any]) -> None:
+        logger.info(
+            f"[item_17][{stage}] 预算详情: 原始证据={payload.get('original_count', 0)}, "
+            f"去重后={payload.get('deduped_count', 0)}, 发送证据={payload.get('selected_count', 0)}, "
+            f"估算tokens={payload.get('estimated_tokens', 0)}, mode={payload.get('mode', 'text')}, "
+            f"目标页={payload.get('target_pages', [])}, 已选页={payload.get('selected_pages', [])}, "
+            f"降级路径={payload.get('degraded_from', 'none')}"
+        )
+
+    def _build_item17_scoring_payload(self, scoring_table: str) -> dict[str, Any]:
+        """为 item_17 评分阶段构建预算内请求，优先多模态，必要时降级到纯文本。"""
+        candidates, meta = self._collect_item17_candidates(_ITEM17_SCORING_MAX_CHARS_PER_EVIDENCE)
+        ordered_candidates = self._prioritize_item17_candidates(candidates, prefer_unique_chunks=False)
+        title = self.skill_config.get("title", "")
+        shots = self.skill_config.get("shots", [])
+        target_pages = meta["target_pages"]
+        vision_prompt = self.skill_config.get(
+            f"vision_prompt_{self.lang}",
+            self.skill_config.get("vision_prompt_en", "Please judge based on the provided images."),
+        )
+
+        def build_text_prompt(evidence_subset: list[str], chunk_ids: list[str]) -> str:
+            return strip_surrogates(render_scoring_prompt(
+                item_id=self.skill_id,
+                title=title,
+                shots=shots,
+                evidence_cache=evidence_subset,
+                scoring_table=scoring_table,
+                n_sources=len(set(chunk_ids)),
+            ))
+
+        def build_multimodal_prompt(evidence_subset: list[str], chunk_ids: list[str]) -> str:
+            base_prompt = build_text_prompt(evidence_subset, chunk_ids)
+            return strip_surrogates(base_prompt + "\n\n" + vision_prompt)
+
+        degraded_from = "none"
+        if get_settings().llm.is_vision_model and target_pages:
+            multimodal_payload = self._fit_item17_candidates_to_budget(
+                stage="多模态评分",
+                candidates=ordered_candidates,
+                build_prompt=build_multimodal_prompt,
+                token_budget=_ITEM17_SCORING_MULTIMODAL_BUDGET_TOKENS - _ITEM17_SCORING_IMAGE_TOKEN_OVERHEAD,
+                max_items=_ITEM17_SCORING_MAX_EVIDENCE_ITEMS,
+                original_count=meta["original_count"],
+                deduped_count=meta["deduped_count"],
+                target_pages=target_pages,
+            )
+            if multimodal_payload["status"] == "success":
+                pdf_path = self._find_source_pdf()
+                b64_img = get_stitched_pdf_pages_as_base64(pdf_path, target_pages)
+                if b64_img:
+                    multimodal_payload.update({
+                        "mode": "multimodal",
+                        "messages": [
+                            {"role": "system", "content": "You are a scoring assistant. Output JSON only."},
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": multimodal_payload["prompt"]},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}},
+                                ],
+                            },
+                        ],
+                        "estimated_tokens": multimodal_payload["estimated_tokens"] + _ITEM17_SCORING_IMAGE_TOKEN_OVERHEAD,
+                        "degraded_from": "none",
+                    })
+                    self._log_item17_budget("评分", multimodal_payload)
+                    return multimodal_payload
+
+                degraded_from = "multimodal(no_image)"
+                logger.warning("item_17 多模态评分图片生成失败，降级为纯文本评分。")
+            else:
+                degraded_from = "multimodal(over_budget)"
+                logger.warning(multimodal_payload["error"])
+
+        text_payload = self._fit_item17_candidates_to_budget(
+            stage="文本评分",
+            candidates=ordered_candidates,
+            build_prompt=build_text_prompt,
+            token_budget=_ITEM17_SCORING_TEXT_BUDGET_TOKENS,
+            max_items=_ITEM17_SCORING_MAX_EVIDENCE_ITEMS,
+            original_count=meta["original_count"],
+            deduped_count=meta["deduped_count"],
+            target_pages=target_pages,
+        )
+        if text_payload["status"] == "error":
+            return text_payload
+
+        text_payload.update({
+            "mode": "text",
+            "messages": [
+                {"role": "system", "content": "You are a scoring assistant. Output JSON only."},
+                {"role": "user", "content": text_payload["prompt"]},
+            ],
+            "degraded_from": degraded_from,
+        })
+        self._log_item17_budget("评分", text_payload)
+        return text_payload
+
+    def _build_item17_report_payload(self, scoring_table: str) -> dict[str, Any]:
+        """为 item_17 最终报告构建纯文本压缩证据子集。"""
+        candidates, meta = self._collect_item17_candidates(_ITEM17_REPORT_MAX_CHARS_PER_EVIDENCE)
+        ordered_candidates = self._prioritize_item17_candidates(candidates, prefer_unique_chunks=True)
+        title = self.skill_config.get("title", "")
+        domain_name = self.skill_config.get("domain_name", "")
+        shots = self.skill_config.get("shots", [])
+
+        def build_report_prompt(evidence_subset: list[str], chunk_ids: list[str]) -> str:
+            return strip_surrogates(render_final_report_prompt(
+                item_id=self.skill_id,
+                domain_name=domain_name,
+                title=title,
+                shots=shots,
+                scoring_table=scoring_table,
+                evidence_cache=evidence_subset,
+                evidence_chunk_map=chunk_ids,
+                final_score=self.current_score,
+            ))
+
+        payload = self._fit_item17_candidates_to_budget(
+            stage="最终报告",
+            candidates=ordered_candidates,
+            build_prompt=build_report_prompt,
+            token_budget=_ITEM17_REPORT_BUDGET_TOKENS,
+            max_items=_ITEM17_REPORT_MAX_EVIDENCE_ITEMS,
+            original_count=meta["original_count"],
+            deduped_count=meta["deduped_count"],
+            target_pages=meta["target_pages"],
+        )
+        if payload["status"] == "error":
+            return payload
+
+        payload.update({
+            "mode": "text",
+            "degraded_from": "none",
+        })
+        self._log_item17_budget("最终报告", payload)
+        return payload
     
     def _log_llm_call(
         self,
@@ -204,7 +548,7 @@ class IterativeEvaluator:
         """
         import re
         # 使用 DOTALL 模式匹配跨行的 think 标签
-        return re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+        return strip_surrogates(re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip())
     
     def _extract_content_from_response(self, response) -> tuple[str, str | None]:
         """
@@ -217,10 +561,13 @@ class IterativeEvaluator:
             (content, reasoning_content) 元组
         """
         message = response.choices[0].message
-        content = message.content.strip() if message.content else ""
+        content = strip_surrogates(message.content.strip()) if message.content else ""
         
         # vLLM + reasoning-parser 模式下，reasoning 内容会在单独字段
-        reasoning_content = getattr(message, 'reasoning_content', None)
+        # 兼容最新 vLLM 的 'reasoning' 字段和旧版 'reasoning_content'
+        reasoning_content = getattr(message, 'reasoning', None) or getattr(message, 'reasoning_content', None)
+        if isinstance(reasoning_content, str):
+            reasoning_content = strip_surrogates(reasoning_content)
         
         # 清理可能残留的 think 标签
         content = self._clean_thinking_content(content)
@@ -245,6 +592,7 @@ class IterativeEvaluator:
             pool = EvidencePool.load(prep_dir)
         except FileNotFoundError as e:
             return self._error_result(f"证据池加载失败: {e}")
+        self._chunk_lookup = {chunk.chunk_id: chunk for chunk in pool.chunks}
         
         # 2. 创建迭代器
         iterator = EvidenceIterator(pool.chunks, self.domain_id)
@@ -268,10 +616,10 @@ class IterativeEvaluator:
             new_evidence, new_chunk_ids = self._extract_evidence_batch(batch_chunks)
             
             if new_evidence:
-                self.evidence_cache.extend(new_evidence)
-                self.evidence_chunk_map.extend(new_chunk_ids)
+                self.evidence_cache.extend(sanitize_unicode(new_evidence))
+                self.evidence_chunk_map.extend(sanitize_unicode(new_chunk_ids))
                 for chunk in batch_chunks:
-                    self.evidence_sources.append(chunk.chunk_id)
+                    self.evidence_sources.append(strip_surrogates(chunk.chunk_id))
                 logger.info(f"Batch 提取到 {len(new_evidence)} 条证据")
             
             # 3.2 动态评分 (仅在有新证据时)
@@ -305,13 +653,13 @@ class IterativeEvaluator:
         # 拼接 chunk 内容（带 chunk_id 标记，便于 LLM 识别来源）
         combined_content = []
         for c in chunks:
-            chunk_text = f"[{c.chunk_id}] ## {c.title}\n{c.content}"
+            chunk_text = f"[{strip_surrogates(c.chunk_id)}] ## {strip_surrogates(c.title)}\n{strip_surrogates(c.content)}"
             
             # 条目17：注入格式元数据供 LLM 评价推荐意见呈现方式
             if self.skill_id == "item_17" and getattr(c, "format_hints", None):
                 format_desc = c.format_hints.get("format_description", "")
                 if format_desc:
-                    chunk_text += f"\n\n{format_desc}"
+                    chunk_text += f"\n\n{strip_surrogates(format_desc)}"
             
             combined_content.append(chunk_text)
         
@@ -330,6 +678,7 @@ class IterativeEvaluator:
             scoring_table=scoring_table,
             chunk_content=full_text,
         )
+        prompt = strip_surrogates(prompt)
         
         # 定义 Pydantic Schema 用于约束输出（新格式：包含 chunk_id）
         from pydantic import BaseModel, Field
@@ -353,18 +702,22 @@ class IterativeEvaluator:
 
             response = litellm.completion(
                 model=self.model,
-                messages=[
+                messages=sanitize_unicode([
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": prompt}
-                ],
-                api_base=self.llm_base_url,
+                ]),
+                base_url=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
-                top_p=0.1,
-                seed=42,          # 固定随机种子
                 max_tokens=8192,
                 response_format={"type": "json_object"},
                 timeout=self.llm_timeout,
+                **get_compatible_reasoning_kwargs(self.model),
+                **get_compatible_sampling_kwargs(
+                    self.model,
+                    temperature=0,
+                    top_p=0.1,
+                    seed=42,
+                ),
                 **get_provider_kwargs(),
             )
             
@@ -402,12 +755,12 @@ class IterativeEvaluator:
                         chunk_id = item.get("chunk_id", "unknown")
                         evidence_text = item.get("evidence", "")
                         if evidence_text:
-                            evidence_texts.append(str(evidence_text))
-                            chunk_ids.append(str(chunk_id))
+                            evidence_texts.append(strip_surrogates(str(evidence_text)))
+                            chunk_ids.append(strip_surrogates(str(chunk_id)))
                     elif isinstance(item, str) and item:
                         # 兼容旧格式：纯字符串数组（回退到第一个 chunk）
-                        evidence_texts.append(str(item))
-                        chunk_ids.append(chunks[0].chunk_id if chunks else "unknown")
+                        evidence_texts.append(strip_surrogates(str(item)))
+                        chunk_ids.append(strip_surrogates(chunks[0].chunk_id if chunks else "unknown"))
                         
             except json.JSONDecodeError:
                 import re
@@ -421,11 +774,11 @@ class IterativeEvaluator:
                                 chunk_id = item.get("chunk_id", "unknown")
                                 evidence_text = item.get("evidence", "")
                                 if evidence_text:
-                                    evidence_texts.append(str(evidence_text))
-                                    chunk_ids.append(str(chunk_id))
+                                    evidence_texts.append(strip_surrogates(str(evidence_text)))
+                                    chunk_ids.append(strip_surrogates(str(chunk_id)))
                             elif isinstance(item, str) and item:
-                                evidence_texts.append(str(item))
-                                chunk_ids.append(chunks[0].chunk_id if chunks else "unknown")
+                                evidence_texts.append(strip_surrogates(str(item)))
+                                chunk_ids.append(strip_surrogates(chunks[0].chunk_id if chunks else "unknown"))
                     except json.JSONDecodeError:
                         pass
             
@@ -450,88 +803,53 @@ class IterativeEvaluator:
             scoring_rows.append(f"| {sp['range']} | {condition} |")
         scoring_table = "\n".join(scoring_rows)
         
-        prompt = render_scoring_prompt(
-            item_id=self.skill_id,
-            title=self.skill_config.get("title", ""),
-            shots=self.skill_config.get("shots", []),
-            evidence_cache=self.evidence_cache,
-            scoring_table=scoring_table,
-            n_sources=len(self.evidence_sources),
-        )
-        
-        # prompt 模板已统一为 JSON 输出格式，与 response_format 一致
-        system_instruction = "You are a scoring assistant. Output JSON only."
-        api_prompt = prompt
-        
-        logger.info("=== [Dynamic Scoring] Input Prompt Preview ===")
-        logger.info(self._preview_text(api_prompt))
-        logger.info("======================================")
-        logger.debug(f"=== [Dynamic Scoring] Input Prompt (full) ===\n{api_prompt}\n======================================")
-        
+        content = ""
         try:
-            messages = [
-                {"role": "system", "content": system_instruction}
-            ]
-            
-            # 条目17应用多模态特供处理（仅当模型具备视觉能力时）
-            if self.skill_id == "item_17" and get_settings().llm.is_vision_model:
-                vision_prompt = self.skill_config.get(
-                    f"vision_prompt_{self.lang}", 
-                    self.skill_config.get("vision_prompt_en", "Please judge based on the provided images.")
-                )
-                
-                # 从证据池里捞页码
-                paths = get_task_paths(self.task_id)
-                pool = EvidencePool.load(paths["prep_dir"])
-                from collections import Counter
-                page_counter = Counter()
-                # 提取 evidence_chunk_map 中的 ID
-                for cid in self.evidence_chunk_map:
-                    chunk = next((c for c in pool.chunks if c.chunk_id == cid), None)
-                    if chunk and chunk.start_page is not None:
-                        # 用 start_page 作为主要抓图目标密度统计
-                        page_counter[chunk.start_page] += 1
-                
-                if page_counter:
-                    # 获取提及频数最高的前 2 页
-                    most_common_pages = [page for page, count in page_counter.most_common(2)]
-                    target_pages = sorted(most_common_pages)
-                    logger.info(f"多模态评分(item_17)：按密度选取最高频的 {len(target_pages)} 页生成长图 {target_pages}")
-                    pdf_path = self._find_source_pdf()
-                    b64_img = get_stitched_pdf_pages_as_base64(pdf_path, target_pages)
-                    
-                    full_text_prompt = api_prompt + "\n\n" + vision_prompt
-                    logger.info("=== [Dynamic Scoring] Vision Prompt Preview ===")
-                    logger.info(self._preview_text(vision_prompt))
-                    logger.info("================================================")
-                    
-                    if b64_img:
-                        messages.append({
-                            "role": "user", 
-                            "content": [
-                                {"type": "text", "text": full_text_prompt},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
-                            ]
-                        })
-                        logger.info(">> 已成功挂载 VLM 长拼接单图数据")
-                    else:
-                        messages.append({"role": "user", "content": api_prompt})
-                else:
-                    messages.append({"role": "user", "content": api_prompt})
+            if self._is_item17:
+                payload = self._build_item17_scoring_payload(scoring_table)
+                if payload["status"] == "error":
+                    logger.warning(payload["error"])
+                    return self.current_score
+                messages = payload["messages"]
+                api_prompt = payload["prompt"]
+                if payload["mode"] == "multimodal":
+                    logger.info(f"多模态评分(item_17)：按密度选取最高频的 {len(payload['target_pages'])} 页生成长图 {payload['target_pages']}")
+                    logger.info(">> 已成功挂载 VLM 长拼接单图数据")
             else:
-                messages.append({"role": "user", "content": api_prompt})
+                prompt = render_scoring_prompt(
+                    item_id=self.skill_id,
+                    title=self.skill_config.get("title", ""),
+                    shots=self.skill_config.get("shots", []),
+                    evidence_cache=self.evidence_cache,
+                    scoring_table=scoring_table,
+                    n_sources=len(self.evidence_sources),
+                )
+                api_prompt = strip_surrogates(prompt)
+                messages = [
+                    {"role": "system", "content": "You are a scoring assistant. Output JSON only."},
+                    {"role": "user", "content": api_prompt},
+                ]
+
+            logger.info("=== [Dynamic Scoring] Input Prompt Preview ===")
+            logger.info(self._preview_text(api_prompt))
+            logger.info("======================================")
+            logger.debug(f"=== [Dynamic Scoring] Input Prompt (full) ===\n{api_prompt}\n======================================")
 
             response = litellm.completion(
                 model=self.model,
-                messages=messages,
-                api_base=self.llm_base_url,
+                messages=sanitize_unicode(messages),
+                base_url=self.llm_base_url,
                 api_key=self.llm_api_key,
-                temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
-                top_p=0.1,
-                seed=42,
                 max_tokens=8096,
                 response_format={"type": "json_object"},
                 timeout=self.llm_timeout,
+                **get_compatible_reasoning_kwargs(self.model),
+                **get_compatible_sampling_kwargs(
+                    self.model,
+                    temperature=0,
+                    top_p=0.1,
+                    seed=42,
+                ),
                 **get_provider_kwargs(),
             )
             
@@ -598,16 +916,28 @@ class IterativeEvaluator:
             scoring_rows.append(f"| {sp['range']} | {condition} |")
         scoring_table = "\n".join(scoring_rows)
         
-        prompt = render_final_report_prompt(
-            item_id=self.skill_id,
-            domain_name=self.skill_config.get("domain_name", ""),
-            title=self.skill_config.get("title", ""),
-            shots=self.skill_config.get("shots", []),
-            scoring_table=scoring_table,
-            evidence_cache=self.evidence_cache,
-            evidence_chunk_map=self.evidence_chunk_map,  # 使用精确映射
-            final_score=self.current_score,
-        )
+        report_evidence = self.evidence_cache
+        report_chunk_ids = self.evidence_chunk_map
+        if self._is_item17:
+            payload = self._build_item17_report_payload(scoring_table)
+            if payload["status"] == "error":
+                logger.error(payload["error"])
+                return self._error_result(payload["error"])
+            prompt = payload["prompt"]
+            report_evidence = payload["selected_evidence"]
+            report_chunk_ids = payload["selected_chunk_ids"]
+        else:
+            prompt = render_final_report_prompt(
+                item_id=self.skill_id,
+                domain_name=self.skill_config.get("domain_name", ""),
+                title=self.skill_config.get("title", ""),
+                shots=self.skill_config.get("shots", []),
+                scoring_table=scoring_table,
+                evidence_cache=self.evidence_cache,
+                evidence_chunk_map=self.evidence_chunk_map,  # 使用精确映射
+                final_score=self.current_score,
+            )
+            prompt = strip_surrogates(prompt)
         
         logger.info("=== [Final Report] Input Prompt Preview ===")
         logger.info(self._preview_text(prompt))
@@ -622,61 +952,27 @@ class IterativeEvaluator:
                 # 使用 Pydantic Schema 强制输出结构
                 system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
                 
+                # 最终报告只基于已抽取证据生成，避免重复注入图片导致上下文膨胀。
                 messages = [
-                    {"role": "system", "content": system_instruction}
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt},
                 ]
-                
-                # 条目17同样在综合报告阶段注入图片（仅当模型具备视觉能力时）
-                if self.skill_id == "item_17" and get_settings().llm.is_vision_model:
-                    vision_prompt = self.skill_config.get(
-                        f"vision_prompt_{self.lang}", 
-                        self.skill_config.get("vision_prompt_en", "")
-                    )
-                    paths = get_task_paths(self.task_id)
-                    pool = EvidencePool.load(paths["prep_dir"])
-                    from collections import Counter
-                    page_counter = Counter()
-                    for cid in self.evidence_chunk_map:
-                        chunk = next((c for c in pool.chunks if c.chunk_id == cid), None)
-                        if chunk and chunk.start_page is not None:
-                            page_counter[chunk.start_page] += 1
-                    
-                    if page_counter:
-                        most_common_pages = [page for page, count in page_counter.most_common(2)]
-                        target_pages = sorted(most_common_pages)
-                        logger.info(f"多模态报告(item_17) attempt {attempt}：按密度选取最高频的 {len(target_pages)} 页成图 {target_pages}")
-                        pdf_path = self._find_source_pdf()
-                        # 使用 pdf_vision.py 中用户默认设置的高 DPI
-                        b64_img = get_stitched_pdf_pages_as_base64(pdf_path, target_pages)
-                        
-                        full_text_prompt = prompt + "\n\n" + vision_prompt
-                        
-                        if b64_img:
-                            messages.append({
-                                "role": "user", 
-                                "content": [
-                                    {"type": "text", "text": full_text_prompt},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
-                                ]
-                            })
-                        else:
-                            messages.append({"role": "user", "content": prompt})
-                    else:
-                        messages.append({"role": "user", "content": prompt})
-                else:
-                    messages.append({"role": "user", "content": prompt})
                 
                 response = litellm.completion(
                     model=self.model,
-                    messages=messages,
-                    api_base=self.llm_base_url,
+                    messages=sanitize_unicode(messages),
+                    base_url=self.llm_base_url,
                     api_key=self.llm_api_key,
-                    temperature=0,    # 非 thinking 模式，使用贪婪解码确保确定性
-                    top_p=0.1,
-                    seed=42,
                     max_tokens=16384,
                     response_format={"type": "json_object"},  # 使用简单 json_object 避免 SGLang xgrammar 兼容性问题
                     timeout=self.llm_timeout,
+                    **get_compatible_reasoning_kwargs(self.model),
+                    **get_compatible_sampling_kwargs(
+                        self.model,
+                        temperature=0,
+                        top_p=0.1,
+                        seed=42,
+                    ),
                     **get_provider_kwargs(),
                 )
                 
@@ -708,7 +1004,7 @@ class IterativeEvaluator:
                 if json_match:
                     content = json_match.group(0)
                 
-                cot = json.loads(content)
+                cot = sanitize_unicode(json.loads(content))
                 
                 # 使用 Pydantic 验证结构，确保字段完整
                 try:
@@ -720,14 +1016,14 @@ class IterativeEvaluator:
                     step3_reasoning = cot.get("step3_reasoning", "")
                     step1_locate = cot.get("step1_locate", f"证据来自以下章节: {', '.join(self.evidence_sources)}")
                 
-                return {
+                return sanitize_unicode({
                     "status": "success",
                     "skill_id": self.skill_id,
                     "domain": self.domain_id,
                     "title": self.skill_config.get("title", ""),
                     "chain_of_thought": {
                         "step1_locate": step1_locate,
-                        "step2_evidence": self.evidence_cache,
+                        "step2_evidence": report_evidence,
                         "step3_reasoning": step3_reasoning,
                         "score": self.current_score,
                     },
@@ -735,9 +1031,10 @@ class IterativeEvaluator:
                     "iteration_stats": {
                         "total_chunks": len(self.evidence_sources) if self.evidence_sources else 0,
                         "evidence_count": len(self.evidence_cache),
+                        "report_evidence_count": len(report_evidence),
                         "early_stopped": self.current_score == 7,
                     },
-                }
+                })
                 
             except json.JSONDecodeError as e:
                 last_error = e
@@ -749,6 +1046,10 @@ class IterativeEvaluator:
         
         # 所有重试均失败，使用简化报告
         logger.error(f"最终报告生成在 {max_retries} 次尝试后均失败，回退到简化报告。最后错误: {last_error}")
+        if self._is_item17:
+            if isinstance(last_error, json.JSONDecodeError):
+                return self._error_result(f"最终报告 JSON 解析失败: {last_error}")
+            return self._error_result(f"最终报告生成失败: {last_error}")
         return self._simple_report()
     
     def _simple_report(self) -> Dict[str, Any]:
@@ -786,7 +1087,7 @@ class IterativeEvaluator:
         if self.evidence_cache and self.current_score == 1:
             reasoning += f" ⚠️ 警告：已提取到 {len(self.evidence_cache)} 条证据但评分为最低分，建议人工复核。"
         
-        return {
+        return sanitize_unicode({
             "status": "fallback",  # 标记为回退报告，区别于正常 success
             "skill_id": self.skill_id,
             "domain": self.domain_id,
@@ -803,11 +1104,11 @@ class IterativeEvaluator:
                 "evidence_count": len(self.evidence_cache),
                 "early_stopped": self.current_score == 7,
             },
-        }
+        })
     
     def _no_evidence_result(self) -> Dict[str, Any]:
         """无证据时的结果"""
-        return {
+        return sanitize_unicode({
             "status": "no_evidence",
             "skill_id": self.skill_id,
             "domain": self.domain_id,
@@ -824,15 +1125,15 @@ class IterativeEvaluator:
                 "evidence_count": 0,
                 "early_stopped": False,
             },
-        }
+        })
     
     def _error_result(self, error: str) -> Dict[str, Any]:
         """错误结果"""
-        return {
+        return sanitize_unicode({
             "status": "error",
             "skill_id": self.skill_id,
             "error": error,
-        }
+        })
 
 
 def run_iterative_evaluation(task_id: str, skill_id: str, lang: str = "en") -> Dict[str, Any]:

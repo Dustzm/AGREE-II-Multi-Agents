@@ -89,7 +89,12 @@ class SemanticLabeler:
             import litellm
             from core.config import get_settings
             from core.agents.base.schemas import SemanticLabelOutput
-            from core.agents.base.model_config import get_provider_kwargs, get_provider_config_for
+            from core.agents.base.model_config import (
+                get_compatible_reasoning_kwargs,
+                get_compatible_sampling_kwargs,
+                get_provider_kwargs,
+                get_provider_config_for,
+            )
             
             settings = get_settings()
             provider_cfg = get_provider_config_for(settings.llm.provider)
@@ -103,18 +108,22 @@ class SemanticLabeler:
             if provider_cfg.get("need_base_url"):
                 effective_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
                 if effective_url:
-                    kwargs["api_base"] = effective_url
+                    kwargs["base_url"] = effective_url
             
             # 使用 litellm 的异步接口，配合 response_format 强制 JSON 输出
             response = await litellm.acompletion(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0,    # 标签分类是确定性任务，使用贪婪解码
-                top_p=0.1,
-                seed=42,          # 固定随机种子，保证可复现性
                 max_tokens=2500,
                 response_format={"type": "json_object"},  # 使用 json_object 避免 SGLang xgrammar 兼容性问题
                 timeout=settings.llm.timeout,
+                **get_compatible_reasoning_kwargs(model_name),
+                **get_compatible_sampling_kwargs(
+                    model_name,
+                    temperature=0,
+                    top_p=0.1,
+                    seed=42,
+                ),
                 **kwargs,
             )
             

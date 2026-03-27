@@ -13,6 +13,7 @@ from typing import Callable, Dict, Any, Coroutine
 
 from core.agents.appraiser import run_iterative_evaluation
 from core.agents.tools.appraiser_tools import save_item_evaluation
+from core.utils.unicode_sanitizer import sanitize_unicode
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def _sync_appraise(task_id: str, skill_id: str, lang: str) -> Dict[str, Any]:
     logger.info(f"开始评价: task_id={task_id}, skill_id={skill_id}")
     
     # 调用迭代评价器（同步调用）
-    result = run_iterative_evaluation(task_id, skill_id, lang)
+    result = sanitize_unicode(run_iterative_evaluation(task_id, skill_id, lang))
     
     # 保存评价结果到 .ama/evaluations/{skill_id}.json
     # 无论是 success 还是 no_evidence 状态都需要保存
@@ -54,7 +55,7 @@ def _sync_appraise(task_id: str, skill_id: str, lang: str) -> Dict[str, Any]:
     else:
         logger.warning(f"评价失败: {result.get('error', '未知错误')}")
     
-    return result
+    return sanitize_unicode(result)
 
 
 def create_appraiser_tool(skill_id: str, lang: str = "en") -> Callable[[str], Coroutine[Any, Any, Dict[str, Any]]]:

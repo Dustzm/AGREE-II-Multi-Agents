@@ -67,6 +67,58 @@ def _mask_api_key(key: str) -> str:
     return f"{key[:4]}...{key[-4:]}"
 
 
+def _truncate_log_value(value, limit: int = 2000) -> str:
+    """限制日志字段长度，避免上游响应过长压垮日志。"""
+    text = str(value).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}... [truncated]"
+
+
+def _collect_exception_debug_info(exc: Exception) -> str:
+    """尽可能提取 LiteLLM / OpenAI / HTTP 异常中的关键信息。"""
+    parts: list[str] = [f"type={exc.__class__.__name__}"]
+
+    for attr in ("status_code", "message", "llm_provider", "model"):
+        value = getattr(exc, attr, None)
+        if value not in (None, ""):
+            parts.append(f"{attr}={_truncate_log_value(value)}")
+
+    body = getattr(exc, "body", None)
+    if body not in (None, ""):
+        parts.append(f"body={_truncate_log_value(body)}")
+
+    response = getattr(exc, "response", None)
+    if response is not None:
+        status_code = getattr(response, "status_code", None)
+        if status_code is not None:
+            parts.append(f"response.status_code={status_code}")
+        url = getattr(response, "url", None)
+        if url:
+            parts.append(f"response.url={url}")
+        text = getattr(response, "text", None)
+        if text:
+            parts.append(f"response.text={_truncate_log_value(text)}")
+
+    request = getattr(exc, "request", None)
+    if request is not None:
+        method = getattr(request, "method", None)
+        url = getattr(request, "url", None)
+        if method or url:
+            parts.append(f"request={method or ''} {url or ''}".strip())
+
+    if exc.__cause__ is not None:
+        parts.append(
+            f"cause={exc.__cause__.__class__.__name__}: {_truncate_log_value(exc.__cause__)}"
+        )
+    elif exc.__context__ is not None:
+        parts.append(
+            f"context={exc.__context__.__class__.__name__}: {_truncate_log_value(exc.__context__)}"
+        )
+
+    return " | ".join(parts)
+
+
 # ========== 路由 ==========
 
 @router.get("/config/llm", response_model=LLMConfigResponse)
@@ -251,7 +303,13 @@ async def check_llm_health():
     统一使用 LiteLLM 路由以兼容各类提供商
     """
     import litellm
-    from core.agents.base.model_config import PROVIDER_CONFIG, get_provider_kwargs, _setup_llm_env
+    from core.agents.base.model_config import (
+        PROVIDER_CONFIG,
+        get_compatible_reasoning_kwargs,
+        get_compatible_sampling_kwargs,
+        get_provider_kwargs,
+        _setup_llm_env,
+    )
     
     _setup_llm_env()
     settings = get_settings()
@@ -268,19 +326,29 @@ async def check_llm_health():
     kwargs = get_provider_kwargs()
     if settings.llm.api_key:
         kwargs["api_key"] = settings.llm.api_key
+    effective_url = ""
     if provider_cfg.get("need_base_url"):
         effective_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
         if effective_url:
-            kwargs["api_base"] = effective_url
-            
+            kwargs["base_url"] = effective_url
+
+    logger.info(
+        "开始 LLM 健康验证: provider=%s model=%s api_base=%s timeout=%s",
+        settings.llm.provider,
+        model_string,
+        effective_url or "<official-default>",
+        min(settings.llm.timeout, 30),
+    )
+
     start_time = time.time()
     try:
         response = await litellm.acompletion(
             model=model_string,
             messages=[{"role": "user", "content": "hello"}],
             max_tokens=60,
-            temperature=0.1,
             timeout=min(settings.llm.timeout, 30),
+            **get_compatible_reasoning_kwargs(model_string),
+            **get_compatible_sampling_kwargs(model_string, temperature=0.1),
             **kwargs,
         )
         
@@ -312,6 +380,14 @@ async def check_llm_health():
         )
     except Exception as e:
         latency_ms = int((time.time() - start_time) * 1000)
+        logger.exception(
+            "LLM 健康验证失败: provider=%s model=%s api_base=%s latency_ms=%s details=%s",
+            settings.llm.provider,
+            model_string,
+            effective_url or "<official-default>",
+            latency_ms,
+            _collect_exception_debug_info(e),
+        )
         return HealthCheckResult(
             success=False,
             message=f"健康验证异常: {str(e)}",

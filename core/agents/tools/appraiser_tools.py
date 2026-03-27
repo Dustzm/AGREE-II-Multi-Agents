@@ -14,6 +14,7 @@ from typing import Optional
 
 from .public_tools import get_task_paths, read_source_document
 from core.skills import load_skill_config as _load_skill_config
+from core.utils.unicode_sanitizer import sanitize_unicode
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ def save_item_evaluation(
             title = skill_id
         
         # 构建评价结果
-        evaluation = {
+        evaluation = sanitize_unicode({
             "item_id": skill_id,
             "domain": domain,
             "title": title,
@@ -142,7 +143,7 @@ def save_item_evaluation(
                 "skill_config": f"skills/{skill_id}.yaml",
                 "evaluated_at": datetime.now().isoformat(),
             }
-        }
+        })
         
         # 保存到 JSON 文件
         file_path = eval_dir / f"{skill_id}.json"

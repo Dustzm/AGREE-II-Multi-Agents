@@ -15,7 +15,7 @@ from mineru.utils.enum_class import ImageType
 from mineru.utils.hash_utils import str_sha256
 from mineru.utils.pdf_page_id import get_end_page_id
 
-from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ALL_COMPLETED, ProcessPoolExecutor, wait
 
 
 def pdf_page_to_image(page: pdfium.PdfPage, dpi=200, image_type=ImageType.PIL) -> dict:
@@ -44,6 +44,37 @@ def pdf_page_to_image(page: pdfium.PdfPage, dpi=200, image_type=ImageType.PIL) -
 def _load_images_from_pdf_worker(pdf_bytes, dpi, start_page_id, end_page_id, image_type):
     """用于进程池的包装函数"""
     return load_images_from_pdf_core(pdf_bytes, dpi, start_page_id, end_page_id, image_type)
+
+
+def _force_shutdown_process_pool(executor: ProcessPoolExecutor):
+    """
+    强制关闭进程池，避免卡死的 PDF 渲染子进程阻塞主进程退出。
+
+    标准 `with ProcessPoolExecutor(...)` 在异常退出时会调用
+    `shutdown(wait=True)`。如果某个 worker 卡死在 PDF 渲染内部，
+    主进程会被无限阻塞在退出阶段，导致整个批量任务看起来“永远卡住”。
+    """
+    processes = getattr(executor, "_processes", {}) or {}
+    for process in processes.values():
+        if process is None:
+            continue
+
+        try:
+            if process.is_alive():
+                process.terminate()
+        except Exception as exc:
+            logger.warning(f"终止 PDF 渲染子进程失败: {exc}")
+
+    for process in processes.values():
+        if process is None:
+            continue
+
+        try:
+            process.join(timeout=1)
+            if process.is_alive():
+                process.kill()
+        except Exception as exc:
+            logger.warning(f"强制杀死 PDF 渲染子进程失败: {exc}")
 
 
 def load_images_from_pdf(
@@ -106,7 +137,9 @@ def load_images_from_pdf(
 
         # logger.debug(f"PDF to images using {actual_threads} processes, page ranges: {page_ranges}")
 
-        with ProcessPoolExecutor(max_workers=actual_threads) as executor:
+        executor = ProcessPoolExecutor(max_workers=actual_threads)
+        timed_out = False
+        try:
             # 提交所有任务
             futures = []
             for range_start, range_end in page_ranges:
@@ -120,24 +153,38 @@ def load_images_from_pdf(
                 )
                 futures.append((range_start, future))
 
-            try:
-                # 收集结果并按页码排序
-                all_results = []
-                for range_start, future in futures:
-                    images_list = future.result(timeout=timeout)
-                    all_results.append((range_start, images_list))
+            done, not_done = wait(
+                [future for _, future in futures],
+                timeout=timeout,
+                return_when=ALL_COMPLETED,
+            )
 
-                # 按起始页码排序并合并结果
-                all_results.sort(key=lambda x: x[0])
-                images_list = []
-                for _, imgs in all_results:
-                    images_list.extend(imgs)
-
-                return images_list, pdf_doc
-            except FuturesTimeoutError:
+            if not_done:
+                timed_out = True
+                for future in not_done:
+                    future.cancel()
                 pdf_doc.close()
-                executor.shutdown(wait=False, cancel_futures=True)
+                _force_shutdown_process_pool(executor)
                 raise TimeoutError(f"PDF to images conversion timeout after {timeout}s")
+
+            # 收集结果并按页码排序
+            all_results = []
+            for range_start, future in futures:
+                images_list = future.result()
+                all_results.append((range_start, images_list))
+
+            # 按起始页码排序并合并结果
+            all_results.sort(key=lambda x: x[0])
+            images_list = []
+            for _, imgs in all_results:
+                images_list.extend(imgs)
+
+            return images_list, pdf_doc
+        finally:
+            if timed_out:
+                executor.shutdown(wait=False, cancel_futures=True)
+            else:
+                executor.shutdown(wait=True, cancel_futures=False)
 
 
 def load_images_from_pdf_core(
