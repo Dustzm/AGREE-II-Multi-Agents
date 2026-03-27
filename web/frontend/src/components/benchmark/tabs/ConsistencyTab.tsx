@@ -1,5 +1,9 @@
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Download, Loader2 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { BenchmarkSummary } from '@/services/api'
+import { exportItemConsistencyChart } from '@/utils/exportBenchmarkChart'
 
 // AGREE II 领域定义
 const DOMAINS = [
@@ -31,14 +35,42 @@ function getConsistencyLightBg(value: number): string {
 
 interface ConsistencyTabProps {
   summary: BenchmarkSummary
+  xlsxFile: string
 }
 
-export function ConsistencyTab({ summary }: ConsistencyTabProps) {
+export function ConsistencyTab({ summary, xlsxFile }: ConsistencyTabProps) {
   const { t } = useTranslation()
+  const [isExporting, setIsExporting] = useState(false)
 
   const percentage = Math.round(summary.overall_consistency * 100)
   const circumference = 2 * Math.PI * 42
   const strokeDashoffset = circumference - (summary.overall_consistency * circumference)
+  const itemMap = useMemo(() => {
+    return new Map(summary.item_consistencies.map((item) => {
+      const id = parseInt(item.item_id.replace('item_', ''))
+      return [id, item]
+    }))
+  }, [summary.item_consistencies])
+  const canExportChart = summary.item_consistencies.length > 0
+
+  const handleExportChart = async () => {
+    if (!canExportChart || isExporting) return
+
+    setIsExporting(true)
+    try {
+      await exportItemConsistencyChart({
+        xlsxFile,
+        items: summary.item_consistencies,
+        yAxisLabel: t('benchmark.visualization.chartYAxis'),
+        itemLabelPrefix: t('benchmark.details.item')
+      })
+      toast.success(t('benchmark.visualization.exportSuccess'))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('benchmark.visualization.exportError'))
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <div className="p-6">
@@ -165,19 +197,40 @@ export function ConsistencyTab({ summary }: ConsistencyTabProps) {
                 {t('benchmark.visualization.itemDistribution')}
               </h3>
 
-              {/* 图例 */}
-              <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-xs text-slate-600">{t('benchmark.visualization.legend.high')}</span>
-                </div>
-                <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
-                  <div className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span className="text-xs text-slate-600">{t('benchmark.visualization.legend.med')}</span>
-                </div>
-                <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
-                  <div className="w-2 h-2 rounded-full bg-rose-500" />
-                  <span className="text-xs text-slate-600">{t('benchmark.visualization.legend.low')}</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleExportChart}
+                  disabled={!canExportChart || isExporting}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={t('benchmark.visualization.exportChart')}
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      {t('benchmark.visualization.exportingChart')}
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      {t('benchmark.visualization.exportChart')}
+                    </>
+                  )}
+                </button>
+
+                {/* 图例 */}
+                <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-lg">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs text-slate-600">{t('benchmark.visualization.legend.high')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-xs text-slate-600">{t('benchmark.visualization.legend.med')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                    <div className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span className="text-xs text-slate-600">{t('benchmark.visualization.legend.low')}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -185,11 +238,6 @@ export function ConsistencyTab({ summary }: ConsistencyTabProps) {
             {/* 领域热力图 */}
             <div className="grid grid-cols-3 gap-4">
               {DOMAINS.map((domain) => {
-                const itemMap = new Map(summary.item_consistencies.map(i => {
-                  const id = parseInt(i.item_id.replace('item_', ''))
-                  return [id, i]
-                }))
-
                 return (
                   <div key={domain.id} className="bg-slate-50 rounded-xl p-4">
                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5 pb-2 border-b border-slate-200">

@@ -37,7 +37,7 @@ interface WorkspaceProps {
   raterNames?: string[]
 
   // 回调
-  onRun: (humanFile: string, batches: string[]) => Promise<void>
+  onRun: (humanFile: string, batches: string[], threshold: number) => Promise<void>
   onSave: () => void
   onDownload: () => void
   onDelete: () => void
@@ -123,13 +123,6 @@ export function Workspace({
 
     return hasPersisted || hasTemp
   }
-
-  // 获取分数的当前值（考虑临时修改）
-  const getCurrentScore = (guideId: string, itemId: string, field: string, original: number | null | undefined) => {
-    const key = `${guideId}::${itemId}::${field}`
-    return modifiedScores[key] ?? original
-  }
-
   // 处理分数修改
   const handleScoreChange = (guideId: string, itemId: string, field: string, newValue: number) => {
     const key = `${guideId}::${itemId}::${field}`
@@ -196,13 +189,14 @@ export function Workspace({
   // 新建实验表单
   if (mode === 'new') {
     return (
-      <NewExperimentForm
-        humanFiles={humanFiles}
-        batches={batches}
-        isRunning={isRunning}
-        onRun={onRun}
-        onCancel={() => { }}
-      />
+      <div className="flex-1 bg-slate-50">
+        <NewExperimentForm
+          humanFiles={humanFiles}
+          batches={batches}
+          isRunning={isRunning}
+          onRun={onRun}
+        />
+      </div>
     )
   }
 
@@ -256,7 +250,7 @@ export function Workspace({
         {/* 内容区 */}
         <div className="flex-1 overflow-auto">
           {viewMode === 'consistency' ? (
-            <ConsistencyTab summary={summary} />
+            <ConsistencyTab summary={summary} xlsxFile={xlsxFile} />
           ) : (
             <GuideDetailTab
               guide={guideDetails[selectedGuideIndex]}

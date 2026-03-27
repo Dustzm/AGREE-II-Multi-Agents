@@ -199,10 +199,7 @@ export function Benchmark() {
   // 删除历史结果
   const handleDeleteResult = useCallback(async (filename: string) => {
     try {
-      // 删除 JSON 文件和 Excel 文件
-      await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:8011'}/api/benchmark/results/${filename}`, {
-        method: 'DELETE'
-      })
+      await api.deleteBenchmarkResult(filename)
       toast.success('删除成功')
 
       // 如果删除的是当前选中的，清空视图
@@ -222,11 +219,11 @@ export function Benchmark() {
   }, [])
 
   // 执行实验
-  const handleRun = useCallback(async (humanFile: string, batchIds: string[]) => {
+  const handleRun = useCallback(async (humanFile: string, batchIds: string[], threshold: number) => {
     dispatch({ type: 'SET_RUNNING', payload: true })
 
     try {
-      const response = await api.runBenchmark(humanFile, batchIds)
+      const response = await api.runBenchmark(humanFile, batchIds, threshold)
 
       if (response.status === 'success' && response.summary && response.xlsx_file) {
         // 刷新结果列表

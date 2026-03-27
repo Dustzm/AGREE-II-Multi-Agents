@@ -15,6 +15,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+FINAL_REPORT_FILENAMES = ("appraisal_report.json", "report.json")
+
 
 @dataclass
 class GuideEntry:
@@ -223,6 +225,12 @@ class ModelScoreLoader:
         """
         self.output_dir = Path(output_dir)
         self.batch_id = batch_id
+
+    def _has_final_report(self, task_dir: Path) -> bool:
+        """判断任务目录是否已生成最终报告。"""
+        return task_dir.is_dir() and any(
+            (task_dir / report_name).exists() for report_name in FINAL_REPORT_FILENAMES
+        )
     
     def find_latest_task(self, guide_id: str) -> Optional[Path]:
         """
@@ -234,15 +242,31 @@ class ModelScoreLoader:
         Returns:
             最新任务目录路径，如果未找到返回None
         """
-        # 匹配以guide_id开头的目录
-        matching_dirs = list(self.output_dir.glob(f"{guide_id}-*"))
-        
+        matching_dirs: list[Path] = []
+
+        # 兼容新目录格式：output/<batch>/<guide_id>/
+        exact_dir = self.output_dir / guide_id
+        if self._has_final_report(exact_dir):
+            matching_dirs.append(exact_dir)
+
+        # 兼容旧目录格式：output/<batch>/<guide_id>-<timestamp>/
+        legacy_dirs = [
+            task_dir
+            for task_dir in self.output_dir.glob(f"{guide_id}-*")
+            if self._has_final_report(task_dir)
+        ]
+        legacy_dirs.sort(key=lambda path: path.name)
+
+        for legacy_dir in legacy_dirs:
+            if legacy_dir not in matching_dirs:
+                matching_dirs.append(legacy_dir)
+
         if not matching_dirs:
-            logger.warning(f"未找到指南 {guide_id} 的任务目录")
+            logger.warning(f"未找到指南 {guide_id} 的最终报告任务目录")
             return None
-        
-        # 按目录名排序，取最新的（假设时间戳在目录名末尾）
-        latest_dir = sorted(matching_dirs, key=lambda x: x.name)[-1]
+
+        # 优先使用新格式的精确目录；否则回退到旧格式中名称最大的一个。
+        latest_dir = matching_dirs[0] if matching_dirs[0].name == guide_id else matching_dirs[-1]
         logger.info(f"找到最新任务目录: {latest_dir.name}")
         
         return latest_dir
@@ -374,4 +398,3 @@ class BatchModelScoreLoader:
                 result[batch_id] = {}
         
         return result
-

@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+FINAL_REPORT_FILENAMES = ("appraisal_report.json", "report.json")
+
 # ===== 目录配置 =====
 
 def get_benchmark_dir() -> Path:
@@ -52,6 +54,17 @@ def get_output_dir() -> Path:
 def get_model_output_dir() -> Path:
     """获取模型评估输出目录（包含 batch_* 子目录）"""
     return project_root / "output"
+
+
+def count_completed_batch_reports(batch_path: Path) -> int:
+    """按报告页口径统计批次下已完成的最终报告数量。"""
+    return sum(
+        1
+        for task_dir in batch_path.iterdir()
+        if task_dir.is_dir()
+        and not task_dir.name.startswith('.')
+        and any((task_dir / report_name).exists() for report_name in FINAL_REPORT_FILENAMES)
+    )
 
 
 # ===== 数据模型 =====
@@ -379,11 +392,8 @@ async def list_batches():
     
     for batch_path in sorted(output_dir.iterdir(), reverse=True):
         if batch_path.is_dir() and batch_path.name.startswith('batch_'):
-            # 统计任务目录数量
-            task_count = len([
-                d for d in batch_path.iterdir()
-                if d.is_dir() and not d.name.startswith('.')
-            ])
+            # 按报告页相同口径统计已完成任务数量
+            task_count = count_completed_batch_reports(batch_path)
             
             stat = batch_path.stat()
             
@@ -627,6 +637,40 @@ async def list_benchmark_results():
         ))
     
     return {"results": results}
+
+
+@router.delete("/benchmark/results/{filename}")
+async def delete_benchmark_result(filename: str):
+    """
+    删除 benchmark 结果文件及其元数据
+    """
+    output_dir = get_output_dir()
+    xlsx_path = output_dir / filename
+    json_path = output_dir / Path(filename).with_suffix('.json').name
+
+    if not xlsx_path.exists() and not json_path.exists():
+        raise HTTPException(status_code=404, detail=f"结果不存在: {filename}")
+
+    deleted_files = []
+
+    try:
+        if xlsx_path.exists():
+            xlsx_path.unlink()
+            deleted_files.append(xlsx_path.name)
+
+        if json_path.exists():
+            json_path.unlink()
+            deleted_files.append(json_path.name)
+
+        logger.info(f"删除 Benchmark 结果: {filename}, files={deleted_files}")
+        return {
+            "status": "success",
+            "message": f"已删除 {filename}",
+            "deleted_files": deleted_files,
+        }
+    except Exception as e:
+        logger.exception(f"删除 Benchmark 结果失败: {filename}, error={e}")
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
 
 @router.get("/benchmark/download/{filename}")
