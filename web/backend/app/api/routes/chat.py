@@ -5,12 +5,14 @@ WebSocket 对话 API
 """
 import asyncio
 import logging
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from core.utils.unicode_sanitizer import strip_surrogates
 from web.backend.app.i18n import t, get_language
 
 logger = logging.getLogger(__name__)
@@ -32,13 +34,23 @@ class ChatMessageResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     """WebSocket 消息格式"""
-    type: str  # start, cancel, status, agent, progress, complete, error
+    type: str  # start, cancel, status, agent, progress, complete, cancelled, error
     content: Optional[str] = None
     agent: Optional[str] = None
     progress: Optional[int] = None
     total: Optional[int] = None
     task_id: Optional[str] = None
     prompt: Optional[str] = None  # Appraiser 的提示词内容
+
+
+@dataclass
+class SessionTaskHandle:
+    """当前会话中单任务运行句柄。"""
+
+    task_id: str
+    runner: Any
+    asyncio_task: asyncio.Task[Any]
+    state: str = "starting"
 
 
 class ConnectionManager:
@@ -95,6 +107,25 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+active_task_handles: dict[str, SessionTaskHandle] = {}
+
+
+def get_active_task_handle(session_id: str) -> Optional[SessionTaskHandle]:
+    handle = active_task_handles.get(session_id)
+    if not handle:
+        return None
+
+    if handle.asyncio_task.done():
+        active_task_handles.pop(session_id, None)
+        return None
+
+    return handle
+
+
+def clear_active_task_handle(session_id: str, asyncio_task: asyncio.Task[Any]):
+    handle = active_task_handles.get(session_id)
+    if handle and handle.asyncio_task is asyncio_task:
+        active_task_handles.pop(session_id, None)
 
 
 @router.post("/chat/message", response_model=ChatMessageResponse)
@@ -130,7 +161,7 @@ async def chat_message(request: ChatMessageRequest):
             user_id=request.session_id,
             session_id=session.id,
             new_message=types.Content(
-                parts=[types.Part(text=request.message)],
+                parts=[types.Part(text=strip_surrogates(request.message))],
                 role="user"
             )
         ):
@@ -148,7 +179,11 @@ async def chat_message(request: ChatMessageRequest):
         )
     
     except Exception as e:
-        logger.warning(f"Portal 调用失败: {e}")
+        logger.exception(
+            "Portal 调用失败: session_id=%s message=%s",
+            request.session_id,
+            strip_surrogates(request.message)[:300],
+        )
         # 回退到简单响应
         return ChatMessageResponse(
             response=t("chat.fallback_response", "en"),
@@ -174,7 +209,12 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             data = await websocket.receive_json()
             msg_type = data.get("type")
             
-            if msg_type == "start":
+            if msg_type == "ping":
+                await manager.send_message(session_id, {
+                    "type": "pong",
+                })
+
+            elif msg_type == "start":
                 task_id = data.get("task_id")
                 pdf_path = data.get("pdf_path")
                 lang = data.get("lang", "en")  # 默认英语
@@ -185,11 +225,49 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                         "content": t("error.missing_task_id", lang)
                     })
                     continue
+
+                if get_active_task_handle(session_id):
+                    await manager.send_message(session_id, {
+                        "type": "error",
+                        "content": t("error.task_already_running", lang),
+                        "task_id": task_id,
+                    })
+                    continue
+
+                async def send_msg(msg: dict):
+                    await manager.send_message(session_id, msg)
+
+                from web.backend.app.services.agent_runner import AppraisalRunner
+
+                runner = AppraisalRunner(
+                    on_status=lambda type_, content: asyncio.get_event_loop().create_task(
+                        send_msg({"type": type_, "content": content, "task_id": task_id})
+                    ),
+                    on_agent=lambda a, c, p, total, prompt=None: asyncio.get_event_loop().create_task(
+                        send_msg({"type": "agent", "agent": a, "content": c, "progress": p, "total": total, "prompt": prompt, "task_id": task_id})
+                    ),
+                    on_complete=lambda tid: asyncio.get_event_loop().create_task(
+                        send_msg({"type": "complete", "content": t("status.appraisal_complete", lang), "task_id": tid})
+                    ),
+                    on_cancelled=lambda tid: asyncio.get_event_loop().create_task(
+                        send_msg({"type": "cancelled", "content": t("status.task_cancelled", lang), "task_id": tid})
+                    ),
+                    on_error=lambda e: asyncio.get_event_loop().create_task(
+                        send_msg({"type": "error", "content": e, "task_id": task_id})
+                    ),
+                    lang=lang,
+                )
                 
                 # 启动评价任务 - 使用后台任务而不是阻塞等待
                 # 这样即使 WebSocket 断开，任务也会继续运行，产生的消息会进入 Buffer
                 loop = asyncio.get_event_loop()
-                task = loop.create_task(run_appraisal(session_id, task_id, pdf_path, lang))
+                task = loop.create_task(run_appraisal(session_id, task_id, pdf_path, runner, lang))
+                active_task_handles[session_id] = SessionTaskHandle(
+                    task_id=task_id,
+                    runner=runner,
+                    asyncio_task=task,
+                    state="starting",
+                )
                 
                 # 添加回调以处理任务自身的异常（避免静默失败）
                 def handle_task_result(t):
@@ -203,18 +281,22 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 task.add_done_callback(handle_task_result)
             
             elif msg_type == "cancel":
-                # TODO: 实现真正的取消逻辑
-                # 目前只是前端停止接收，但后台任务可能还在跑
-                # 需要一个全局的任务管理器来通过 task_id 找到并取消 asyncio task
                 lang = data.get("lang", "en")
+                handle = get_active_task_handle(session_id)
+                if not handle:
+                    await manager.send_message(session_id, {
+                        "type": "error",
+                        "content": t("error.no_active_task", lang),
+                    })
+                    continue
+
+                handle.state = "stopping"
+                handle.runner.cancel()
                 await manager.send_message(session_id, {
                     "type": "status",
-                    "content": t("status.task_cancelled", lang)
+                    "content": t("status.task_cancelling", lang),
+                    "task_id": handle.task_id,
                 })
-                # 注意：这里 break 会断开 WebSocket 连接
-                # 如果只是停止当前任务但保持连接，不应该 break
-                # 但根据现有逻辑，前端发 cancel 后通常期望停止
-                pass 
                 
     except WebSocketDisconnect:
         logger.info(f"WebSocket 断开: {session_id}")
@@ -222,7 +304,13 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
         manager.disconnect(session_id)
 
 
-async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None, lang: str = "en"):
+async def run_appraisal(
+    session_id: str,
+    task_id: str,
+    pdf_path: str | None = None,
+    runner: Any | None = None,
+    lang: str = "en",
+):
     """
     运行评价任务
     
@@ -259,28 +347,9 @@ async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None, lan
             "task_id": task_id
         })
         
-        # 导入并运行真实评价器
-        from web.backend.app.services.agent_runner import AppraisalRunner
-        
-        async def send_msg(msg: dict):
-            await manager.send_message(session_id, msg)
-        
-        runner = AppraisalRunner(
-            on_status=lambda type_, content: asyncio.get_event_loop().create_task(
-                send_msg({"type": type_, "content": content})
-            ),
-            on_agent=lambda a, c, p, total, prompt=None: asyncio.get_event_loop().create_task(
-                send_msg({"type": "agent", "agent": a, "content": c, "progress": p, "total": total, "prompt": prompt})
-            ),
-            on_complete=lambda tid: asyncio.get_event_loop().create_task(
-                send_msg({"type": "complete", "content": t("status.appraisal_complete", lang), "task_id": tid})
-            ),
-            on_error=lambda e: asyncio.get_event_loop().create_task(
-                send_msg({"type": "error", "content": e})
-            ),
-            lang=lang,
-        )
-        
+        if runner is None:
+            raise RuntimeError("Appraisal runner is not initialized")
+
         # 设置并发评价进度回调
         async def send_item_progress(skill_id: str, title: str, status: str, duration: float = None):
             await manager.send_message(session_id, {
@@ -301,6 +370,10 @@ async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None, lan
         
         runner._send_item_progress = send_item_progress
         runner._send_batch_summary = send_batch_summary
+
+        handle = get_active_task_handle(session_id)
+        if handle:
+            handle.state = "running"
         
         await runner.run(task_id, str(pdf_file))
     
@@ -308,6 +381,10 @@ async def run_appraisal(session_id: str, task_id: str, pdf_path: str = None, lan
         logger.error(f"评价任务失败: {e}", exc_info=True)
         await manager.send_message(session_id, {
             "type": "error",
-            "content": str(e)
+            "content": str(e),
+            "task_id": task_id,
         })
-
+    finally:
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            clear_active_task_handle(session_id, current_task)

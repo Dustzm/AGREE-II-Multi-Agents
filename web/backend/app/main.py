@@ -20,7 +20,7 @@ STARTUP_TIME = int(time.time() * 1000)
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from .api.routes import health, upload, chat, files, reports, skills, prompts, batch, benchmark, config
+from .api.routes import health, upload, chat, files, reports, skills, prompts, batch, benchmark, config, manual
 
 # 配置日志
 logging.basicConfig(
@@ -81,8 +81,8 @@ app = FastAPI(
     description="AGREE-Multi-Agents 评价系统 API",
     version="0.1.0",
     lifespan=lifespan,
-    docs_url="/ama/docs",
-    redoc_url="/ama/redoc",
+    docs_url="/ama/api-docs",
+    redoc_url="/ama/api-redoc",
     openapi_url="/ama/openapi.json",
 )
 
@@ -106,6 +106,7 @@ app.include_router(prompts.router, prefix="/ama/api", tags=["提示词管理"])
 app.include_router(batch.router, prefix="/ama/api", tags=["批量任务"])
 app.include_router(benchmark.router, prefix="/ama/api", tags=["Benchmark"])
 app.include_router(config.router, prefix="/ama/api", tags=["配置管理"])
+app.include_router(manual.router, prefix="/ama/api", tags=["使用手册"])
 
 
 @app.get("/")
@@ -115,7 +116,7 @@ async def root():
         "name": "AMA API",
         "version": "0.1.0",
         "description": "AGREE-Multi-Agents 评价系统",
-        "docs": "/ama/docs",
+        "docs": "/ama/api-docs",
         "startup_time": STARTUP_TIME
     }
 

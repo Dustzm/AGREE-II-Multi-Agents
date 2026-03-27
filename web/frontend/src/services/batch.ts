@@ -1,10 +1,59 @@
 const API_BASE = '/ama/api'
 
+async function parseJsonSafely<T>(res: Response): Promise<T | null> {
+    const text = await res.text()
+    if (!text) {
+        return null
+    }
+
+    try {
+        return JSON.parse(text) as T
+    } catch (error) {
+        console.error('批量接口返回了无法解析的 JSON:', {
+            url: res.url,
+            status: res.status,
+            statusText: res.statusText,
+            text,
+            error,
+        })
+        throw new Error(`服务返回了无效响应（HTTP ${res.status}）`)
+    }
+}
+
+async function getErrorMessage(res: Response, fallback: string): Promise<string> {
+    try {
+        const data = await parseJsonSafely<{ detail?: string; message?: string }>(res)
+        return data?.detail || data?.message || fallback
+    } catch (error) {
+        if (error instanceof Error) {
+            return error.message
+        }
+        return fallback
+    }
+}
+
+async function getJsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
+    const data = await parseJsonSafely<T>(res)
+    if (data === null) {
+        throw new Error(fallback)
+    }
+    return data
+}
+
 export interface FolderInfo {
     name: string
     path: string
     pdf_count: number
     modified: string
+}
+
+export interface BatchDirectoryNode {
+    name: string
+    path: string
+    modified: string
+    children: BatchDirectoryNode[]
+    pdfs: PdfInfo[]
+    pdf_count: number
 }
 
 export interface PdfInfo {
@@ -29,6 +78,7 @@ export interface BatchTask {
 }
 
 export interface BatchStatus {
+    session_id: string | null
     is_running: boolean
     total: number
     concurrency: number
@@ -40,6 +90,15 @@ export interface BatchStatus {
     error: number
     cancelled: number
     tasks: BatchTask[]
+}
+
+export interface ResumeLatestResponse {
+    available: boolean
+    session_id: string | null
+    last_updated: string | null
+    resume_round: number | null
+    remaining_tasks: number
+    status: BatchStatus | null
 }
 
 export interface SessionInfo {
@@ -54,14 +113,19 @@ export interface SessionInfo {
     is_completed: boolean
 }
 
+export interface FolderTreeResponse {
+    tree: BatchDirectoryNode
+    folders: FolderInfo[]
+    input_dir: string
+}
+
 export const batchApi = {
-    async listFolders(): Promise<FolderInfo[]> {
+    async listFolders(): Promise<FolderTreeResponse> {
         const res = await fetch(`${API_BASE}/batch/folders`)
         if (!res.ok) {
             throw new Error('获取文件夹列表失败')
         }
-        const data = await res.json()
-        return data.folders
+        return getJsonOrThrow<FolderTreeResponse>(res, '获取文件夹列表失败')
     },
 
     async listPdfs(folderName: string): Promise<PdfInfo[]> {
@@ -69,7 +133,7 @@ export const batchApi = {
         if (!res.ok) {
             throw new Error('获取 PDF 列表失败')
         }
-        const data = await res.json()
+        const data = await getJsonOrThrow<{ pdfs: PdfInfo[] }>(res, '获取 PDF 列表失败')
         return data.pdfs
     },
 
@@ -80,10 +144,9 @@ export const batchApi = {
             body: JSON.stringify({ folder, concurrency }),
         })
         if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.detail || '启动批量任务失败')
+            throw new Error(await getErrorMessage(res, '启动批量任务失败'))
         }
-        return res.json()
+        return getJsonOrThrow<BatchStatus>(res, '启动批量任务失败')
     },
 
     async stop(): Promise<void> {
@@ -91,8 +154,7 @@ export const batchApi = {
             method: 'POST',
         })
         if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.detail || '停止批量任务失败')
+            throw new Error(await getErrorMessage(res, '停止批量任务失败'))
         }
     },
 
@@ -101,7 +163,27 @@ export const batchApi = {
         if (!res.ok) {
             throw new Error('获取批量任务状态失败')
         }
-        return res.json()
+        return getJsonOrThrow<BatchStatus>(res, '获取批量任务状态失败')
+    },
+
+    async getLatestResumable(): Promise<ResumeLatestResponse> {
+        const res = await fetch(`${API_BASE}/batch/resume/latest`)
+        if (!res.ok) {
+            throw new Error('获取可继续任务失败')
+        }
+        return getJsonOrThrow<ResumeLatestResponse>(res, '获取可继续任务失败')
+    },
+
+    async resumeLatest(concurrency?: number): Promise<BatchStatus> {
+        const res = await fetch(`${API_BASE}/batch/resume/latest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(concurrency ? { concurrency } : {}),
+        })
+        if (!res.ok) {
+            throw new Error(await getErrorMessage(res, '继续批量任务失败'))
+        }
+        return getJsonOrThrow<BatchStatus>(res, '继续批量任务失败')
     },
 
     async startSelected(pdfPaths: string[], concurrency: number, experimentRounds: number = 1): Promise<BatchStatus> {
@@ -115,10 +197,9 @@ export const batchApi = {
             }),
         })
         if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.detail || '启动批量任务失败')
+            throw new Error(await getErrorMessage(res, '启动批量任务失败'))
         }
-        return res.json()
+        return getJsonOrThrow<BatchStatus>(res, '启动批量任务失败')
     },
 
     async listSessions(): Promise<SessionInfo[]> {
@@ -126,7 +207,7 @@ export const batchApi = {
         if (!res.ok) {
             throw new Error('获取会话列表失败')
         }
-        const data = await res.json()
+        const data = await getJsonOrThrow<{ sessions: SessionInfo[] }>(res, '获取会话列表失败')
         return data.sessions
     },
 
@@ -135,10 +216,9 @@ export const batchApi = {
             method: 'POST',
         })
         if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.detail || '恢复会话失败')
+            throw new Error(await getErrorMessage(res, '恢复会话失败'))
         }
-        return res.json()
+        return getJsonOrThrow<{ message: string; session_id: string; status: BatchStatus }>(res, '恢复会话失败')
     },
 
     async deleteSession(sessionId: string): Promise<{ message: string }> {
@@ -146,10 +226,9 @@ export const batchApi = {
             method: 'DELETE',
         })
         if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.detail || '删除会话失败')
+            throw new Error(await getErrorMessage(res, '删除会话失败'))
         }
-        return res.json()
+        return getJsonOrThrow<{ message: string }>(res, '删除会话失败')
     },
 }
 
@@ -175,8 +254,8 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
     const state = {
         reconnectAttempts: 0,
         maxReconnectAttempts: 5,
-        reconnectTimeout: null as NodeJS.Timeout | null,
-        heartbeatInterval: null as NodeJS.Timeout | null,
+        reconnectTimeout: null as ReturnType<typeof setTimeout> | null,
+        heartbeatInterval: null as ReturnType<typeof setInterval> | null,
         ws: null as WebSocket | null
     }
 
@@ -224,7 +303,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
                 console.log('批量任务 WebSocket 已达到最大重连次数，停止重连')
                 onConnectionChange?.(false, 0)
             }
-        }, delay) as any
+        }, delay)
     }
 
     const setupWebSocketHandlers = (ws: WebSocket) => {

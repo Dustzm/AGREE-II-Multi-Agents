@@ -5,7 +5,7 @@
 """
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Callable, Dict, Any, Optional
 
 from .pojo import ContentItem, TitleContentBlock, SemanticLabel, SemanticChunk
 from .chunker import DocumentChunker
@@ -26,7 +26,8 @@ async def process_content_list(
     pdf_path: str = None,
     model=None,
     lang: str = "zh",
-    include_attachments: bool = True
+    include_attachments: bool = True,
+    progress_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
     """
     处理 content_list.json，生成语义证据池
@@ -51,6 +52,8 @@ async def process_content_list(
         docindex_path = None
         if pdf_path and Path(pdf_path).exists():
             try:
+                if progress_callback:
+                    progress_callback("正在构建文档索引...")
                 from docindex.pipeline import build_and_save_docindex
                 docindex_path = str(prep_dir / f"{base_name}_docindex.json")
                 build_and_save_docindex(
@@ -66,6 +69,8 @@ async def process_content_list(
             logger.info("未提供 PDF 路径，跳过 docindex 构建")
         
         # Step 1: 构造标题-内容块（禁用旧的同步附件处理）
+        if progress_callback:
+            progress_callback("正在解析主文档结构...")
         chunker = DocumentChunker()
         title_content_blocks = await chunker.parse(
             content_list_path, 
@@ -77,9 +82,12 @@ async def process_content_list(
         # Step 1.5: Explorer 处理附件
         if include_attachments and pdf_path:
             from core.agents.explorer import run_explorer
+            if progress_callback:
+                progress_callback("正在检测并解析附件...")
             attachment_blocks = await run_explorer(
                 pdf_path=pdf_path,
                 prep_dir=str(prep_dir),
+                on_progress=progress_callback,
             )
             if attachment_blocks:
                 # 将附件内容转为 TitleContentBlock，标记为 is_appendix
@@ -95,15 +103,21 @@ async def process_content_list(
                 logger.info(f"Explorer 添加了 {len(attachment_blocks)} 个附件内容块")
         
         # Step 2: LLM 语义标签分类
+        if progress_callback:
+            progress_callback("正在进行语义标签分类...")
         labeler = SemanticLabeler(model=model, lang=lang)
         semantic_chunks = await labeler.label_chunks(title_content_blocks)
         
         # Step 3: 创建并保存证据池
+        if progress_callback:
+            progress_callback("正在保存语义证据池...")
         pool = EvidencePool(semantic_chunks)
         pool.save(output_path)
         
         # Step 4: 生成可视化证据（用于前端渲染）
         try:
+            if progress_callback:
+                progress_callback("正在生成可视化证据...")
             model_json_path = prep_dir / f"{base_name}_model.json"
             visual_evidence_path = prep_dir / f"{base_name}_visual_evidence.json"
             

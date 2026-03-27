@@ -1,6 +1,8 @@
 """
 PDF 文件列表、上传和任务管理 API
 """
+from __future__ import annotations
+
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +12,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from core.config import get_settings
+from ...services.input_tree import build_input_tree
 
 router = APIRouter()
 
@@ -21,34 +24,29 @@ class PdfFile(BaseModel):
     size: int
     modified: str
     is_attachment: bool = False  # 是否为附件文件
+    attachment_count: int = 0
 
 
-# 附件文件名模式（用于前端展示，匹配文件名中的关键词）
-ATTACHMENT_PATTERNS = [
-    "附件", "附录", "appendix", "supplement",
-    "执行摘要", "摘要", "summary", "ppt"
-]
+class InputDirectoryNode(BaseModel):
+    """递归目录节点。"""
 
-# 支持的文件格式（按类型分组）
-SUPPORTED_EXTENSIONS = {
-    # 文档
-    "document": [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".txt", ".md", ".rtf"],
-    # 图片
-    "image": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico", ".tiff", ".tif"],
-    # 音视频
-    "media": [".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav", ".flac", ".aac", ".ogg"],
-}
-
-# 合并所有支持的扩展名
-ALL_SUPPORTED_EXTENSIONS = set()
-for exts in SUPPORTED_EXTENSIONS.values():
-    ALL_SUPPORTED_EXTENSIONS.update(exts)
+    name: str
+    path: str
+    modified: str
+    children: List["InputDirectoryNode"]
+    files: List[PdfFile]
+    pdfs: List[PdfFile]
+    file_count: int
+    pdf_count: int
+    selectable_pdf_count: int
 
 
 class PdfListResponse(BaseModel):
-    """PDF 文件列表响应（层级结构）"""
-    folders: List[dict]  # [{"name": "en", "path": "...", "files": [...]}]
-    root_files: List[PdfFile]  # 根目录下的 PDF
+    """PDF 文件列表响应（递归树 + 兼容字段）。"""
+
+    tree: InputDirectoryNode
+    folders: List[InputDirectoryNode]
+    root_files: List[PdfFile]
     input_dir: str
 
 
@@ -135,114 +133,14 @@ async def list_pdf_files():
     
     if not input_dir.exists():
         input_dir.mkdir(parents=True, exist_ok=True)
-        
-    # 辅助函数：判断是否为附件关系 (与 batch.py 保持一致)
-    def is_sibling_attachment(main_stem: str, suspect_stem: str) -> bool:
-        if not suspect_stem.startswith(main_stem):
-            return False
-        if len(suspect_stem) <= len(main_stem):
-            return False
-        next_char = suspect_stem[len(main_stem)]
-        if next_char in ' _-':
-            return True
-        if '\u4e00' <= next_char <= '\u9fff':
-            return True
-        return False
-        
-    # 辅助函数：处理单个目录下的文件列表
-    def process_directory_files(files_in_dir: List[Path]) -> List[PdfFile]:
-        # 1. 获取所有支持的文件
-        all_files = []
-        for file_path in files_in_dir:
-            if not file_path.is_file():
-                continue
-            suffix_lower = file_path.suffix.lower()
-            if suffix_lower not in ALL_SUPPORTED_EXTENSIONS:
-                continue
-            all_files.append(file_path)
-            
-        # 2. 识别主文件 (PDF)
-        potential_mains = [f for f in all_files if f.suffix.lower() == '.pdf']
-        potential_mains.sort(key=lambda x: len(x.stem))
-        
-        identified_attachments = set()
-        
-        # 3. 标记附件
-        for main_pdf in potential_mains:
-            if main_pdf in identified_attachments:
-                 continue
-                 
-            main_stem = main_pdf.stem
-            
-            for file_path in all_files:
-                if file_path == main_pdf:
-                    continue
-                    
-                # 检查是否为附件
-                if is_sibling_attachment(main_stem, file_path.stem):
-                    identified_attachments.add(file_path)
-        
-        # 4. 生成结果列表
-        results = []
-        for file_path in all_files:
-            stat = file_path.stat()
-            suffix_lower = file_path.suffix.lower()
-            name_lower = file_path.stem.lower()
-            
-            # 判断逻辑：
-            # 1. 非 PDF 默认为附件 (保留旧逻辑)
-            # 2. 匹配关键词 (保留旧逻辑)
-            # 3. 被识别为 sibling attachment (新逻辑)
-            is_attachment = (
-                suffix_lower != '.pdf' or
-                any(p in name_lower for p in ATTACHMENT_PATTERNS) or
-                file_path in identified_attachments
-            )
-            
-            results.append(PdfFile(
-                name=file_path.name,
-                path=str(file_path),
-                size=stat.st_size,
-                modified=datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
-                is_attachment=is_attachment
-            ))
-            
-        # 排序：文件夹/文件排序通常在前端处理，这里按文件名排序
-        results.sort(key=lambda x: x.name)
-        return results
-    
-    folders = []
-    root_files = []
-    
-    # 遍历 input 目录
-    # 分离根目录文件和子文件夹
-    root_file_paths = []
-    sub_dirs = []
-    
-    for item in sorted(input_dir.iterdir()):
-        if item.is_dir() and not item.name.startswith('.'):
-            sub_dirs.append(item)
-        elif item.is_file() and not item.name.startswith('.'):
-            root_file_paths.append(item)
-            
-    # 处理根目录文件
-    root_files = process_directory_files(root_file_paths)
-    
-    # 处理子文件夹
-    for sub_dir in sub_dirs:
-        sub_dir_files_paths = sorted(list(sub_dir.iterdir()))
-        processed_files = process_directory_files(sub_dir_files_paths)
-        
-        if processed_files:
-            folders.append({
-                "name": sub_dir.name,
-                "path": str(sub_dir),
-                "files": [f.dict() for f in processed_files]
-            })
-    
+
+    tree_payload = build_input_tree(input_dir)
+    tree = InputDirectoryNode.parse_obj(tree_payload)
+
     return PdfListResponse(
-        folders=folders,
-        root_files=root_files,
+        tree=tree,
+        folders=tree.children,
+        root_files=tree.files,
         input_dir=str(input_dir)
     )
 
@@ -401,3 +299,6 @@ async def upload_folder(files: List[UploadFile] = File(...)):
         uploaded_files=uploaded_files,
         failed_files=failed_files
     )
+
+
+InputDirectoryNode.update_forward_refs()

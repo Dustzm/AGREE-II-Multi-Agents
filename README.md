@@ -2,6 +2,10 @@
 
 > 多智能体 AGREE-II 指南质量评价系统
 
+## 使用手册
+
+- Web 端用户使用说明见 [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
+
 ## 项目简介
 
 AMA 是一个基于多智能体架构的临床实践指南质量评价系统。使用 AGREE-II 工具对指南进行系统化评价，通过模块化的 Skill 机制实现 23 个评价条目的独立评估。

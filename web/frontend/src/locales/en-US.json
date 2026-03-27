@@ -22,10 +22,30 @@
             "offline": "Offline"
         }
     },
+    "docs": {
+        "openInNewTab": "Open user manual in a new tab",
+        "brand": "AMA Docs",
+        "loading": "Loading the user manual...",
+        "toc": "On this page",
+        "backToAma": "Back to AMA",
+        "language": "Language",
+        "langZh": "ZH",
+        "langEn": "EN",
+        "emptyTitle": "Manual content is empty",
+        "emptyDescription": "The requested documentation is not available yet.",
+        "errorTitle": "Failed to load the manual",
+        "errorDescription": "The manual could not be fetched right now. Please refresh and try again.",
+        "retry": "Retry",
+        "mobileToc": "Contents",
+        "notAvailableTitle": "English manual is coming soon",
+        "notAvailableDescription": "This release ships with the Chinese manual first. The English source file will be added later.",
+        "switchToChinese": "Switch to Chinese",
+        "sourceLabel": "Source"
+    },
     "chat": {
         "fileList": {
             "title": "Documents",
-            "hint": "Select PDF to start",
+            "hint": "Select a PDF, then click Start",
             "uploadPdf": "Upload PDF",
             "uploadFolder": "Upload Folder",
             "refresh": "Refresh",
@@ -39,14 +59,28 @@
             "title": "Appraisal Progress",
             "processing": "Processing",
             "completed": "Completed",
-            "ready": "Ready"
+            "ready": "Ready",
+            "idle": "Idle",
+            "readyToStart": "Ready to start",
+            "starting": "Starting",
+            "stopping": "Stopping",
+            "cancelled": "Stopped",
+            "error": "Error"
         },
         "status": {
             "parsing": "Parsing PDF...",
             "orchestrating": "Coordinating evaluation...",
             "complete": "Appraisal complete",
+            "cancelled": "Task stopped",
             "processing": "{{agent}} is processing...",
             "done": "{{text}} completed"
+        },
+        "actions": {
+            "start": "Start",
+            "starting": "Starting...",
+            "stop": "Stop",
+            "stopping": "Stopping...",
+            "selected": "Selected"
         },
         "upload": {
             "result": "Upload complete: {{success}} succeeded, {{failed}} failed",
@@ -81,6 +115,19 @@
         "button": {
             "start": "Start",
             "stop": "Stop"
+        },
+        "resume": {
+            "title": "Resumable batch found",
+            "description": "The latest batch stopped at round {{current}}/{{total}} and can continue from here.",
+            "total": "Total {{count}}",
+            "done": "Done {{count}}",
+            "remaining": "Remaining {{count}}",
+            "updated": "Updated {{time}}",
+            "concurrency": "Resume concurrency",
+            "concurrencyHint": "Previous concurrency was {{count}}. You can adjust it before resuming.",
+            "action": "Resume",
+            "success": "Batch task resumed",
+            "failed": "Failed to resume batch task"
         },
         "status": {
             "title": "Task Status",
@@ -151,6 +198,11 @@
             "totalMatches": "Total Matches",
             "rank": "Guideline Ranking",
             "itemDistribution": "Item Consistency Distribution (by Domain)",
+            "exportChart": "Export Chart",
+            "exportingChart": "Exporting...",
+            "chartYAxis": "Consistency Ratio (%)",
+            "exportSuccess": "Chart exported",
+            "exportError": "Failed to export chart",
             "noData": "No Data",
             "guide": "Guide",
             "legend": {
@@ -195,27 +247,44 @@
         },
         "form": {
             "title": "Create New Experiment",
-            "description": "Select human score files and batches for consistency analysis",
+            "description": "Configure the score file, comparison batches, and threshold in this workspace, then start the consistency analysis directly.",
+            "summary": {
+                "humanFile": "Human Score File",
+                "batches": "Comparison Batches",
+                "threshold": "Current Threshold",
+                "pending": "Not selected",
+                "humanHint": "Choose an existing score file or upload a new one",
+                "batchHint": "Select two batches for comparison",
+                "thresholdHint": "Used to decide whether model and human scores are consistent"
+            },
             "humanFile": {
                 "title": "Human Score Files",
+                "helper": "Select one human-rated Excel file as the baseline for this experiment.",
                 "upload": "Upload File",
                 "empty": "No files, please upload first"
             },
             "batch": {
                 "title": "Select Batches (Select 2)",
+                "helper": "Choose two existing batches to compare in this experiment.",
                 "selected": "{{count}}/2 selected",
                 "tasks": "tasks",
                 "empty": "No batch results available"
             },
             "threshold": {
-                "title": "Consistency Threshold"
+                "title": "Consistency Threshold",
+                "value": "Threshold {{value}}",
+                "tooltipAriaLabel": "View consistency threshold help",
+                "tooltipTitle": "About the threshold",
+                "tooltipDescription": "A match is counted as consistent when the difference between the human score and the model score is less than or equal to this threshold. Higher values make the consistency rule looser."
             },
             "error": {
                 "selection": "Please select a human score file and exactly two batches",
                 "run": "Execution failed"
             },
             "running": "Running...",
-            "start": "Start"
+            "start": "Start",
+            "startTitle": "Ready to run",
+            "startHint": "Confirm that you have selected one score file, two batches, and the desired threshold."
         },
         "workspace": {
             "empty": {

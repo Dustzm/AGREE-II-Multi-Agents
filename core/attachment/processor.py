@@ -5,7 +5,7 @@
 """
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import Callable, List, Dict, Optional
 from dataclasses import dataclass, field
 
 from .detector import AttachmentDetector, DetectedAttachment, SiblingFileDetector
@@ -99,6 +99,7 @@ class AttachmentProcessor:
         """
         source_path = Path(source_path)
         results = []
+        on_progress: Optional[Callable[[str], None]] = kwargs.pop("on_progress", None)
         
         # 1. 检测附件
         all_attachments: List[DetectedAttachment] = []
@@ -114,6 +115,8 @@ class AttachmentProcessor:
             return results
         
         logger.info(f"检测到 {len(all_attachments)} 个附件")
+        if on_progress:
+            on_progress(f"检测到 {len(all_attachments)} 个附件")
         
         # 2. 为附件分配编号，创建编号目录
         attachment_base_dir = None
@@ -150,6 +153,11 @@ class AttachmentProcessor:
                 continue
             
             try:
+                if on_progress:
+                    on_progress(
+                        f"解析附件 ({attachment.index}/{len(all_attachments)}): {attachment.path.name}"
+                    )
+
                 # 解析附件（异步，使用编号目录作为输出）
                 parsed_contents = await parser.parse(
                     attachment.path, 
@@ -166,9 +174,17 @@ class AttachmentProcessor:
                 ))
                 
                 logger.info(f"附件 {attachment.index} 处理完成: {attachment.path.name}, {len(parsed_contents)} 个内容块")
+                if on_progress:
+                    on_progress(
+                        f"附件解析完成 ({attachment.index}/{len(all_attachments)}): {attachment.path.name}"
+                    )
                 
             except Exception as e:
                 logger.error(f"解析附件失败: {attachment.path}, error={e}", exc_info=True)
+                if on_progress:
+                    on_progress(
+                        f"附件解析失败 ({attachment.index}/{len(all_attachments)}): {attachment.path.name}"
+                    )
                 results.append(AttachmentInfo(
                     source_file=attachment.path,
                     detector=attachment.source,
@@ -178,4 +194,3 @@ class AttachmentProcessor:
                 ))
         
         return results
-

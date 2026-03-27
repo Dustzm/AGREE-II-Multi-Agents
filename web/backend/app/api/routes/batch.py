@@ -4,10 +4,10 @@
 提供批量执行 PDF 评价任务的接口
 支持状态持久化和会话恢复
 """
+from __future__ import annotations
+
 import asyncio
-import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -16,9 +16,16 @@ from pydantic import BaseModel
 
 from core.config import get_settings
 from ...services.batch_runner import (
-    BatchRunner, BatchTask, TaskStatus,
-    get_batch_runner, create_batch_runner
+    BatchTask,
+    create_batch_runner,
+    get_batch_runner,
+    get_latest_resumable_state,
+    get_or_create_batch_runner,
+    list_batch_session_states,
+    load_batch_state,
+    state_to_status_payload,
 )
+from ...services.input_tree import build_input_tree
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +43,9 @@ class FolderInfo(BaseModel):
 
 
 class FolderListResponse(BaseModel):
-    """文件夹列表响应"""
+    """文件夹树响应（包含兼容字段）。"""
+
+    tree: "BatchDirectoryNode"
     folders: List[FolderInfo]
     input_dir: str
 
@@ -50,27 +59,15 @@ class PdfInfo(BaseModel):
     attachment_count: int = 0    # 附件数量
 
 
+class BatchDirectoryNode(BaseModel):
+    """批量页目录树节点。"""
 
-# 附件文件名模式（与 files.py 保持一致）
-ATTACHMENT_PATTERNS = [
-    "附件", "附录", "appendix", "supplement",
-    "执行摘要", "摘要", "summary", "ppt"
-]
-
-
-def is_attachment_file(filename: str) -> bool:
-    """
-    判断文件是否为附件
-    
-    规则：文件名中包含附件相关关键词
-    """
-    name_lower = filename.lower()
-    stem = Path(filename).stem.lower()
-    
-    for pattern in ATTACHMENT_PATTERNS:
-        if pattern.lower() in stem:
-            return True
-    return False
+    name: str
+    path: str
+    modified: str
+    children: List["BatchDirectoryNode"]
+    pdfs: List[PdfInfo]
+    pdf_count: int
 
 
 class PdfListResponse(BaseModel):
@@ -95,6 +92,7 @@ class StartSelectedRequest(BaseModel):
 
 class BatchStatusResponse(BaseModel):
     """批量任务状态响应"""
+    session_id: Optional[str] = None
     is_running: bool
     total: int
     concurrency: int
@@ -106,6 +104,23 @@ class BatchStatusResponse(BaseModel):
     error: int
     cancelled: int
     tasks: List[dict]
+
+
+class ResumeLatestResponse(BaseModel):
+    """最新可继续会话响应。"""
+
+    available: bool
+    session_id: Optional[str] = None
+    last_updated: Optional[str] = None
+    resume_round: Optional[int] = None
+    remaining_tasks: int = 0
+    status: Optional[BatchStatusResponse] = None
+
+
+class ResumeLatestRequest(BaseModel):
+    """继续执行最新可恢复批量任务的请求。"""
+
+    concurrency: Optional[int] = None
 
 
 # ===== WebSocket 连接管理 =====
@@ -153,6 +168,84 @@ def get_input_dir() -> Path:
     return get_settings().app.path_input
 
 
+def to_batch_directory_node_payload(node: dict) -> dict:
+    """将通用 input 树节点转换为批量页目录节点。"""
+    return {
+        "name": node["name"],
+        "path": node["path"],
+        "modified": node["modified"],
+        "children": [to_batch_directory_node_payload(child) for child in node["children"]],
+        "pdfs": node["pdfs"],
+        "pdf_count": node["selectable_pdf_count"],
+    }
+
+
+def make_empty_batch_status() -> BatchStatusResponse:
+    """返回空批量状态。"""
+    return BatchStatusResponse(
+        session_id=None,
+        is_running=False,
+        total=0,
+        concurrency=2,
+        experiment_rounds=1,
+        current_round=0,
+        pending=0,
+        running=0,
+        done=0,
+        error=0,
+        cancelled=0,
+        tasks=[],
+    )
+
+
+def build_batch_callbacks():
+    """构建批量任务广播回调。"""
+
+    async def on_update_dict(task_dict: dict):
+        await batch_manager.broadcast({
+            "type": "task_update",
+            "task": task_dict,
+        })
+
+    async def on_complete(status: dict):
+        await batch_manager.broadcast({
+            "type": "batch_complete",
+            "status": status,
+        })
+
+    def sync_on_update(task: BatchTask):
+        try:
+            task_dict = task.to_dict()
+            logger.info(f"准备广播任务更新: {task_dict['id']}, step: {task_dict['current_step']}")
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(on_update_dict(task_dict))
+            else:
+                loop.run_until_complete(on_update_dict(task_dict))
+        except Exception as e:
+            logger.warning(f"广播任务更新失败: {e}")
+
+    def sync_on_complete(status: dict):
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(on_complete(status))
+            else:
+                loop.run_until_complete(on_complete(status))
+        except Exception as e:
+            logger.warning(f"广播批量完成失败: {e}")
+
+    return sync_on_update, sync_on_complete
+
+
+def get_latest_status_from_storage() -> Optional[BatchStatusResponse]:
+    """从磁盘读取最新会话状态。"""
+    state = load_batch_state()
+    if not state:
+        return None
+    return BatchStatusResponse(**state_to_status_payload(state, is_running=False))
+
+
 # ===== API 路由 =====
 
 @router.get("/batch/folders", response_model=FolderListResponse)
@@ -167,33 +260,27 @@ async def list_folders():
     if not input_dir.exists():
         input_dir.mkdir(parents=True, exist_ok=True)
     
-    folders = []
-    for folder_path in input_dir.iterdir():
-        if folder_path.is_dir() and not folder_path.name.startswith('.'):
-            # 统计 PDF 文件数量
-            pdf_count = len(list(folder_path.glob("*.pdf")))
-            
-            # 获取修改时间
-            stat = folder_path.stat()
-            modified = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
-            
-            folders.append(FolderInfo(
-                name=folder_path.name,
-                path=str(folder_path),
-                pdf_count=pdf_count,
-                modified=modified,
-            ))
-    
-    # 按名称排序
-    folders.sort(key=lambda x: x.name)
+    tree_payload = build_input_tree(input_dir)
+    tree = BatchDirectoryNode.parse_obj(to_batch_directory_node_payload(tree_payload))
+
+    folders = [
+        FolderInfo(
+            name=child.name,
+            path=child.path,
+            pdf_count=child.pdf_count,
+            modified=child.modified,
+        )
+        for child in tree.children
+    ]
     
     return FolderListResponse(
+        tree=tree,
         folders=folders,
         input_dir=str(input_dir),
     )
 
 
-@router.get("/batch/folders/{folder_name}/pdfs", response_model=PdfListResponse)
+@router.get("/batch/folders/{folder_name:path}/pdfs", response_model=PdfListResponse)
 async def list_folder_pdfs(folder_name: str):
     """
     列出指定文件夹下的主 PDF 文件（排除附件）
@@ -204,7 +291,11 @@ async def list_folder_pdfs(folder_name: str):
     3. 如果文件 A 是文件 B 的前缀（且符合分隔符规则），则 A 是主文件，B 是其附件
     """
     input_dir = get_input_dir()
-    folder_path = input_dir / folder_name
+    folder_path = (input_dir / folder_name).resolve()
+    input_dir_resolved = input_dir.resolve()
+
+    if input_dir_resolved not in folder_path.parents and folder_path != input_dir_resolved:
+        raise HTTPException(status_code=400, detail=f"非法文件夹路径: {folder_name}")
     
     if not folder_path.exists():
         raise HTTPException(status_code=404, detail=f"文件夹不存在: {folder_name}")
@@ -212,127 +303,8 @@ async def list_folder_pdfs(folder_name: str):
     if not folder_path.is_dir():
         raise HTTPException(status_code=400, detail=f"不是文件夹: {folder_name}")
     
-    # 1. 获取所有文件
-    all_files = []
-    # 记录所有文件名（小写）以便快速查找
-    all_filenames_map = {} 
-    
-    for file_path in folder_path.iterdir():
-        if not file_path.is_file():
-            continue
-        # 忽略隐藏文件
-        if file_path.name.startswith('.'):
-            continue
-            
-        all_files.append(file_path)
-        all_filenames_map[file_path.name.lower()] = file_path
-
-    # 2. 识别主文件和附件
-    # 我们认为任何 PDF 都可能是主文件
-    # 但如果一个 PDF 是另一个 PDF 的附件（例如 "A.pdf" 和 "A_appendix.pdf"），
-    # 那么 "A.pdf" 是主文件，"A_appendix.pdf" 是附件。
-    
-    # 候选主文件列表 (只有 PDF 可以是主文件)
-    potential_mains = [f for f in all_files if f.suffix.lower() == '.pdf']
-    
-    # 按文件名长度排序（短的排前面），这样 "A.pdf" 会在 "A_appendix.pdf" 之前被处理
-    potential_mains.sort(key=lambda x: len(x.stem))
-    
-    main_pdfs = []
-    # 记录已被归类为附件的文件路径，避免重复处理
-    identified_attachments = set()
-    
-    # 辅助函数：判断是否为附件关系
-    def is_sibling_attachment(main_stem: str, suspect_stem: str) -> bool:
-        """
-        判断 suspect 是否为 main 的附件
-        规则：suspect 以 main_stem 开头，且后续接分隔符或中文
-        """
-        if not suspect_stem.startswith(main_stem):
-            return False
-            
-        if len(suspect_stem) <= len(main_stem):
-            return False
-            
-        # 检查分隔符
-        # 取前缀后的第一个字符
-        next_char = suspect_stem[len(main_stem)]
-        
-        # 允许的分隔符：空格、下划线、连字符
-        if next_char in ' _-':
-            return True
-            
-        # 或者是中文字符（通常中文不需要空格分隔，如 "Report附件"）
-        if '\u4e00' <= next_char <= '\u9fff':
-            return True
-            
-        return False
-
-    # 3. 构建主文件列表并计算附件数
-    # 为了正确处理，我们需要先确定哪些文件绝对是附件
-    
-    # 建立附件映射：main_path -> list of attachment_paths
-    attachments_map = {}
-    
-    # 遍历所有潜在主文件
-    for main_pdf in potential_mains:
-        # 如果它已经被识别为别的文件的附件，则跳过
-        if main_pdf in identified_attachments:
-            continue
-            
-        main_stem = main_pdf.stem
-        my_attachments = []
-        
-        # 在所有文件中查找它的附件
-        for file_path in all_files:
-            # 跳过自己
-            if file_path == main_pdf:
-                continue
-                
-            # 如果该文件已经是其他文件的附件，是否还允许属于当前文件？
-            # 这里的逻辑是：最长前缀匹配优先？还是最短？
-            # 简单起见，如果 A.pdf 和 A_v1.pdf 都在，
-            # A.pdf 是 A_v1.pdf 的主文件。
-            # 现有的 potential_mains 是按长度排序的，所以 A.pdf 会先被处理。
-            # 如果 A_v1.pdf 也是 PDF，它稍后会被遍历到，但如果我们把它标记为附件，就跳过它。
-            
-            # 使用现有关键词判断作为补充 (is_attachment_file 是遗留逻辑，仍然有用)
-            keyword_match = is_attachment_file(file_path.name)
-            
-            # 使用前缀匹配
-            prefix_match = is_sibling_attachment(main_stem, file_path.stem)
-            
-            if prefix_match:
-                my_attachments.append(file_path)
-                identified_attachments.add(file_path)
-            elif keyword_match and not prefix_match:
-                # 只有当它不匹配任何前缀时，才回退到纯关键词匹配
-                # 这种情况下，它属于哪个主文件？很难说。
-                # 现有的 is_attachment_file 逻辑是全局的，并不关联到特定主文件。
-                # 在以前的逻辑中，它只是被过滤掉，不显示。
-                # 在新逻辑中，我们希望显示附件数量。
-                # 如果一个文件只是单纯叫 "附件.pdf"，它属于谁？
-                # 这种边缘情况暂不处理，只处理明确归属的。
-                pass
-
-        # 记录结果
-        attachments_map[main_pdf] = my_attachments
-        main_pdfs.append(main_pdf)
-
-    # 4. 生成响应
-    results = []
-    for pdf_path in main_pdfs:
-        stat = pdf_path.stat()
-        results.append(PdfInfo(
-            name=pdf_path.name,
-            path=str(pdf_path),
-            size=stat.st_size,
-            is_attachment=False,
-            attachment_count=len(attachments_map.get(pdf_path, [])),
-        ))
-    
-    # 按文件名排序
-    results.sort(key=lambda x: x.name)
+    tree_payload = build_input_tree(folder_path)
+    results = [PdfInfo.parse_obj(pdf) for pdf in tree_payload["pdfs"]]
     
     return PdfListResponse(
         folder=folder_name,
@@ -356,55 +328,23 @@ async def start_batch(request: StartBatchRequest):
     
     # 获取文件夹下的所有 PDF
     input_dir = get_input_dir()
-    folder_path = input_dir / request.folder
+    folder_path = (input_dir / request.folder).resolve()
+    input_dir_resolved = input_dir.resolve()
+
+    if input_dir_resolved not in folder_path.parents and folder_path != input_dir_resolved:
+        raise HTTPException(status_code=400, detail=f"非法文件夹路径: {request.folder}")
     
     if not folder_path.exists():
         raise HTTPException(status_code=404, detail=f"文件夹不存在: {request.folder}")
     
-    pdf_paths = [str(p) for p in folder_path.glob("*.pdf")]
+    tree_payload = build_input_tree(folder_path)
+    pdf_paths = [pdf["path"] for pdf in tree_payload["pdfs"]]
     
     if not pdf_paths:
         raise HTTPException(status_code=400, detail=f"文件夹中没有 PDF 文件: {request.folder}")
     
-    # 创建回调函数
-    # 注意：使用 task_dict 而不是 task 对象，避免异步延迟导致状态被覆盖
-    async def on_update_dict(task_dict: dict):
-        await batch_manager.broadcast({
-            "type": "task_update",
-            "task": task_dict,
-        })
-    
-    async def on_complete(status: dict):
-        await batch_manager.broadcast({
-            "type": "batch_complete",
-            "status": status,
-        })
-    
-    # 包装同步回调为异步
-    def sync_on_update(task: BatchTask):
-        try:
-            # 关键修复：在创建异步任务前先序列化为字典（创建快照）
-            # 避免异步任务执行时 task 对象已被后续更新覆盖
-            task_dict = task.to_dict()
-            logger.info(f"准备广播任务更新: {task_dict['id']}, step: {task_dict['current_step']}")
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(on_update_dict(task_dict))
-            else:
-                loop.run_until_complete(on_update_dict(task_dict))
-        except Exception as e:
-            logger.warning(f"广播任务更新失败: {e}")
-    
-    def sync_on_complete(status: dict):
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(on_complete(status))
-            else:
-                loop.run_until_complete(on_complete(status))
-        except Exception as e:
-            logger.warning(f"广播批量完成失败: {e}")
-    
+    sync_on_update, sync_on_complete = build_batch_callbacks()
+
     # 创建并启动批量运行器
     runner = create_batch_runner(
         concurrency=request.concurrency,
@@ -442,45 +382,8 @@ async def start_selected(request: StartSelectedRequest):
     if not pdf_paths:
         raise HTTPException(status_code=400, detail="未选择任何 PDF 文件")
     
-    # 创建回调函数
-    # 注意：使用 task_dict 而不是 task 对象，避免异步延迟导致状态被覆盖
-    async def on_update_dict(task_dict: dict):
-        await batch_manager.broadcast({
-            "type": "task_update",
-            "task": task_dict,
-        })
-    
-    async def on_complete(status: dict):
-        await batch_manager.broadcast({
-            "type": "batch_complete",
-            "status": status,
-        })
-    
-    # 包装同步回调为异步
-    def sync_on_update(task: BatchTask):
-        try:
-            # 关键修复：在创建异步任务前先序列化为字典（创建快照）
-            # 避免异步任务执行时 task 对象已被后续更新覆盖
-            task_dict = task.to_dict()
-            logger.info(f"准备广播任务更新: {task_dict['id']}, step: {task_dict['current_step']}")
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(on_update_dict(task_dict))
-            else:
-                loop.run_until_complete(on_update_dict(task_dict))
-        except Exception as e:
-            logger.warning(f"广播任务更新失败: {e}")
-    
-    def sync_on_complete(status: dict):
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(on_complete(status))
-            else:
-                loop.run_until_complete(on_complete(status))
-        except Exception as e:
-            logger.warning(f"广播批量完成失败: {e}")
-    
+    sync_on_update, sync_on_complete = build_batch_callbacks()
+
     # 创建并启动批量运行器
     runner = create_batch_runner(
         concurrency=request.concurrency,
@@ -508,80 +411,73 @@ async def get_batch_status():
     if runner and (runner.is_running or len(runner._tasks) > 0):
         return BatchStatusResponse(**runner.get_status())
 
-    # 情况2：内存无任务，尝试从文件恢复
-    state_dir = Path("output/batch_state")
-    latest_file = state_dir / "latest.json"
+    latest_status = get_latest_status_from_storage()
+    if latest_status:
+        return latest_status
 
-    if latest_file.exists():
-        try:
-            with open(latest_file, 'r', encoding='utf-8') as f:
-                latest = json.load(f)
-                session_id = latest.get("session_id")
+    return make_empty_batch_status()
 
-            if session_id:
-                state_file = state_dir / f"{session_id}.json"
-                if state_file.exists():
-                    with open(state_file, 'r', encoding='utf-8') as f:
-                        state = json.load(f)
 
-                    # 关键修复：检测并处理服务重启导致中断的任务
-                    # 如果任务状态为 running 但服务已重启（内存无 runner），说明任务被中断
-                    state_modified = False
-                    for task in state["tasks"]:
-                        if task["status"] == "running":
-                            task["status"] = "error"
-                            task["error"] = "服务重启，任务中断"
-                            task["current_step"] = "服务重启，任务已中断"
-                            task["end_time"] = datetime.now().isoformat()
-                            state_modified = True
-                            logger.info(f"标记中断任务: {task['id']}")
+BatchDirectoryNode.update_forward_refs()
 
-                    # 更新全局状态
-                    if state_modified:
-                        state["status"]["running"] = False
-                        # 持久化变更到文件
-                        try:
-                            with open(state_file, 'w', encoding='utf-8') as f:
-                                json.dump(state, f, indent=2, ensure_ascii=False)
-                            logger.info(f"已更新中断任务状态到文件: {state_file}")
-                        except Exception as e:
-                            logger.warning(f"更新状态文件失败: {e}")
 
-                    # 返回历史状态
-                    status_counts = {
-                        "pending": 0,
-                        "running": 0,
-                        "done": 0,
-                        "error": 0,
-                        "cancelled": 0,
-                    }
-                    for task in state["tasks"]:
-                        status = task["status"]
-                        status_counts[status] = status_counts.get(status, 0) + 1
+@router.get("/batch/resume/latest", response_model=ResumeLatestResponse)
+async def get_latest_resumable_batch():
+    """获取最新一条可继续的批量会话。"""
+    state = get_latest_resumable_state()
+    if not state:
+        return ResumeLatestResponse(available=False)
 
-                    response = BatchStatusResponse(
-                        is_running=False,  # 历史状态不标记为运行中
-                        total=len(state["tasks"]),
-                        concurrency=state["config"]["concurrency"],
-                        **status_counts,
-                        tasks=state["tasks"],
-                    )
-                    return response
-        except Exception as e:
-            logger.warning(f"加载历史状态失败: {e}")
+    status_payload = state_to_status_payload(state, is_running=False)
+    resume_round = state.get("runtime", {}).get("resume_round")
+    current_round = state.get("runtime", {}).get("current_round", 0)
+    remaining_tasks = status_payload["total"] if resume_round and resume_round > current_round else status_payload["total"] - status_payload["done"]
 
-    # 情况3：无任何状态
-    return BatchStatusResponse(
-        is_running=False,
-        total=0,
-        concurrency=2,
-        pending=0,
-        running=0,
-        done=0,
-        error=0,
-        cancelled=0,
-        tasks=[],
+    return ResumeLatestResponse(
+        available=True,
+        session_id=state["metadata"]["session_id"],
+        last_updated=state["metadata"].get("last_updated"),
+        resume_round=resume_round,
+        remaining_tasks=remaining_tasks,
+        status=BatchStatusResponse(**status_payload),
     )
+
+
+@router.post("/batch/resume/latest", response_model=BatchStatusResponse)
+async def resume_latest_batch(request: ResumeLatestRequest | None = None):
+    """恢复并继续执行最新一条未完成的批量任务。"""
+    existing_runner = get_batch_runner()
+    if existing_runner and existing_runner.is_running:
+        raise HTTPException(status_code=400, detail="已有批量任务正在运行")
+
+    state = get_latest_resumable_state()
+    if not state:
+        raise HTTPException(status_code=404, detail="没有可继续的批量任务")
+
+    sync_on_update, sync_on_complete = build_batch_callbacks()
+    config = state.get("config", {})
+    concurrency_override = request.concurrency if request and request.concurrency is not None else None
+    if concurrency_override is not None and concurrency_override <= 0:
+        raise HTTPException(status_code=400, detail="并发数必须大于 0")
+
+    runner = get_or_create_batch_runner(
+        concurrency=concurrency_override or config.get("concurrency", 2),
+        experiment_rounds=config.get("experiment_rounds", 1),
+        on_update=sync_on_update,
+        on_complete=sync_on_complete,
+    )
+
+    status = await runner.resume_from_state(state, concurrency_override=concurrency_override)
+
+    try:
+        await batch_manager.broadcast({
+            "type": "status",
+            "status": status,
+        })
+    except Exception as e:
+        logger.warning(f"广播续跑状态失败: {e}")
+
+    return BatchStatusResponse(**status)
 
 
 @router.post("/batch/stop")
@@ -616,6 +512,13 @@ async def batch_websocket(websocket: WebSocket, session_id: str):
                 "type": "status",
                 "status": runner.get_status(),
             })
+        else:
+            latest_status = get_latest_status_from_storage()
+            if latest_status:
+                await websocket.send_json({
+                    "type": "status",
+                    "status": latest_status.model_dump() if hasattr(latest_status, "model_dump") else latest_status.dict(),
+                })
         
         # 保持连接
         while True:
@@ -639,35 +542,20 @@ async def list_batch_sessions():
 
     返回每个会话的基本信息和统计
     """
-    state_dir = Path("output/batch_state")
-    if not state_dir.exists():
-        return {"sessions": []}
-
     sessions = []
-    for state_file in state_dir.glob("batch_*.json"):
-        try:
-            with open(state_file, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-
-            # 统计各状态数量
-            status_counts = {}
-            for task in state["tasks"]:
-                status = task["status"]
-                status_counts[status] = status_counts.get(status, 0) + 1
-
-            sessions.append({
-                "session_id": state["metadata"]["session_id"],
-                "created_at": state["metadata"]["created_at"],
-                "last_updated": state["metadata"]["last_updated"],
-                "total_tasks": len(state["tasks"]),
-                "done": status_counts.get("done", 0),
-                "error": status_counts.get("error", 0),
-                "running": status_counts.get("running", 0),
-                "pending": status_counts.get("pending", 0),
-                "is_completed": status_counts.get("done", 0) == len(state["tasks"]),
-            })
-        except Exception as e:
-            logger.warning(f"读取会话文件失败 {state_file}: {e}")
+    for state in list_batch_session_states():
+        status = state_to_status_payload(state, is_running=False)
+        sessions.append({
+            "session_id": state["metadata"]["session_id"],
+            "created_at": state["metadata"]["created_at"],
+            "last_updated": state["metadata"]["last_updated"],
+            "total_tasks": status["total"],
+            "done": status["done"],
+            "error": status["error"],
+            "running": status["running"],
+            "pending": status["pending"],
+            "is_completed": state.get("runtime", {}).get("is_completed", False),
+        })
 
     # 按创建时间倒序排列
     sessions.sort(key=lambda x: x["created_at"], reverse=True)
@@ -677,35 +565,18 @@ async def list_batch_sessions():
 @router.post("/batch/restore/{session_id}")
 async def restore_batch_session(session_id: str):
     """
-    恢复指定会话
-
-    将历史会话加载到内存的 BatchRunner 中
+    查看指定会话的归一化状态
     """
-    runner = get_batch_runner()
-    if not runner:
-        raise HTTPException(status_code=400, detail="无活跃批量任务实例")
-
-    # 加载状态
-    state = runner._load_state(session_id)
+    state = load_batch_state(session_id)
     if not state:
         raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
 
-    # 恢复状态
-    runner.restore_from_state(state)
-
-    # 通知所有WebSocket连接
-    try:
-        await batch_manager.broadcast({
-            "type": "status",
-            "status": runner.get_status(),
-        })
-    except Exception as e:
-        logger.warning(f"广播恢复状态失败: {e}")
+    status = BatchStatusResponse(**state_to_status_payload(state, is_running=False))
 
     return {
-        "message": "会话已恢复",
+        "message": "会话状态已加载",
         "session_id": session_id,
-        "status": runner.get_status()
+        "status": status,
     }
 
 

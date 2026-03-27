@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { WS_URL } from '@/config'
 
 export interface ChatMessage {
-    type: 'status' | 'agent' | 'progress' | 'complete' | 'error' | 'item_progress' | 'batch_summary' | 'pong'
+    type: 'status' | 'agent' | 'progress' | 'complete' | 'cancelled' | 'error' | 'item_progress' | 'batch_summary' | 'pong'
     content?: string
     agent?: string
     progress?: number
@@ -32,7 +32,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const sessionIdRef = useRef<string | null>(null)
+    const optionsRef = useRef(options)
+    const reconnectAttemptsRef = useRef(0)
+    const allowReconnectRef = useRef(true)
+    const connectRef = useRef<(sessionId: string) => void>(() => undefined)
     const maxReconnectAttempts = 5
+
+    useEffect(() => {
+        optionsRef.current = options
+    }, [options])
+
+    useEffect(() => {
+        reconnectAttemptsRef.current = reconnectAttempts
+    }, [reconnectAttempts])
 
     const startHeartbeat = useCallback(() => {
         if (heartbeatIntervalRef.current) {
@@ -52,15 +64,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         }
     }, [])
 
-    const scheduleReconnect = useCallback((sessionId: string, attempt: number) => {
+    const scheduleReconnect = useCallback((attempt: number) => {
         if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current)
         }
         const delay = Math.min(1000 * Math.pow(2, attempt), 30000)
         console.log(`将在 ${delay}ms 后尝试重连 (尝试 ${attempt}/${maxReconnectAttempts})`)
+        setReconnectAttempts(attempt)
         reconnectTimeoutRef.current = setTimeout(() => {
-            if (attempt < maxReconnectAttempts) {
-                setReconnectAttempts(attempt + 1)
+            if (!allowReconnectRef.current || !sessionIdRef.current) {
+                return
+            }
+
+            if (attempt <= maxReconnectAttempts) {
+                connectRef.current(sessionIdRef.current)
             } else {
                 console.log('已达到最大重连次数，停止重连')
                 setReconnectAttempts(0)
@@ -77,11 +94,22 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }, [])
 
     const connect = useCallback((sessionId: string) => {
-        if (wsRef.current) {
-            wsRef.current.close()
+        const current = wsRef.current
+        if (
+            current &&
+            sessionIdRef.current === sessionId &&
+            (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)
+        ) {
+            return
+        }
+
+        if (current) {
+            allowReconnectRef.current = false
+            current.close()
         }
 
         sessionIdRef.current = sessionId
+        allowReconnectRef.current = true
 
         const ws = new WebSocket(`${WS_URL}/chat/${sessionId}`)
 
@@ -90,7 +118,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             setIsConnected(true)
             setReconnectAttempts(0)
             stopReconnect()
-            options.onOpen?.()
+            optionsRef.current.onOpen?.()
             startHeartbeat()
 
             while (pendingMessages.current.length > 0) {
@@ -109,27 +137,34 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             }
             
             console.log('WebSocket 消息:', message)
-            options.onMessage?.(message)
+            optionsRef.current.onMessage?.(message)
         }
 
         ws.onerror = (error) => {
             console.error('WebSocket 错误:', error)
-            options.onError?.(error)
+            optionsRef.current.onError?.(error)
         }
 
         ws.onclose = () => {
             console.log('WebSocket 已断开')
             setIsConnected(false)
             stopHeartbeat()
-            options.onClose?.()
+            if (wsRef.current === ws) {
+                wsRef.current = null
+            }
+            optionsRef.current.onClose?.()
 
-            if (sessionIdRef.current && reconnectAttempts < maxReconnectAttempts) {
-                scheduleReconnect(sessionIdRef.current, reconnectAttempts + 1)
+            if (allowReconnectRef.current && sessionIdRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
+                scheduleReconnect(reconnectAttemptsRef.current + 1)
             }
         }
 
         wsRef.current = ws
-    }, [options, startHeartbeat, stopHeartbeat, stopReconnect, scheduleReconnect, reconnectAttempts])
+    }, [startHeartbeat, stopHeartbeat, stopReconnect, scheduleReconnect, maxReconnectAttempts])
+
+    useEffect(() => {
+        connectRef.current = connect
+    }, [connect])
 
     useEffect(() => {
         const handleVisibilityChange = () => {
@@ -146,6 +181,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }, [isConnected, connect])
 
     const disconnect = useCallback(() => {
+        allowReconnectRef.current = false
         stopReconnect()
         stopHeartbeat()
         wsRef.current?.close()

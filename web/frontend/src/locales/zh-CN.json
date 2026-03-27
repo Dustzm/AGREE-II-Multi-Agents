@@ -22,10 +22,30 @@
             "offline": "离线"
         }
     },
+    "docs": {
+        "openInNewTab": "在新标签页打开使用手册",
+        "brand": "AMA 文档中心",
+        "loading": "正在加载使用手册...",
+        "toc": "本页目录",
+        "backToAma": "返回 AMA",
+        "language": "语言",
+        "langZh": "中文",
+        "langEn": "EN",
+        "emptyTitle": "暂无手册内容",
+        "emptyDescription": "当前文档尚未准备好，请稍后重试。",
+        "errorTitle": "手册加载失败",
+        "errorDescription": "暂时无法获取手册内容，请刷新页面后重试。",
+        "retry": "重新加载",
+        "mobileToc": "目录",
+        "notAvailableTitle": "英文手册暂未提供",
+        "notAvailableDescription": "当前版本先提供中文使用手册，英文正文文件后续补充。",
+        "switchToChinese": "切换到中文查看",
+        "sourceLabel": "内容来源"
+    },
     "chat": {
         "fileList": {
             "title": "文档列表",
-            "hint": "选择 PDF 开始评价",
+            "hint": "选择 PDF 后点击开始",
             "uploadPdf": "上传 PDF",
             "uploadFolder": "上传文件夹",
             "refresh": "刷新列表",
@@ -39,14 +59,28 @@
             "title": "评价进度",
             "processing": "处理中",
             "completed": "已完成",
-            "ready": "就绪"
+            "ready": "就绪",
+            "idle": "未开始",
+            "readyToStart": "等待开始",
+            "starting": "启动中",
+            "stopping": "终止中",
+            "cancelled": "已终止",
+            "error": "出错"
         },
         "status": {
             "parsing": "正在解析 PDF...",
             "orchestrating": "协调评价任务...",
             "complete": "评价完成",
+            "cancelled": "任务已终止",
             "processing": "{{agent}} 正在处理...",
             "done": "{{text}} 已完成"
+        },
+        "actions": {
+            "start": "开始",
+            "starting": "启动中...",
+            "stop": "终止",
+            "stopping": "终止中...",
+            "selected": "已选文献"
         },
         "upload": {
             "result": "上传完成: 成功 {{success}} 个，失败 {{failed}} 个",
@@ -81,6 +115,19 @@
         "button": {
             "start": "开始",
             "stop": "停止"
+        },
+        "resume": {
+            "title": "发现可继续任务",
+            "description": "最近一次批量任务停在第 {{current}}/{{total}} 轮，可以从这里继续。",
+            "total": "总任务 {{count}}",
+            "done": "已完成 {{count}}",
+            "remaining": "待继续 {{count}}",
+            "updated": "最近更新 {{time}}",
+            "concurrency": "续跑并发",
+            "concurrencyHint": "上次并发为 {{count}}，继续前可在这里调整。",
+            "action": "继续任务",
+            "success": "已开始继续批量任务",
+            "failed": "继续批量任务失败"
         },
         "status": {
             "title": "任务状态",
@@ -343,6 +390,11 @@
             "totalMatches": "总匹配数",
             "rank": "指南排行",
             "itemDistribution": "条目一致性分布 (按领域)",
+            "exportChart": "导出柱状图",
+            "exportingChart": "导出中...",
+            "chartYAxis": "一致性比例 (%)",
+            "exportSuccess": "柱状图已导出",
+            "exportError": "导出柱状图失败",
             "noData": "无数据",
             "legend": {
                 "high": "高 (≥80%)",
@@ -390,27 +442,44 @@
         },
         "form": {
             "title": "创建新实验",
-            "description": "选择人类评分文件和批次执行一致性分析",
+            "description": "在当前工作区完成评分文件、批次与阈值配置，然后直接开始一致性分析。",
+            "summary": {
+                "humanFile": "人类评分文件",
+                "batches": "对比批次",
+                "threshold": "当前阈值",
+                "pending": "尚未选择",
+                "humanHint": "选择已有评分文件或上传新文件",
+                "batchHint": "请选择两个批次用于对比",
+                "thresholdHint": "用于判定模型评分与人工评分是否一致"
+            },
             "humanFile": {
                 "title": "人类评分文件",
+                "helper": "选择一个人工评分 Excel 文件作为本次实验基准。",
                 "upload": "上传文件",
                 "empty": "暂无文件，请先上传"
             },
             "batch": {
                 "title": "选择批次 (选择2个)",
+                "helper": "从已有批次中选择两个结果进行对比分析。",
                 "selected": "已选 {{count}}/2",
                 "tasks": "任务",
                 "empty": "暂无批次结果"
             },
             "threshold": {
-                "title": "一致性阈值"
+                "title": "一致性阈值",
+                "value": "阈值 {{value}}",
+                "tooltipAriaLabel": "查看一致性阈值说明",
+                "tooltipTitle": "一致性阈值说明",
+                "tooltipDescription": "当人类评分与模型评分的分差小于或等于该阈值时，这次匹配会被记为一致。阈值越高，一致判定越宽松。"
             },
             "error": {
                 "selection": "请选择人类评分文件和恰好两个批次",
                 "run": "执行失败"
             },
             "running": "执行中...",
-            "start": "开始执行"
+            "start": "开始执行",
+            "startTitle": "执行准备",
+            "startHint": "确认已选择 1 个评分文件、2 个批次，并检查阈值设置。"
         },
         "workspace": {
             "empty": {

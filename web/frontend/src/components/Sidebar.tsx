@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, FileText, Settings, PlayCircle, BarChart2, Sliders } from 'lucide-react'
+import { MessageSquare, FileText, Settings, PlayCircle, BarChart2, Sliders, BookOpenText } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { LanguageSwitch } from './LanguageSwitch'
+import { APP_BASE_PATH } from '@/config'
 
 const navItems = [
     { to: '/chat', icon: MessageSquare, labelKey: 'nav.chat' },
@@ -16,6 +17,9 @@ const navItems = [
 
 export function Sidebar() {
     const { t } = useTranslation()
+    const openDocs = () => {
+        window.open(`${APP_BASE_PATH}/docs`, '_blank', 'noopener,noreferrer')
+    }
 
     return (
         <aside className="w-64 border-r border-gray-200/60 h-screen flex flex-col transition-all duration-300 relative overflow-hidden bg-white/95 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]" style={{ isolation: 'isolate' }}>
@@ -71,6 +75,15 @@ export function Sidebar() {
                 <div className="flex items-center justify-between text-xs text-gray-500 px-2">
                     <span className="font-mono opacity-70">v1.0.0</span>
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={openDocs}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-gray-100/80 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                            title={t('docs.openInNewTab')}
+                            aria-label={t('docs.openInNewTab')}
+                        >
+                            <BookOpenText className="h-4 w-4" />
+                        </button>
                         <LanguageSwitch />
                         <div className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -82,4 +95,3 @@ export function Sidebar() {
         </aside >
     )
 }
-

@@ -1,7 +1,7 @@
 """
 智能体运行服务
 
-封装 Orchestrator 调用，支持 WebSocket 回调
+封装 Web 单任务评价流程，支持 WebSocket 回调
 """
 import asyncio
 import logging
@@ -15,6 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from core.preprocessor import process_content_list
 from core.agents.tools.appraiser_batch import clear_progress_callbacks
+from core.utils.unicode_sanitizer import strip_surrogates
 from web.backend.app.i18n import t, get_language
 
 logger = logging.getLogger(__name__)
@@ -24,14 +25,31 @@ class AppraisalRunner:
     """
     评价任务运行器
     
-    封装 Orchestrator 的创建和执行，支持状态回调
+    为 Web 单任务入口封装显式两阶段流程：
+    1. 批量条目评价
+    2. 最终报告生成
     """
+
+    _REPORTER_MAX_RETRIES = 3
+    _REPORTER_RETRY_BASE_DELAY = 1.0
+    _REPORTER_RETRYABLE_KEYWORDS = (
+        "connection error",
+        "api connection",
+        "timeout",
+        "timed out",
+        "temporarily unavailable",
+        "connection reset",
+        "connection aborted",
+        "connection refused",
+        "network",
+    )
     
     def __init__(
         self,
         on_status: Optional[Callable[[str, str], None]] = None,
         on_agent: Optional[Callable[[str, str, int, int, Optional[str]], None]] = None,
         on_complete: Optional[Callable[[str], None]] = None,
+        on_cancelled: Optional[Callable[[str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
         lang: Optional[str] = None,
         output_subdir: Optional[str] = None,
@@ -41,6 +59,7 @@ class AppraisalRunner:
             on_status: 状态回调 (type, content)
             on_agent: 智能体回调 (agent, content, progress, total, prompt)
             on_complete: 完成回调 (task_id)
+            on_cancelled: 取消回调 (task_id)
             on_error: 错误回调 (error_msg)
             lang: 语言代码 (zh/en)，默认英语
             output_subdir: 输出子目录 (如 "batch_1", "batch_2")
@@ -48,11 +67,13 @@ class AppraisalRunner:
         self.on_status = on_status or (lambda *_: None)
         self.on_agent = on_agent or (lambda *_: None)
         self.on_complete = on_complete or (lambda *_: None)
+        self.on_cancelled = on_cancelled or (lambda *_: None)
         self.on_error = on_error or (lambda *_: None)
         self.lang = get_language(lang)
         self.output_subdir = output_subdir
         
         self._cancelled = False
+        self._cancel_notified = False
         
         # 用于 WebSocket 发送的回调（在 run 中设置）
         self._on_item_progress = None
@@ -89,12 +110,256 @@ class AppraisalRunner:
     def cancel(self):
         """取消当前任务"""
         self._cancelled = True
+
+    def _notify_cancelled(self, task_id: str):
+        """确保取消终态只通知一次。"""
+        if self._cancelled and not self._cancel_notified:
+            self._cancel_notified = True
+            self.on_cancelled(task_id)
     
     def get_token_usage(self) -> dict:
         """获取当前任务的 token 使用统计"""
         if self._token_tracker:
             return self._token_tracker.to_dict()
         return {}
+
+    def _report_paths(self, task_id: str) -> tuple[Optional[Path], Optional[Path]]:
+        """获取报告文件路径。"""
+        from core.agents.tools.public_tools import get_task_paths
+
+        paths = get_task_paths(task_id)
+        if not paths:
+            return None, None
+
+        task_dir = Path(paths["task_dir"])
+        return task_dir / "appraisal_report.json", task_dir / "appraisal_report.md"
+
+    def _report_exists(self, task_id: str) -> bool:
+        """报告 JSON 与 Markdown 是否都已生成。"""
+        json_path, md_path = self._report_paths(task_id)
+        return bool(json_path and md_path and json_path.exists() and md_path.exists())
+
+    def _walk_exception_chain(self, error: Exception) -> list[BaseException]:
+        """展开异常链，便于识别被包装后的连接异常。"""
+        chain: list[BaseException] = []
+        current: BaseException | None = error
+        while current and current not in chain:
+            chain.append(current)
+            current = current.__cause__ or current.__context__
+        return chain
+
+    def _is_retryable_reporter_error(self, error: Exception) -> bool:
+        """判断 Reporter 阶段错误是否适合重试。"""
+        retryable_types: tuple[type[BaseException], ...] = ()
+
+        try:
+            import openai
+
+            retryable_types += tuple(
+                exc
+                for exc in (
+                    getattr(openai, "APIConnectionError", None),
+                    getattr(openai, "APITimeoutError", None),
+                )
+                if exc is not None
+            )
+        except Exception:
+            pass
+
+        try:
+            import litellm
+
+            retryable_types += tuple(
+                exc
+                for exc in (
+                    getattr(litellm, "InternalServerError", None),
+                    getattr(litellm, "ServiceUnavailableError", None),
+                    getattr(litellm, "Timeout", None),
+                    getattr(litellm, "APIConnectionError", None),
+                )
+                if exc is not None
+            )
+        except Exception:
+            pass
+
+        for candidate in self._walk_exception_chain(error):
+            if retryable_types and isinstance(candidate, retryable_types):
+                return True
+
+            normalized = str(candidate).lower()
+            if any(keyword in normalized for keyword in self._REPORTER_RETRYABLE_KEYWORDS):
+                return True
+
+        return False
+
+    async def _sleep_with_cancel(self, delay: float) -> bool:
+        """带取消检查的等待。"""
+        remaining = max(delay, 0.0)
+        while remaining > 0:
+            if self._cancelled:
+                return False
+            interval = min(0.1, remaining)
+            await asyncio.sleep(interval)
+            remaining -= interval
+        return not self._cancelled
+
+    async def _run_batch_appraisal(self, task_id: str):
+        """直接执行批量条目评价阶段。"""
+        from core.agents.tools.appraiser_batch import appraise_all
+
+        logger.info(f"[{task_id}] 开始批量条目评价阶段")
+        self.on_agent("Appraiser", t("agent.batch_appraise_start", self.lang), 1, 3, None)
+
+        result = await appraise_all(
+            task_id,
+            lang=self.lang,
+            on_item_progress=self._handle_item_progress,
+            on_summary=self._handle_batch_summary,
+        )
+
+        if self._cancelled:
+            logger.info(f"[{task_id}] 批量条目评价结束后检测到取消")
+            return
+
+        status = result.get("status", "error")
+        failed = result.get("failed", {})
+        if status == "error":
+            raise RuntimeError(f"批量条目评价失败: {failed or 'Unknown error'}")
+        if status == "partial":
+            logger.warning(f"[{task_id}] 批量条目评价部分失败，将继续进入报告阶段: {failed}")
+
+        self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 1, 3, None)
+        self.on_status("status", t("status.entering_report_phase", self.lang))
+        logger.info(f"[{task_id}] 批量评价完成，进入报告阶段")
+
+    async def _run_reporter_once(self, task_id: str):
+        """执行一次 Reporter 阶段。"""
+        from core.agents import create_reporter_agent
+        from google.adk import runners
+        from google.genai import types
+
+        reporter = create_reporter_agent(self.lang)
+        runner = runners.InMemoryRunner(
+            agent=reporter,
+            app_name='ama_web_reporter',
+        )
+
+        session = await runner.session_service.create_session(
+            app_name='ama_web_reporter',
+            user_id='web_user',
+        )
+
+        prompt = f"""请开始处理 AGREE-II 最终报告生成任务。
+
+任务信息：
+- task_id: {task_id}
+
+请严格按 Reporter 工作流程执行：
+1. 调用 get_guideline_title(task_id)
+2. 调用 load_all_evaluations(task_id)
+3. 分析结果并调用 generate_appraisal_report(...) 保存报告
+4. 返回报告摘要
+"""
+
+        initial_message = types.Content(
+            role='user',
+            parts=[types.Part(text=strip_surrogates(prompt))],
+        )
+
+        report_tool_called = False
+
+        async for event in runner.run_async(
+            user_id='web_user',
+            session_id=session.id,
+            new_message=initial_message,
+        ):
+            if hasattr(event, 'usage_metadata') and event.usage_metadata and self._token_tracker:
+                self._token_tracker.add_usage(event.usage_metadata)
+
+            if hasattr(event, 'content') and event.content:
+                for part in event.content.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        tool_name = part.function_call.name or ""
+                        logger.info(f"[{task_id}] Reporter 工具调用: {tool_name}")
+                        if 'generate_appraisal_report' in tool_name.lower():
+                            report_tool_called = True
+                    elif hasattr(part, 'function_response') and part.function_response:
+                        response = part.function_response
+                        tool_name = response.name if hasattr(response, 'name') else ""
+                        logger.info(f"[{task_id}] Reporter 工具完成: {tool_name}")
+                        if 'generate_appraisal_report' in tool_name.lower():
+                            report_tool_called = True
+                    elif hasattr(part, 'text') and part.text:
+                        text = part.text.strip()
+                        if text:
+                            logger.info(f"[{task_id}] Reporter 输出: {text[:300]}")
+
+            if self._cancelled:
+                logger.info(f"[{task_id}] Reporter 当前尝试结束后检测到取消")
+                break
+
+        if self._cancelled:
+            return
+
+        if not report_tool_called and not self._report_exists(task_id):
+            raise RuntimeError("Reporter 执行完成，但未调用 generate_appraisal_report 或未生成报告文件")
+
+    async def _run_reporter_with_retries(self, task_id: str):
+        """执行 Reporter 阶段，并对瞬时连接错误做重试。"""
+        self.on_agent("Reporter", t("agent.reporter_working", self.lang), 2, 3, None)
+
+        last_error: Exception | None = None
+        for attempt in range(1, self._REPORTER_MAX_RETRIES + 1):
+            if self._cancelled:
+                logger.info(f"[{task_id}] Reporter 启动前检测到取消")
+                return
+
+            logger.info(
+                f"[{task_id}] 开始 Reporter 尝试 attempt={attempt}/{self._REPORTER_MAX_RETRIES}"
+            )
+            try:
+                await self._run_reporter_once(task_id)
+
+                if self._cancelled:
+                    logger.info(f"[{task_id}] Reporter 尝试完成后检测到取消")
+                    return
+
+                if not self._report_exists(task_id):
+                    raise RuntimeError("Reporter 执行成功，但缺少 appraisal_report.json 或 appraisal_report.md")
+
+                logger.info(f"[{task_id}] Reporter 阶段完成")
+                return
+            except Exception as error:
+                if self._report_exists(task_id):
+                    logger.warning(f"[{task_id}] Reporter 抛出异常但报告文件已生成，视为成功: {error}")
+                    return
+
+                last_error = error
+                retryable = self._is_retryable_reporter_error(error)
+                logger.warning(
+                    f"[{task_id}] Reporter 失败 attempt={attempt}/{self._REPORTER_MAX_RETRIES} "
+                    f"retryable={retryable} error={type(error).__name__}: {error}"
+                )
+
+                if not retryable or attempt >= self._REPORTER_MAX_RETRIES:
+                    raise
+
+                self.on_status(
+                    "status",
+                    t(
+                        "status.report_retry",
+                        self.lang,
+                        attempt=attempt,
+                        max_retries=self._REPORTER_MAX_RETRIES,
+                    ),
+                )
+                delay = self._REPORTER_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                if not await self._sleep_with_cancel(delay):
+                    logger.info(f"[{task_id}] Reporter 重试等待期间任务被取消")
+                    return
+
+        if last_error is not None:
+            raise last_error
     
     async def run(self, task_id: str, pdf_path: str, reuse_task_id: Optional[str] = None):
         """
@@ -110,16 +375,17 @@ class AppraisalRunner:
             pdf_path: PDF 文件路径
             reuse_task_id: 可选，复用已有的 task_id（多轮实验时使用）
         """
+        actual_task_id = task_id
+
         try:
             self._cancelled = False
+            self._cancel_notified = False
             
-            # 导入智能体（延迟导入避免循环依赖）
-            from core.agents import create_orchestrator, init_task_directory
+            # 导入依赖（延迟导入避免循环依赖）
+            from core.agents import init_task_directory
             from core.agents.tools.public_tools import get_task_paths
             from core.parsers import MinerUParser
             from core.config import get_settings
-            from google.adk import runners
-            from google.genai import types
             import shutil
             
             pdf_file = Path(pdf_path)
@@ -138,7 +404,10 @@ class AppraisalRunner:
                     first_prep_dir = Path(first_round_paths["prep_dir"])
                     
                     # 在当前轮次的 output_subdir 下创建新目录
-                    task_result = init_task_directory(pdf_file.name, output_subdir=self.output_subdir)
+                    task_result = init_task_directory(
+                        pdf_file.name,
+                        output_subdir=self.output_subdir,
+                    )
                     
                     if task_result.get("status") == "error":
                         self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
@@ -182,7 +451,10 @@ class AppraisalRunner:
             
             if not reuse_task_id:
                 # 使用文件名初始化（和 CLI 一致）
-                task_result = init_task_directory(pdf_file.name, output_subdir=self.output_subdir)
+                task_result = init_task_directory(
+                    pdf_file.name,
+                    output_subdir=self.output_subdir,
+                )
                 
                 if task_result.get("status") == "error":
                     self.on_error(t("error.init_failed", self.lang, error=task_result.get('error', 'Unknown')))
@@ -196,6 +468,7 @@ class AppraisalRunner:
             self.on_status("status", t("status.task_id", self.lang, task_id=actual_task_id))
             
             if self._cancelled:
+                self._notify_cancelled(actual_task_id)
                 return
 
             
@@ -214,6 +487,10 @@ class AppraisalRunner:
                 retry_delay = settings.mineru.parse_retry_delay
 
                 if not mineru_url:
+                    if self._cancelled:
+                        self._notify_cancelled(actual_task_id)
+                        return
+
                     self.on_error(t("error.mineru_not_configured", self.lang))
                     return
 
@@ -223,12 +500,20 @@ class AppraisalRunner:
                 # 先检查服务是否可用
                 service_ok = await parser.health_check()
                 if not service_ok:
+                    if self._cancelled:
+                        self._notify_cancelled(actual_task_id)
+                        return
+
                     self.on_error(t("error.mineru_unavailable", self.lang))
                     return
 
                 # 带重试的解析逻辑
                 last_error = None
                 for attempt in range(max_retries):
+                    if self._cancelled:
+                        self._notify_cancelled(actual_task_id)
+                        return
+
                     try:
                         parse_result = await parser.parse_pdf_to_file(
                             pdf_path=str(pdf_file),
@@ -253,8 +538,14 @@ class AppraisalRunner:
 
                     # 如果不是最后一次尝试，等待后重试
                     if attempt < max_retries - 1:
+                        if self._cancelled:
+                            self._notify_cancelled(actual_task_id)
+                            return
                         self.on_status("status", t("status.parse_retry", self.lang, delay=retry_delay, attempt=attempt + 1, max_retries=max_retries))
                         await asyncio.sleep(retry_delay)
+                        if self._cancelled:
+                            self._notify_cancelled(actual_task_id)
+                            return
 
                 # 所有重试都失败
                 if not parse_success:
@@ -262,6 +553,7 @@ class AppraisalRunner:
                     return
             
             if self._cancelled:
+                self._notify_cancelled(actual_task_id)
                 return
             
             # Step 2.5: 语义证据池构建
@@ -271,6 +563,10 @@ class AppraisalRunner:
                 evidence_pool_path = Path(prep_dir) / f"{pdf_stem}_evidence_pool.json"
                 
                 # 如果是复用模式且证据池已存在，跳过预处理（直接使用第一轮的证据池）
+                if self._cancelled:
+                    self._notify_cancelled(actual_task_id)
+                    return
+
                 if reuse_task_id and evidence_pool_path.exists():
                     logger.info(f"复用第一轮证据池，跳过预处理: {evidence_pool_path}")
                     self.on_status("status", t("status.reusing_evidence", self.lang))
@@ -284,7 +580,8 @@ class AppraisalRunner:
                                 content_list_path=str(content_list_path),
                                 output_path=str(evidence_pool_path),
                                 pdf_path=str(pdf_file),  # 添加 PDF 路径以构建 docindex
-                                lang=self.lang  # 使用实例的语言设置
+                                lang=self.lang,  # 使用实例的语言设置
+                                progress_callback=lambda message: self.on_status("status", message),
                             )
                             
                             if preprocess_result["status"] == "success":
@@ -292,263 +589,55 @@ class AppraisalRunner:
                             else:
                                 logger.warning(f"预处理失败: {preprocess_result.get('error')}")
                                 self.on_status("status", t("status.evidence_failed", self.lang))
+                            if self._cancelled:
+                                self._notify_cancelled(actual_task_id)
+                                return
                         except Exception as e:
                             logger.error(f"预处理过程异常: {e}")
                             self.on_status("status", t("status.preprocess_error", self.lang))
+                            if self._cancelled:
+                                self._notify_cancelled(actual_task_id)
+                                return
                     else:
                         logger.warning(f"未找到 content_list.json: {content_list_path}")
             
-            # Step 3: 运行 Orchestrator（带重试机制）
-            max_orchestrator_retries = 3  # 最大重试次数
-            appraise_all_called = False   # 标记是否调用了 appraise_all
-
+            # Step 3: 显式执行两阶段流程（批量评价 -> 报告生成）
             self.on_status("status", t("status.starting_agents", self.lang))
-            self.on_agent("Orchestrator", t("agent.orchestrator_start", self.lang), 0, 4)
+            self.on_agent("Orchestrator", t("agent.orchestrator_start", self.lang), 0, 3)
+
+            from core.utils.token_tracker import TokenUsageTracker, set_global_tracker
+            self._token_tracker = TokenUsageTracker(task_id=actual_task_id)
+            set_global_tracker(self._token_tracker)
+            self._weaver_dir = Path(task_result["paths"]["weaver_dir"]) if not reuse_task_id else Path(prep_dir).parent
+
+            await self._run_batch_appraisal(actual_task_id)
+
+            if self._cancelled:
+                logger.info(f"[{actual_task_id}] 批量评价阶段结束后任务已取消")
+                self._notify_cancelled(actual_task_id)
+                return
+
+            await self._run_reporter_with_retries(actual_task_id)
+
+            if self._cancelled:
+                self._notify_cancelled(actual_task_id)
+                return
+
+            self.on_agent("Reporter", t("agent.report_done", self.lang), 3, 3)
             
-            # 不再使用全局回调，直接传递给 create_orchestrator
-            # register_progress_callbacks(self._handle_item_progress, self._handle_batch_summary)
-
-            orchestrator = create_orchestrator(
-                lang=self.lang,
-                on_item_progress=self._handle_item_progress,
-                on_summary=self._handle_batch_summary,
-            )
-            runner = runners.InMemoryRunner(
-                agent=orchestrator,
-                app_name='ama_web',
-            )
-
-            # 重试循环
-            for retry_attempt in range(max_orchestrator_retries):
-                appraise_all_called = False  # 每次重试重置标志
-
-                session = await runner.session_service.create_session(
-                    app_name='ama_web',
-                    user_id='web_user'
-                )
-
-                # 构建初始消息（简化流程，无 Initiator）
-                prompt = f"""请开始处理 AGREE-II 指南评价任务。
-
-任务信息：
-- task_id: {actual_task_id}
-- 源文档已解析并保存到 source.md
-
-请按照工作流程执行：
-1. 调用 appraise_all 并发评价所有条目
-2. 调用 Reporter 生成最终报告
-
-开始执行！"""
-
-                initial_message = types.Content(
-                    role='user',
-                    parts=[types.Part(text=prompt)]
-                )
-
-                # 初始化 Token 统计（只在第一次重试时初始化）
-                if retry_attempt == 0:
-                    from core.utils.token_tracker import TokenUsageTracker, set_global_tracker
-                    self._token_tracker = TokenUsageTracker(task_id=actual_task_id)
-                    set_global_tracker(self._token_tracker)  # 设置全局追踪器供 Appraiser 使用
-                    self._weaver_dir = Path(task_result["paths"]["weaver_dir"]) if not reuse_task_id else Path(prep_dir).parent
-
-                # 跟踪当前智能体和调用状态（已移除 Initiator）
-                current_agent = "Orchestrator"
-                agent_progress = {
-                    "Appraiser": 1,
-                    "Reporter": 2
-                }
-                agent_messages = {
-                    "Appraiser": t("agent.appraiser_working", self.lang),
-                    "Reporter": t("agent.reporter_working", self.lang)
-                }
-
-                # 运行对话
-                async for event in runner.run_async(
-                    user_id='web_user',
-                    session_id=session.id,
-                    new_message=initial_message
-                ):
-                    if self._cancelled:
-                        break
-
-                    # 捕获 token 使用统计
-                    if hasattr(event, 'usage_metadata') and event.usage_metadata:
-                        logger.debug(f"收到 usage_metadata: {event.usage_metadata}")
-                        self._token_tracker.add_usage(event.usage_metadata)
-
-                    # 处理事件内容
-                    if hasattr(event, 'content') and event.content:
-                        for part in event.content.parts:
-                            # 1. 检测函数调用（工具调用）
-                            if hasattr(part, 'function_call') and part.function_call:
-                                tool_name = part.function_call.name
-                                logger.info(f"[{actual_task_id}] 检测到工具调用: {tool_name}")
-
-                                # 根据工具名称判断是哪个子代理（已移除 Initiator）
-                                agent_name = None
-                                custom_message = None
-                                appraiser_prompt = None  # 用于存储提示词（移到外部避免作用域问题）
-
-                                if tool_name.lower().startswith('appraiser'):
-                                    agent_name = "Appraiser"
-                                    # 解析 skill_id 以显示具体条目
-                                    try:
-                                        # 从工具名提取 skill_id，如 Appraiser_item_1 -> item_1
-                                        skill_id = ""
-                                        if '_item_' in tool_name.lower():
-                                            skill_id = tool_name.split('_', 1)[1]  # item_1
-                                        else:
-                                            # 从参数中提取
-                                            args = part.function_call.args
-                                            if args:
-                                                if isinstance(args, dict):
-                                                    skill_id = args.get("skill_id", "")
-                                                elif hasattr(args, 'get'):
-                                                    skill_id = args.get("skill_id", "")
-                                                else:
-                                                    import json
-                                                    args_dict = json.loads(str(args)) if isinstance(args, str) else {}
-                                                    skill_id = args_dict.get("skill_id", "")
-
-                                        if skill_id:
-                                            custom_message = t("agent.appraising_item", self.lang, skill_id=skill_id)
-                                            logger.info(f"[{actual_task_id}] Appraiser 正在评价条目: {skill_id}")
-
-                                            # 获取渲染后的提示词
-                                            try:
-                                                from core.prompts.renderer import render_appraiser_prompt
-                                                appraiser_prompt = render_appraiser_prompt(skill_id)
-                                            except Exception as e:
-                                                logger.warning(f"[{actual_task_id}] 获取提示词失败: {e}")
-                                    except Exception as e:
-                                        logger.warning(f"[{actual_task_id}] 解析 Appraiser 参数失败: {e}")
-
-                                elif 'reporter' in tool_name.lower():
-                                    agent_name = "Reporter"
-                                elif 'appraise_all' in tool_name.lower():
-                                    # 批量评价工具开始
-                                    appraise_all_called = True
-                                    logger.info(f"[{actual_task_id}] 检测到 appraise_all 调用，开始批量评价所有条目")
-
-                                # 发送子代理状态更新
-                                if agent_name:
-                                    # 对于 Appraiser，总是发送更新（因为可能是不同条目）
-                                    if agent_name == "Appraiser" or agent_name != current_agent:
-                                        current_agent = agent_name
-                                        progress = agent_progress.get(agent_name, 0)
-                                        message = custom_message or agent_messages.get(agent_name, t("agent.processing", self.lang, agent=agent_name))
-                                        # 发送带提示词的消息（只有 Appraiser 有）
-                                        self.on_agent(agent_name, message, progress, 3, appraiser_prompt if agent_name == "Appraiser" else None)
-                                        logger.info(f"[{actual_task_id}] 切换到代理: {agent_name}, 消息: {message}")
-                                        appraiser_prompt = None  # 重置
-
-                                # 2. 检测函数响应（工具返回）
-                            elif hasattr(part, 'function_response') and part.function_response:
-                                response = part.function_response
-                                tool_name = response.name if hasattr(response, 'name') else ""
-                                logger.info(f"[{actual_task_id}] 工具完成: {tool_name}")
-
-                                # 根据工具名称发送完成状态（已移除 Initiator）
-                                if 'appraise_all' in tool_name.lower():
-                                    self.on_agent("Appraiser", t("agent.batch_appraise_done", self.lang), 1, 3)
-                                    logger.info(f"[{actual_task_id}] 批量评价完成")
-                                elif 'reporter' in tool_name.lower():
-                                    self.on_agent("Reporter", t("agent.reporter_done", self.lang), 2, 3)
-                                    logger.info(f"[{actual_task_id}] Reporter 完成")
-
-                            # 3. 处理文本输出
-                            elif hasattr(part, 'text') and part.text:
-                                text = part.text
-
-                                # 检查是否有 reasoning/reasoning_content (vLLM + reasoning-parser 模式)
-                                # ADK 通过 LiteLLM 返回的消息可能包含 reasoning_content 字段
-                                current_content = event.content
-                                reasoning_content = None
-
-                                # 检查多种可能的 reasoning 字段位置
-                                if hasattr(current_content, 'reasoning_content'):
-                                    reasoning_content = current_content.reasoning_content
-                                elif hasattr(current_content, 'reasoning'):
-                                    reasoning_content = current_content.reasoning
-
-                                # 如果有思考内容，记录但不推送到 WebSocket
-                                if reasoning_content:
-                                    logger.info(f"[Thinking] 获取到思考内容 ({len(reasoning_content)} 字符)")
-                                    # 如果当前 text 就是思考内容（被错误地放到了 content 中），跳过
-                                    # 增加对 reasoning_content 非空的保护，并确保 text 和 reasoning_content 都是字符串
-                                    s_text = text.strip() if text else ""
-                                    s_reasoning = reasoning_content.strip() if reasoning_content else ""
-                                    if s_text and s_text == s_reasoning:
-                                        logger.debug("[Thinking] text 与 reasoning_content 相同，跳过")
-                                        continue
-
-                                # 回退检测: 如果 text 看起来像是思考内容（以换行开头且包含思考特征）
-                                # vLLM 返回的 reasoning 通常以 \n 开头
-                                if text.startswith('\n') and len(text) > 50:
-                                    # 检测是否是完整的思考内容（通常很长且以分析性语言开头）
-                                    trimmed = text.strip()
-                                    if trimmed.startswith(('好的，', '嗯，', '让我', '首先', '我需要', '根据')):
-                                        logger.debug(f"[Thinking] 检测到可能的思考内容: {text[:50]}...")
-                                        continue
-
-                                # 过滤 <think> 标签内容
-                                if '<think>' in text or '</think>' in text:
-                                    import re
-                                    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-                                    if not text:
-                                        continue
-
-                                # 只显示有意义的输出 (非空且长度足够)
-                                # 过滤 Orchestrator 的文本输出（任务指令复述，不应推送到前端）
-                                if len(text.strip()) > 20 and current_agent != "Orchestrator":
-                                    # 截取前 200 字符
-                                    display_text = text[:200] + "..." if len(text) > 200 else text
-                                    self.on_status("status", display_text)
-
-                    # 备用：仍然检查 author（以防某些事件有）
-                    if hasattr(event, 'author') and event.author:
-                        author = event.author
-                        if author != current_agent and author in agent_progress:
-                            current_agent = author
-                            progress = agent_progress.get(author, 0)
-                            message = agent_messages.get(author, t("agent.processing", self.lang, agent=author))
-                            self.on_agent(author, message, progress, 4)
-                            logger.info(f"[{actual_task_id}] 通过 author 切换到代理: {author}")
-
-                # async for 循环结束，检查是否调用了 appraise_all
-                if self._cancelled:
-                    logger.info(f"[{actual_task_id}] 任务已取消")
-                    break
-
-                if appraise_all_called:
-                    # 正常完成，跳出重试循环
-                    logger.info(f"[{actual_task_id}] Orchestrator 正常完成，已调用 appraise_all")
-                    break
-                else:
-                    # 未调用 appraise_all，需要重试
-                    if retry_attempt < max_orchestrator_retries - 1:
-                        logger.warning(f"[{actual_task_id}] Orchestrator 未调用 appraise_all，重试 ({retry_attempt + 1}/{max_orchestrator_retries})")
-                        self.on_status("status", t("status.retry_appraise", self.lang, attempt=retry_attempt + 1, max_retries=max_orchestrator_retries))
-                    else:
-                        # 最后一次重试也失败
-                        logger.error(f"[{actual_task_id}] Orchestrator 多次重试后仍未调用 appraise_all")
-                        self.on_error(t("error.appraise_not_called", self.lang))
-                        return
-
-            if not self._cancelled:
-                self.on_agent("Reporter", t("agent.report_done", self.lang), 3, 3)
-                
-                # 保存 Token 统计到 .ama/token_usage.json
-                if self._token_tracker and self._weaver_dir:
-                    token_usage_path = self._weaver_dir / "token_usage.json"
-                    self._token_tracker.save(token_usage_path)
-                
-                self.on_complete(actual_task_id)
+            # 保存 Token 统计到 .ama/token_usage.json
+            if self._token_tracker and self._weaver_dir:
+                token_usage_path = self._weaver_dir / "token_usage.json"
+                self._token_tracker.save(token_usage_path)
+            
+            self.on_complete(actual_task_id)
         
         except Exception as e:
             logger.exception(f"评价任务失败: {e}")
-            self.on_error(str(e))
+            if self._cancelled:
+                self._notify_cancelled(actual_task_id)
+            else:
+                self.on_error(str(e))
         
         finally:
             # 清理全局进度回调

@@ -15,7 +15,7 @@ import { PromptModal } from './PromptModal'
 // 时序图事件类型
 export interface TimelineEvent {
     id: string
-    type: 'parsing' | 'preprocessing' | 'orchestrator' | 'initiator' | 'appraiser' | 'reporter' | 'error' | 'complete'
+    type: 'parsing' | 'preprocessing' | 'orchestrator' | 'initiator' | 'appraiser' | 'reporter' | 'error' | 'complete' | 'cancelled'
     status: 'pending' | 'running' | 'done' | 'error'
     message: string
     detail?: string  // 例如 Appraiser 的 item_id
@@ -35,12 +35,16 @@ const agentColors: Record<string, { pulse: string; text: string; bg: string }> =
     reporter: { pulse: 'pulse-orange', text: 'text-orange-600', bg: 'bg-orange-50' },
     error: { pulse: '', text: 'text-red-600', bg: 'bg-red-50' },
     complete: { pulse: '', text: 'text-emerald-600', bg: 'bg-emerald-50' },
+    cancelled: { pulse: '', text: 'text-amber-600', bg: 'bg-amber-50' },
 }
 
 // 获取图标
 function getIcon(type: TimelineEvent['type'], status: TimelineEvent['status']) {
     const iconProps = { className: 'h-4 w-4' }
 
+    if (type === 'cancelled') {
+        return <AlertCircle {...iconProps} className="h-4 w-4 text-amber-500" />
+    }
     if (status === 'done') {
         return <CheckCircle2 {...iconProps} className="h-4 w-4 text-emerald-500" />
     }
@@ -228,4 +232,3 @@ export function TimelineView({ events, taskId, batchSummary }: TimelineViewProps
         </>
     )
 }
-

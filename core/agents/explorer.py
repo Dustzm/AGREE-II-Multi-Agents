@@ -5,7 +5,7 @@ Explorer (附件探索智能体)
 """
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Callable, List, Dict, Any, Optional
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
@@ -149,7 +149,11 @@ def create_explorer_agent(lang: str = "zh") -> LlmAgent:
 # 快捷函数（供 process_content_list 直接调用）
 # ============================================================================
 
-async def run_explorer(pdf_path: str, prep_dir: str) -> List[Dict[str, Any]]:
+async def run_explorer(
+    pdf_path: str,
+    prep_dir: str,
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> List[Dict[str, Any]]:
     """
     运行附件处理，返回附件内容块
     
@@ -171,7 +175,8 @@ async def run_explorer(pdf_path: str, prep_dir: str) -> List[Dict[str, Any]]:
     try:
         results = await processor.process(
             source_path=Path(pdf_path),
-            prep_dir=Path(prep_dir)
+            prep_dir=Path(prep_dir),
+            on_progress=on_progress,
         )
     except Exception as e:
         logger.error(f"附件处理失败: {e}", exc_info=True)

@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import { Layout } from './components/Layout'
 import { Chat } from './pages/Chat'
 import { Reports } from './pages/Reports'
+import { Docs } from './pages/Docs'
 
 import { Skills } from './pages/Skills'
 import { Agents } from './pages/Agents'
@@ -15,6 +16,7 @@ function App() {
     <BrowserRouter basename="/ama">
       <Toaster position="top-center" />
       <Routes>
+        <Route path="/docs" element={<Docs />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/chat" replace />} />
           <Route path="chat" element={<Chat />} />

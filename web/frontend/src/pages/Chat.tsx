@@ -7,10 +7,54 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown, FolderOpen, Paperclip, Eye, EyeOff, FileSpreadsheet, FileImage, Film, Music, FileCode, File, Presentation } from 'lucide-react'
-import { api, type PdfFile, type FolderInfo } from '@/services/api'
+import { api, type PdfFile, type InputDirectoryNode } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
 import { cn } from '@/utils/cn'
 import { TimelineView, type TimelineEvent } from '@/components/TimelineView'
+
+function getFileStem(filename: string) {
+    return filename.replace(/\.[^.]+$/, '')
+}
+
+function isSiblingAttachment(mainName: string, suspectName: string) {
+    const mainStem = getFileStem(mainName)
+    const suspectStem = getFileStem(suspectName)
+
+    if (!suspectStem.startsWith(mainStem)) return false
+    if (suspectStem.length <= mainStem.length) return false
+
+    const nextChar = suspectStem[mainStem.length]
+    return nextChar === ' ' || nextChar === '_' || nextChar === '-' || /[\u4e00-\u9fff]/.test(nextChar)
+}
+
+function collectDirectoryPaths(node: InputDirectoryNode): string[] {
+    return node.children.flatMap((child) => [child.path, ...collectDirectoryPaths(child)])
+}
+
+function collectFiles(node: InputDirectoryNode): PdfFile[] {
+    return [...node.files, ...node.children.flatMap(collectFiles)]
+}
+
+function getParentDirectory(filePath: string) {
+    const parts = filePath.split('/')
+    parts.pop()
+    return parts.join('/')
+}
+
+type TaskPhase = 'idle' | 'ready' | 'starting' | 'running' | 'stopping' | 'completed' | 'cancelled' | 'error'
+type PersistedTimelineEvent = Omit<TimelineEvent, 'timestamp'> & { timestamp: string }
+
+function isBusyPhase(phase: TaskPhase) {
+    return phase === 'starting' || phase === 'running' || phase === 'stopping'
+}
+
+const folderInputAttributes = {
+    webkitdirectory: '',
+    directory: '',
+} as React.InputHTMLAttributes<HTMLInputElement> & {
+    webkitdirectory: string
+    directory: string
+}
 
 export function Chat() {
     const { t } = useTranslation()
@@ -24,8 +68,10 @@ export function Chat() {
     })
 
     // 从 localStorage 恢复初始状态
-    const [isLoading, setIsLoading] = useState(() => {
-        return localStorage.getItem('ama_is_loading') === 'true'
+    const [taskPhase, setTaskPhase] = useState<TaskPhase>(() => {
+        const saved = localStorage.getItem('ama_task_phase') as TaskPhase | null
+        if (saved) return saved
+        return localStorage.getItem('ama_is_loading') === 'true' ? 'running' : 'idle'
     })
 
     const [currentFile, setCurrentFile] = useState<string | null>(() => {
@@ -40,11 +86,11 @@ export function Chat() {
         try {
             const saved = localStorage.getItem('ama_timeline_events')
             if (!saved) return []
-            const events = JSON.parse(saved)
+            const events = JSON.parse(saved) as PersistedTimelineEvent[]
             // JSON.parse 会将 Date 对象转为字符串，需要手动通过 new Date() 恢复
             return events
-                .filter((e: any) => e.id !== 'connection_error') // 确保加载时不包含连接错误
-                .map((e: any) => ({
+                .filter((e) => e.id !== 'connection_error') // 确保加载时不包含连接错误
+                .map((e) => ({
                     ...e,
                     timestamp: new Date(e.timestamp)
                 }))
@@ -61,10 +107,10 @@ export function Chat() {
             return { total: 0, completed: 0, elapsed: 0 }
         }
     })
+    const [connectionError, setConnectionError] = useState(false)
 
     // 层级数据
-    const [folders, setFolders] = useState<FolderInfo[]>([])
-    const [rootFiles, setRootFiles] = useState<PdfFile[]>([])
+    const [fileTree, setFileTree] = useState<InputDirectoryNode | null>(null)
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
     const [loadingFiles, setLoadingFiles] = useState(true)
     const [hiddenAttachments, setHiddenAttachments] = useState<Set<string>>(new Set())  // 存储隐藏附件的主 PDF 路径
@@ -78,8 +124,9 @@ export function Chat() {
 
     // 状态更新时的副作用：同步到 localStorage
     useEffect(() => {
-        localStorage.setItem('ama_is_loading', String(isLoading))
-    }, [isLoading])
+        localStorage.setItem('ama_task_phase', taskPhase)
+        localStorage.setItem('ama_is_loading', String(isBusyPhase(taskPhase)))
+    }, [taskPhase])
 
     useEffect(() => {
         if (currentFile) localStorage.setItem('ama_current_file', currentFile)
@@ -102,11 +149,12 @@ export function Chat() {
     }, [batchSummary])
 
     // 清理任务状态（保留 Session）
-    const clearTaskState = useCallback(() => {
+    const clearTaskState = useCallback((nextPhase: TaskPhase = 'idle') => {
         setTimelineEvents([])
         setBatchSummary({ total: 0, completed: 0, elapsed: 0 })
         setCurrentTaskId(null)
-        setIsLoading(false)
+        setTaskPhase(nextPhase)
+        setConnectionError(false)
         // localStorage 会通过 useEffect 自动更新
     }, [])
 
@@ -124,6 +172,7 @@ export function Chat() {
                     // 清理所有相关缓存
                     localStorage.removeItem('ama_session_id')
                     localStorage.removeItem('ama_is_loading')
+                    localStorage.removeItem('ama_task_phase')
                     localStorage.removeItem('ama_current_file')
                     localStorage.removeItem('ama_task_id')
                     localStorage.removeItem('ama_timeline_events')
@@ -184,25 +233,24 @@ export function Chat() {
         setLoadingFiles(true)
         try {
             const result = await api.listPdfFiles()
-            setFolders(result.folders)
-            setRootFiles(result.root_files)
+            setFileTree(result.tree)
             // 默认全部展开
-            setExpandedFolders(new Set(result.folders.map(f => f.name)))
+            setExpandedFolders(new Set(collectDirectoryPaths(result.tree)))
         } catch (error) {
             console.error(t('chat.error.loadFailed'), error)
         } finally {
             setLoadingFiles(false)
         }
-    }, [])
+    }, [t])
 
     // 切换文件夹展开状态
-    const toggleFolder = useCallback((folderName: string) => {
+    const toggleFolder = useCallback((folderPath: string) => {
         setExpandedFolders(prev => {
             const next = new Set(prev)
-            if (next.has(folderName)) {
-                next.delete(folderName)
+            if (next.has(folderPath)) {
+                next.delete(folderPath)
             } else {
-                next.add(folderName)
+                next.add(folderPath)
             }
             return next
         })
@@ -225,7 +273,7 @@ export function Chat() {
         } finally {
             setIsUploading(false)
         }
-    }, [loadPdfFiles])
+    }, [loadPdfFiles, t])
 
     // 文件选择处理
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,7 +315,7 @@ export function Chat() {
                 folderInputRef.current.value = ''
             }
         }
-    }, [loadPdfFiles])
+    }, [loadPdfFiles, t])
 
     // 拖拽处理
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -293,13 +341,21 @@ export function Chat() {
         loadPdfFiles()
     }, [loadPdfFiles])
 
-    const [connectionError, setConnectionError] = useState(false)
+    const isBusy = isBusyPhase(taskPhase)
 
     const { connect, send, reconnectAttempts } = useWebSocket({
         onOpen: () => {
             setConnectionError(false)
         },
         onMessage: (msg: ChatMessage) => {
+            if (msg.task_id) {
+                setCurrentTaskId(msg.task_id)
+            }
+
+            if (msg.type === 'status' || msg.type === 'agent' || msg.type === 'item_progress' || msg.type === 'batch_summary') {
+                setTaskPhase(prev => prev === 'starting' ? 'running' : prev)
+            }
+
             // 解析 agent 名称获取事件类型
             const agentToType = (agent: string | undefined): TimelineEvent['type'] => {
                 if (!agent) return 'orchestrator'
@@ -389,9 +445,12 @@ export function Chat() {
                 else if (content.includes('任务')) {
                     // 静默处理，不添加事件
                 }
+                if (content.includes('终止') || contentLower.includes('stopping')) {
+                    setTaskPhase('stopping')
+                }
 
             } else if (msg.type === 'complete') {
-                setIsLoading(false)
+                setTaskPhase('completed')
                 // 标记所有运行中的事件为完成
                 setTimelineEvents(prev => prev.map(e => {
                     if (e.status === 'running') {
@@ -406,8 +465,25 @@ export function Chat() {
                 }))
                 upsertEvent('complete', 'complete', 'done', t('chat.status.complete'))
 
+            } else if (msg.type === 'cancelled') {
+                setTaskPhase('cancelled')
+                setTimelineEvents(prev => prev.map(e => {
+                    if (e.status === 'running') {
+                        const doneMessage = e.message.endsWith('...')
+                            ? e.message.replace(/\.\.\.$/, '')
+                            : e.message
+                        return { ...e, status: 'done' as const, message: doneMessage }
+                    }
+                    return e
+                }))
+                upsertEvent('cancelled', 'cancelled', 'done', t('chat.status.cancelled'))
+
             } else if (msg.type === 'error') {
-                setIsLoading(false)
+                setTaskPhase(prev => (
+                    prev === 'starting' || prev === 'running' || prev === 'stopping'
+                        ? 'error'
+                        : prev
+                ))
                 upsertEvent('error', 'error', 'error', msg.content || t('chat.error.occurred'))
 
             } else if (msg.type === 'item_progress') {
@@ -465,44 +541,84 @@ export function Chat() {
 
     // 初始化时，如果检测到正在运行的任务，自动重连
     useEffect(() => {
-        if (isLoading && sessionId) {
+        if (isBusy && sessionId) {
             console.log('检测到中断的任务，尝试重新连接:', sessionId)
             connect(sessionId)
         }
-    }, []) // 仅在挂载时执行一次
+    }, [connect, isBusy, sessionId])
 
-    const handleSelectPdf = async (pdfFile: PdfFile) => {
-        if (isLoading) return
+    const handleSelectPdf = (pdfFile: PdfFile) => {
+        if (isBusy) return
 
-        // 重置时序图和汇总
-        clearTaskState()
-        setConnectionError(false)
-        setCurrentFile(pdfFile.name)
-        setIsLoading(true)
+        setCurrentFile(pdfFile.path)
+        clearTaskState('ready')
+    }
+
+    const handleStartTask = useCallback(async () => {
+        if (!currentFile || isBusy) return
+
+        clearTaskState('starting')
 
         // 添加初始解析事件
         upsertEvent('parsing', 'parsing', 'running', t('chat.status.parsing'))
 
         try {
-            const result = await api.startTask(pdfFile.path)
-            setCurrentTaskId(result.task_id)  // 保存 task_id
+            const result = await api.startTask(currentFile)
+            setCurrentTaskId(result.task_id)
 
             // 连接 WebSocket
             connect(sessionId)
 
             // 延迟发送 start 指令，确保连接建立
             setTimeout(() => {
-                // 从 useTranslation 获取当前语言，转换为后端格式 (zh-CN -> zh, en-US -> en)
                 const currentLang = document.documentElement.lang || 'en'
                 const lang = currentLang.split('-')[0]
-                send({ type: 'start', task_id: result.task_id, pdf_path: pdfFile.path, lang })
+                send({ type: 'start', task_id: result.task_id, pdf_path: currentFile, lang })
             }, 500)
-
         } catch (error) {
             upsertEvent('error', 'error', 'error', t('chat.error.startFailed', { error: String(error) }))
-            setIsLoading(false)
+            setTaskPhase('error')
         }
-    }
+    }, [clearTaskState, connect, currentFile, isBusy, send, sessionId, t, upsertEvent])
+
+    const handleStopTask = useCallback(() => {
+        if (!currentTaskId || (taskPhase !== 'starting' && taskPhase !== 'running')) return
+
+        setTaskPhase('stopping')
+        setConnectionError(false)
+
+        const currentLang = document.documentElement.lang || 'en'
+        const lang = currentLang.split('-')[0]
+        send({ type: 'cancel', task_id: currentTaskId, lang })
+    }, [currentTaskId, send, taskPhase])
+
+    const selectedFileName = currentFile?.split('/').pop() ?? null
+    const canStart = Boolean(currentFile) && ['ready', 'completed', 'cancelled', 'error'].includes(taskPhase)
+    const canStop = taskPhase === 'starting' || taskPhase === 'running'
+
+    const phaseLabel = (() => {
+        if (connectionError) return t('chat.error.disconnected')
+        switch (taskPhase) {
+            case 'idle':
+                return t('chat.progress.idle')
+            case 'ready':
+                return t('chat.progress.readyToStart')
+            case 'starting':
+                return t('chat.progress.starting')
+            case 'running':
+                return t('chat.progress.processing')
+            case 'stopping':
+                return t('chat.progress.stopping')
+            case 'completed':
+                return t('chat.progress.completed')
+            case 'cancelled':
+                return t('chat.progress.cancelled')
+            case 'error':
+                return t('chat.progress.error')
+            default:
+                return t('chat.progress.ready')
+        }
+    })()
 
     const formatFileSize = (bytes: number) => {
         if (bytes < 1024) return `${bytes} B`
@@ -510,55 +626,44 @@ export function Chat() {
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
-    // 渲染单个 PDF 文件项（支持附件数量显示和独立隐藏）
-    const renderPdfItem = (file: PdfFile, indent: boolean = false, attachmentCount: number = 0, mainFilePath?: string) => {
-        const isAttachment = file.is_attachment === true
+    const getFileTypeStyle = (fileName: string) => {
+        const ext = fileName.split('.').pop()?.toLowerCase() || ''
 
-        // 获取文件类型图标和颜色
-        const getFileTypeStyle = (fileName: string) => {
-            const ext = fileName.split('.').pop()?.toLowerCase() || ''
-
-            // 文档类
-            if (['pdf'].includes(ext)) {
-                return { icon: FileText, bgColor: 'bg-red-50', textColor: 'text-red-500' }
-            }
-            if (['docx', 'doc', 'rtf', 'txt', 'md'].includes(ext)) {
-                return { icon: FileText, bgColor: 'bg-blue-50', textColor: 'text-blue-500' }
-            }
-            if (['xlsx', 'xls'].includes(ext)) {
-                return { icon: FileSpreadsheet, bgColor: 'bg-green-50', textColor: 'text-green-600' }
-            }
-            if (['pptx', 'ppt'].includes(ext)) {
-                return { icon: Presentation, bgColor: 'bg-orange-50', textColor: 'text-orange-500' }
-            }
-
-            // 图片类
-            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'].includes(ext)) {
-                return { icon: FileImage, bgColor: 'bg-purple-50', textColor: 'text-purple-500' }
-            }
-
-            // 视频类
-            if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
-                return { icon: Film, bgColor: 'bg-pink-50', textColor: 'text-pink-500' }
-            }
-
-            // 音频类
-            if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) {
-                return { icon: Music, bgColor: 'bg-cyan-50', textColor: 'text-cyan-500' }
-            }
-
-            // 代码类
-            if (['json', 'xml', 'html', 'css', 'js', 'ts', 'py'].includes(ext)) {
-                return { icon: FileCode, bgColor: 'bg-slate-50', textColor: 'text-slate-500' }
-            }
-
-            // 默认
-            return { icon: File, bgColor: 'bg-gray-50', textColor: 'text-gray-500' }
+        if (['pdf'].includes(ext)) {
+            return { icon: FileText, bgColor: 'bg-red-50', textColor: 'text-red-500' }
+        }
+        if (['docx', 'doc', 'rtf', 'txt', 'md'].includes(ext)) {
+            return { icon: FileText, bgColor: 'bg-blue-50', textColor: 'text-blue-500' }
+        }
+        if (['xlsx', 'xls'].includes(ext)) {
+            return { icon: FileSpreadsheet, bgColor: 'bg-green-50', textColor: 'text-green-600' }
+        }
+        if (['pptx', 'ppt'].includes(ext)) {
+            return { icon: Presentation, bgColor: 'bg-orange-50', textColor: 'text-orange-500' }
+        }
+        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'].includes(ext)) {
+            return { icon: FileImage, bgColor: 'bg-purple-50', textColor: 'text-purple-500' }
+        }
+        if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+            return { icon: Film, bgColor: 'bg-pink-50', textColor: 'text-pink-500' }
+        }
+        if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) {
+            return { icon: Music, bgColor: 'bg-cyan-50', textColor: 'text-cyan-500' }
+        }
+        if (['json', 'xml', 'html', 'css', 'js', 'ts', 'py'].includes(ext)) {
+            return { icon: FileCode, bgColor: 'bg-slate-50', textColor: 'text-slate-500' }
         }
 
-        // 附件文件：不可点击，根据类型显示不同图标和颜色
+        return { icon: File, bgColor: 'bg-gray-50', textColor: 'text-gray-500' }
+    }
+
+    // 渲染单个 PDF 文件项（支持附件数量显示和独立隐藏）
+    const renderPdfItem = (file: PdfFile, depth: number, attachmentCount: number = 0, mainFilePath?: string) => {
+        const isAttachment = file.is_attachment === true
+        const offset = depth * 14
+        const isActive = currentFile === file.path
+
         if (isAttachment) {
-            // 根据主 PDF 的隐藏状态决定是否渲染
             if (mainFilePath && hiddenAttachments.has(mainFilePath)) return null
 
             const { icon: IconComponent, bgColor, textColor } = getFileTypeStyle(file.name)
@@ -566,10 +671,9 @@ export function Chat() {
             return (
                 <div
                     key={file.path}
+                    style={{ marginLeft: `${offset + 18}px` }}
                     className={cn(
-                        "group relative flex items-start p-2 rounded-lg border border-transparent transition-all cursor-default",
-                        "ml-10",
-                        indent && "ml-12"
+                        'group relative flex items-start p-2 rounded-lg border border-transparent transition-all cursor-default'
                     )}
                 >
                     <div className={cn("p-1.5 rounded-md mr-2 shrink-0", bgColor, textColor)}>
@@ -594,17 +698,17 @@ export function Chat() {
             <div
                 key={file.path}
                 onClick={() => handleSelectPdf(file)}
+                style={{ marginLeft: `${offset}px` }}
                 className={cn(
                     "group relative flex items-start p-3 rounded-lg border border-transparent transition-all duration-200 cursor-pointer",
                     "hover:bg-white hover:shadow-sm hover:border-border/50",
-                    currentFile === file.name && "bg-primary/5 border-primary/20",
-                    isLoading ? "opacity-50 pointer-events-none grayscale" : "",
-                    indent && "ml-6"
+                    isActive && "bg-primary/5 border-primary/20",
+                    isBusy ? "opacity-50 pointer-events-none grayscale" : ""
                 )}
             >
                 <div className={cn(
                     "p-2 rounded-md mr-3 shrink-0 transition-colors",
-                    currentFile === file.name
+                    isActive
                         ? "bg-primary/10 text-primary"
                         : "bg-red-50 text-red-500 group-hover:bg-red-100"
                 )}>
@@ -613,7 +717,7 @@ export function Chat() {
                 <div className="min-w-0 flex-1">
                     <h3 className={cn(
                         "text-sm font-medium truncate transition-colors flex items-center gap-2",
-                        currentFile === file.name
+                        isActive
                             ? "text-primary"
                             : "text-foreground/90 group-hover:text-primary"
                     )}>
@@ -661,27 +765,74 @@ export function Chat() {
         )
     }
 
-    // 渲染文件列表（主 PDF + 其附件）
-    const renderFileGroup = (files: PdfFile[], indent: boolean = false) => {
-        // 分离主 PDF 和附件
+    // 渲染文件列表（主 PDF + 其附件 + 无归属附件）
+    const renderFileGroup = (files: PdfFile[], depth: number) => {
         const mainFiles = files.filter(f => !f.is_attachment)
         const attachmentFiles = files.filter(f => f.is_attachment)
+        const matchedAttachmentPaths = new Set<string>()
 
-        return mainFiles.map(mainFile => {
-            // 计算该主 PDF 对应的附件数量（以主 PDF 文件名为前缀）
-            const basename = mainFile.name.replace(/\.pdf$/i, '')
-            const relatedAttachments = attachmentFiles.filter(att =>
-                att.name.startsWith(basename) && att.name !== mainFile.name
-            )
-            const attachmentCount = relatedAttachments.length
+        const grouped = mainFiles.map(mainFile => {
+            const relatedAttachments = attachmentFiles.filter(att => {
+                const matched = isSiblingAttachment(mainFile.name, att.name)
+                if (matched) {
+                    matchedAttachmentPaths.add(att.path)
+                }
+                return matched
+            })
+
+            const attachmentCount = relatedAttachments.length || mainFile.attachment_count || 0
 
             return (
                 <div key={mainFile.path}>
-                    {renderPdfItem(mainFile, indent, attachmentCount)}
-                    {relatedAttachments.map(att => renderPdfItem(att, indent, 0, mainFile.path))}
+                    {renderPdfItem(mainFile, depth, attachmentCount)}
+                    {relatedAttachments.map(att => renderPdfItem(att, depth + 1, 0, mainFile.path))}
                 </div>
             )
         })
+
+        const orphanAttachments = attachmentFiles.filter(att => !matchedAttachmentPaths.has(att.path))
+
+        return (
+            <>
+                {grouped}
+                {orphanAttachments.map(att => renderPdfItem(att, depth + 1))}
+            </>
+        )
+    }
+
+    const renderDirectoryNode = (node: InputDirectoryNode, depth: number = 0) => {
+        const isExpanded = expandedFolders.has(node.path)
+        const hasContent = node.children.length > 0 || node.files.length > 0
+
+        return (
+            <div key={node.path} className="space-y-1">
+                <div
+                    onClick={() => toggleFolder(node.path)}
+                    style={{ marginLeft: `${depth * 14}px` }}
+                    className={cn(
+                        'flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all',
+                        'hover:bg-gray-100 text-gray-700'
+                    )}
+                >
+                    {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                    ) : (
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                    )}
+                    <Folder className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm font-medium flex-1 truncate">{node.name}</span>
+                    <span className="text-xs text-gray-400">
+                        {hasContent ? node.file_count : 0}
+                    </span>
+                </div>
+                {isExpanded && (
+                    <div className="space-y-1">
+                        {node.children.map(child => renderDirectoryNode(child, depth + 1))}
+                        {renderFileGroup(node.files, depth + 1)}
+                    </div>
+                )}
+            </div>
+        )
     }
 
     return (
@@ -705,7 +856,7 @@ export function Chat() {
                             <input
                                 ref={folderInputRef}
                                 type="file"
-                                {...({ webkitdirectory: '', directory: '' } as any)}
+                                {...folderInputAttributes}
                                 multiple
                                 onChange={handleFolderSelect}
                                 className="hidden"
@@ -756,14 +907,15 @@ export function Chat() {
                                     if (hiddenAttachments.size > 0) {
                                         setHiddenAttachments(new Set())
                                     } else {
-                                        // 收集所有有附件的主 PDF 路径
                                         const allMainPaths = new Set<string>()
-                                        const allFiles = [...rootFiles, ...folders.flatMap(f => f.files)]
+                                        const allFiles = fileTree ? collectFiles(fileTree) : []
                                         const mainFiles = allFiles.filter(f => !f.is_attachment)
                                         const attachmentFiles = allFiles.filter(f => f.is_attachment)
                                         mainFiles.forEach(main => {
-                                            const basename = main.name.replace(/\.pdf$/i, '')
-                                            if (attachmentFiles.some(att => att.name.startsWith(basename) && att.name !== main.name)) {
+                                            if (attachmentFiles.some(att =>
+                                                getParentDirectory(att.path) === getParentDirectory(main.path)
+                                                && isSiblingAttachment(main.name, att.name)
+                                            )) {
                                                 allMainPaths.add(main.path)
                                             }
                                         })
@@ -801,7 +953,7 @@ export function Chat() {
                             <Loader2 className="h-6 w-6 animate-spin mb-2" />
                             <span className="text-xs">{t('common.loading')}</span>
                         </div>
-                    ) : (folders.length === 0 && rootFiles.length === 0) ? (
+                    ) : !fileTree || (fileTree.children.length === 0 && fileTree.files.length === 0) ? (
                         <div className={cn(
                             "flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl m-2 transition-colors",
                             isDragOver ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground/50 border-muted/50"
@@ -812,41 +964,13 @@ export function Chat() {
                         </div>
                     ) : (
                         <>
-                            {/* 文件夹层级 */}
-                            {folders.map((folder) => (
-                                <div key={folder.path} className="space-y-1">
-                                    {/* 文件夹标题 */}
-                                    <div
-                                        onClick={() => toggleFolder(folder.name)}
-                                        className={cn(
-                                            "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all",
-                                            "hover:bg-gray-100 text-gray-700"
-                                        )}
-                                    >
-                                        {expandedFolders.has(folder.name) ? (
-                                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                                        ) : (
-                                            <ChevronRight className="h-4 w-4 text-gray-400" />
-                                        )}
-                                        <Folder className="h-4 w-4 text-amber-500" />
-                                        <span className="text-sm font-medium flex-1">{folder.name}</span>
-                                        <span className="text-xs text-gray-400">{folder.files.length}</span>
-                                    </div>
-                                    {/* 文件夹内的 PDF */}
-                                    {expandedFolders.has(folder.name) && (
-                                        <div className="space-y-1">
-                                            {renderFileGroup(folder.files, true)}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            {/* 根目录 PDF */}
-                            {rootFiles.length > 0 && folders.length > 0 && (
+                            {fileTree.children.map((folder) => renderDirectoryNode(folder))}
+                            {fileTree.files.length > 0 && fileTree.children.length > 0 && (
                                 <div className="border-t border-gray-100 pt-2 mt-2">
                                     <p className="text-xs text-gray-400 px-2 mb-1">{t('chat.fileList.rootDir')}</p>
                                 </div>
                             )}
-                            {renderFileGroup(rootFiles, false)}
+                            {renderFileGroup(fileTree.files, 0)}
                         </>
                     )}
                 </div>
@@ -870,21 +994,64 @@ export function Chat() {
                                 <span className={cn(
                                     "w-1.5 h-1.5 rounded-full",
                                     connectionError ? "bg-red-500" :
-                                        isLoading ? "bg-purple-500 animate-pulse" : "bg-gray-300"
+                                        taskPhase === 'running' ? "bg-purple-500 animate-pulse" :
+                                            taskPhase === 'starting' ? "bg-blue-500 animate-pulse" :
+                                                taskPhase === 'stopping' ? "bg-amber-500 animate-pulse" :
+                                                    taskPhase === 'completed' ? "bg-emerald-500" :
+                                                        taskPhase === 'cancelled' ? "bg-amber-500" :
+                                                            taskPhase === 'error' ? "bg-red-500" :
+                                                                taskPhase === 'ready' ? "bg-blue-400" :
+                                                                    "bg-gray-300"
                                 )} />
                                 <p className={cn(
                                     "text-xs font-medium uppercase tracking-wider",
-                                    connectionError ? "text-red-500" : "text-gray-500"
+                                    connectionError || taskPhase === 'error' ? "text-red-500" : "text-gray-500"
                                 )}>
-                                    {connectionError ? t('chat.error.disconnected') :
-                                        isLoading ? t('chat.progress.processing') :
-                                            timelineEvents.length > 0 ? t('chat.progress.completed') : t('chat.progress.ready')}
+                                    {phaseLabel}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 relative">
+                        {selectedFileName && (
+                            <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/80 max-w-64">
+                                <FileText className="h-4 w-4 text-gray-500 shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="text-[11px] uppercase tracking-wider text-gray-400">{t('chat.actions.selected')}</p>
+                                    <p className="text-sm font-medium text-gray-700 truncate">{selectedFileName}</p>
+                                </div>
+                            </div>
+                        )}
+                        <Button
+                            onClick={handleStartTask}
+                            disabled={!canStart}
+                            className="rounded-xl px-4 bg-gray-900 hover:bg-gray-800 text-white disabled:bg-gray-200 disabled:text-gray-400"
+                        >
+                            {taskPhase === 'starting' ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    {t('chat.actions.starting')}
+                                </>
+                            ) : (
+                                t('chat.actions.start')
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleStopTask}
+                            disabled={!canStop}
+                            className="rounded-xl px-4 border-amber-200 text-amber-700 hover:bg-amber-50 disabled:border-gray-200 disabled:text-gray-400"
+                        >
+                            {taskPhase === 'stopping' ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    {t('chat.actions.stopping')}
+                                </>
+                            ) : (
+                                t('chat.actions.stop')
+                            )}
+                        </Button>
                         {reconnectAttempts > 0 ? (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 rounded-lg border border-yellow-200">
                                 <Loader2 className="h-3 w-3 text-yellow-600 animate-spin" />

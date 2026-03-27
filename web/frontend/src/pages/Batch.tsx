@@ -15,7 +15,7 @@ import {
 import { cn } from '@/utils/cn'
 import {
     batchApi, createBatchWebSocket,
-    type FolderInfo, type PdfInfo, type BatchTask, type BatchStatus, type BatchWebSocketHandle
+    type BatchDirectoryNode, type PdfInfo, type BatchTask, type BatchStatus, type BatchWebSocketHandle, type ResumeLatestResponse
 } from '@/services/batch'
 import { api } from '@/services/api'
 
@@ -37,10 +37,18 @@ interface ToastMessage {
     message: string
 }
 
+function collectDirectoryPaths(node: BatchDirectoryNode): string[] {
+    return node.children.flatMap((child) => [child.path, ...collectDirectoryPaths(child)])
+}
+
+function collectDescendantPdfs(node: BatchDirectoryNode): PdfInfo[] {
+    return [...node.pdfs, ...node.children.flatMap(collectDescendantPdfs)]
+}
+
 export function Batch() {
     const { t } = useTranslation()
     // 文件夹列表
-    const [folders, setFolders] = useState<FolderInfo[]>([])
+    const [directoryTree, setDirectoryTree] = useState<BatchDirectoryNode | null>(null)
     const [loadingFolders, setLoadingFolders] = useState(true)
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
 
@@ -48,17 +56,16 @@ export function Batch() {
     const [toasts, setToasts] = useState<ToastMessage[]>([])
     const toastIdRef = useRef(0)
 
-    // PDF 列表 (每个文件夹)
-    const [folderPdfs, setFolderPdfs] = useState<Record<string, PdfInfo[]>>({})
-    const [loadingPdfs, setLoadingPdfs] = useState<Set<string>>(new Set())
-
     // 勾选状态
     const [selectedPdfs, setSelectedPdfs] = useState<Set<string>>(new Set())
 
     // 批量任务状态
     const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null)
+    const [resumeCandidate, setResumeCandidate] = useState<ResumeLatestResponse | null>(null)
     const [concurrency, setConcurrency] = useState(2)
+    const [resumeConcurrency, setResumeConcurrency] = useState(2)
     const [experimentRounds, setExperimentRounds] = useState(1)
+    const [isResuming, setIsResuming] = useState(false)
 
     // WebSocket
     const wsHandleRef = useRef<BatchWebSocketHandle | null>(null)
@@ -86,9 +93,9 @@ export function Batch() {
         setLoadingFolders(true)
         try {
             const data = await batchApi.listFolders()
-            setFolders(data)
+            setDirectoryTree(data.tree)
             // 默认全部展开
-            setExpandedFolders(new Set(data.map(f => f.name)))
+            setExpandedFolders(new Set(collectDirectoryPaths(data.tree)))
         } catch (e) {
             console.error('加载文件夹失败:', e)
         } finally {
@@ -96,39 +103,18 @@ export function Batch() {
         }
     }, [])
 
-    // 加载 PDF 列表
-    const loadPdfs = useCallback(async (folderName: string) => {
-        if (folderPdfs[folderName]) return // 已加载过
-
-        setLoadingPdfs(prev => new Set(prev).add(folderName))
-        try {
-            const data = await batchApi.listPdfs(folderName)
-            setFolderPdfs(prev => ({ ...prev, [folderName]: data }))
-        } catch (e) {
-            console.error('加载 PDF 列表失败:', e)
-        } finally {
-            setLoadingPdfs(prev => {
-                const next = new Set(prev)
-                next.delete(folderName)
-                return next
-            })
-        }
-    }, [folderPdfs])
-
     // 切换文件夹展开
-    const toggleFolder = useCallback((folderName: string) => {
+    const toggleFolder = useCallback((folderPath: string) => {
         setExpandedFolders(prev => {
             const next = new Set(prev)
-            if (next.has(folderName)) {
-                next.delete(folderName)
+            if (next.has(folderPath)) {
+                next.delete(folderPath)
             } else {
-                next.add(folderName)
-                // 展开时加载 PDF
-                loadPdfs(folderName)
+                next.add(folderPath)
             }
             return next
         })
-    }, [loadPdfs])
+    }, [])
 
     // 勾选/取消单个 PDF
     const togglePdfSelection = useCallback((pdfPath: string) => {
@@ -144,8 +130,8 @@ export function Batch() {
     }, [])
 
     // 全选/取消某文件夹
-    const toggleFolderSelection = useCallback((folderName: string) => {
-        const pdfs = folderPdfs[folderName] || []
+    const toggleFolderSelection = useCallback((node: BatchDirectoryNode) => {
+        const pdfs = collectDescendantPdfs(node)
         const allSelected = pdfs.every(p => selectedPdfs.has(p.path))
 
         setSelectedPdfs(prev => {
@@ -159,7 +145,7 @@ export function Batch() {
             })
             return next
         })
-    }, [folderPdfs, selectedPdfs])
+    }, [selectedPdfs])
 
     // 显示 Toast 提示
     const showToast = useCallback((
@@ -201,6 +187,24 @@ export function Batch() {
         }
     }, [loadFolders])
 
+    const loadResumeCandidate = useCallback(async (hasRunningTask?: boolean) => {
+        if (hasRunningTask) {
+            setResumeCandidate(null)
+            return
+        }
+
+        try {
+            const candidate = await batchApi.getLatestResumable()
+            setResumeCandidate(candidate.available ? candidate : null)
+            if (candidate.available && candidate.status?.concurrency) {
+                setResumeConcurrency(candidate.status.concurrency)
+            }
+        } catch (e) {
+            console.error('加载可继续任务失败:', e)
+            setResumeCandidate(null)
+        }
+    }, [])
+
     // 建立/恢复 WebSocket 连接
     const establishWebSocket = useCallback(() => {
         if (wsHandleRef.current) {
@@ -221,7 +225,7 @@ export function Batch() {
                     }
                     // 如果任务列表里没有这个任务（新任务），或者已有任务更新
                     const existingTaskIndex = prev.tasks.findIndex(t => t.id === task.id)
-                    let newTasks = [...prev.tasks]
+                    const newTasks = [...prev.tasks]
 
                     if (existingTaskIndex >= 0) {
                         newTasks[existingTaskIndex] = task
@@ -243,6 +247,11 @@ export function Batch() {
             onComplete: (status: BatchStatus) => {
                 console.log('收到批量状态更新:', status)
                 setBatchStatus(status)
+                if (!status.is_running) {
+                    void loadResumeCandidate(false)
+                } else {
+                    setResumeCandidate(null)
+                }
             },
             onError: (error: string) => {
                 console.error('WebSocket 错误:', error)
@@ -258,7 +267,7 @@ export function Batch() {
         reconnectRef.current = handle.reconnect
 
         console.log('WebSocket 已建立，sessionId:', sessionId)
-    }, [sessionId])
+    }, [loadResumeCandidate, sessionId])
 
     // 加载当前状态
     const loadStatus = useCallback(async () => {
@@ -271,10 +280,11 @@ export function Batch() {
                 console.log('检测到正在运行的任务，恢复 WebSocket 连接')
                 establishWebSocket()
             }
+            await loadResumeCandidate(status.is_running)
         } catch (e) {
             console.error('加载状态失败:', e)
         }
-    }, [establishWebSocket])
+    }, [establishWebSocket, loadResumeCandidate])
 
     // 启动批量任务（使用勾选列表）
     const handleStart = useCallback(async () => {
@@ -283,6 +293,7 @@ export function Batch() {
         try {
             const status = await batchApi.startSelected(Array.from(selectedPdfs), concurrency, experimentRounds)
             setBatchStatus(status)
+            setResumeCandidate(null)
 
             // 建立 WebSocket 连接
             establishWebSocket()
@@ -291,6 +302,25 @@ export function Batch() {
             alert(e instanceof Error ? e.message : '启动失败')
         }
     }, [selectedPdfs, concurrency, experimentRounds, sessionId, establishWebSocket])
+
+    const handleResumeLatest = useCallback(async () => {
+        setIsResuming(true)
+        try {
+            const status = await batchApi.resumeLatest(resumeConcurrency)
+            setBatchStatus(status)
+            setResumeCandidate(null)
+            establishWebSocket()
+            showToast(t('batch.resume.success'), 'success')
+        } catch (e) {
+            showToast(
+                e instanceof Error ? e.message : t('batch.resume.failed'),
+                'error'
+            )
+        } finally {
+            setIsResuming(false)
+            await loadResumeCandidate(false)
+        }
+    }, [establishWebSocket, loadResumeCandidate, resumeConcurrency, showToast, t])
 
     // 停止批量任务
     const handleStop = useCallback(async () => {
@@ -325,15 +355,6 @@ export function Batch() {
         }
     }, [loadFolders, loadStatus])
 
-    // 展开文件夹时加载 PDF
-    useEffect(() => {
-        expandedFolders.forEach(folderName => {
-            if (!folderPdfs[folderName]) {
-                loadPdfs(folderName)
-            }
-        })
-    }, [expandedFolders, folderPdfs, loadPdfs])
-
     // 页面可见性监听 - 返回页面时自动重连 WebSocket
     useEffect(() => {
         const handleVisibilityChange = () => {
@@ -354,6 +375,10 @@ export function Batch() {
     }, [wsConnected, batchStatus?.is_running])
 
     const isRunning = batchStatus?.is_running ?? false
+    const resumableStatus = resumeCandidate?.status ?? null
+    const resumableRound = resumeCandidate?.resume_round ?? resumableStatus?.current_round ?? 0
+    const resumableIncompleteCount = resumeCandidate?.remaining_tasks ?? 0
+    const directoryInputProps: Record<string, string> = { webkitdirectory: '', directory: '' }
 
     // 格式化文件大小
     const formatSize = (bytes: number) => {
@@ -386,20 +411,118 @@ export function Batch() {
             }
 
             return t(transKey)
-        } catch (e) {
+        } catch {
             console.warn('Failed to parse i18n message:', step)
             return step
         }
     }
 
     // 计算文件夹选中状态
-    const getFolderCheckState = (folderName: string): 'none' | 'some' | 'all' => {
-        const pdfs = folderPdfs[folderName] || []
+    const getFolderCheckState = (node: BatchDirectoryNode): 'none' | 'some' | 'all' => {
+        const pdfs = collectDescendantPdfs(node)
         if (pdfs.length === 0) return 'none'
         const selectedCount = pdfs.filter(p => selectedPdfs.has(p.path)).length
         if (selectedCount === 0) return 'none'
         if (selectedCount === pdfs.length) return 'all'
         return 'some'
+    }
+
+    const renderPdfRow = (pdf: PdfInfo, depth: number) => {
+        const isSelected = selectedPdfs.has(pdf.path)
+        const attachmentCount = pdf.attachment_count || 0
+
+        return (
+            <div
+                key={pdf.path}
+                onClick={() => !isRunning && togglePdfSelection(pdf.path)}
+                style={{ marginLeft: `${depth * 14}px` }}
+                className={cn(
+                    'flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer',
+                    isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50',
+                    isRunning && 'opacity-50 cursor-not-allowed'
+                )}
+            >
+                {isSelected ? (
+                    <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
+                ) : (
+                    <SquareIcon className="h-4 w-4 text-gray-300 shrink-0" />
+                )}
+                <FileText className="h-4 w-4 text-red-400 shrink-0" />
+                <span className="text-sm text-gray-700 truncate flex-1">{pdf.name}</span>
+                {attachmentCount > 0 && (
+                    <span
+                        className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700 shrink-0"
+                        title={`${attachmentCount} 个附件`}
+                    >
+                        +{attachmentCount}
+                    </span>
+                )}
+                <span className="text-xs text-gray-400 shrink-0">{formatSize(pdf.size)}</span>
+            </div>
+        )
+    }
+
+    const renderDirectoryNode = (node: BatchDirectoryNode, depth: number = 0) => {
+        const isExpanded = expandedFolders.has(node.path)
+        const checkState = getFolderCheckState(node)
+        const hasChildren = node.children.length > 0 || node.pdfs.length > 0
+
+        return (
+            <div key={node.path} className="space-y-1">
+                <div
+                    style={{ marginLeft: `${depth * 14}px` }}
+                    className={cn(
+                        'flex items-center gap-2 p-2 rounded-lg transition-all',
+                        'hover:bg-gray-100 cursor-pointer',
+                        isRunning && 'opacity-50 cursor-not-allowed'
+                    )}
+                >
+                    <div
+                        onClick={() => !isRunning && toggleFolder(node.path)}
+                        className="p-1"
+                    >
+                        {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                        ) : (
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                        )}
+                    </div>
+                    <div
+                        onClick={() => !isRunning && toggleFolderSelection(node)}
+                        className="p-1"
+                    >
+                        {checkState === 'all' ? (
+                            <CheckSquare className="h-4 w-4 text-blue-600" />
+                        ) : checkState === 'some' ? (
+                            <div className="h-4 w-4 border-2 border-blue-600 rounded flex items-center justify-center">
+                                <div className="w-2 h-0.5 bg-blue-600" />
+                            </div>
+                        ) : (
+                            <SquareIcon className="h-4 w-4 text-gray-300" />
+                        )}
+                    </div>
+                    <Folder className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm font-medium flex-1 text-gray-700 truncate">{node.name}</span>
+                    <span className="text-xs text-gray-400">{node.pdf_count}</span>
+                </div>
+
+                {isExpanded && (
+                    <div className="space-y-1">
+                        {node.children.map((child) => renderDirectoryNode(child, depth + 1))}
+                        {node.pdfs.length === 0 && node.children.length === 0 && hasChildren === false ? (
+                            <div
+                                style={{ marginLeft: `${(depth + 1) * 14}px` }}
+                                className="p-2 text-xs text-gray-400"
+                            >
+                                {t('batch.empty.pdf')}
+                            </div>
+                        ) : (
+                            node.pdfs.map((pdf) => renderPdfRow(pdf, depth + 1))
+                        )}
+                    </div>
+                )}
+            </div>
+        )
     }
 
     return (
@@ -418,7 +541,7 @@ export function Batch() {
                             <input
                                 ref={folderInputRef}
                                 type="file"
-                                {...({ webkitdirectory: '', directory: '' } as any)}
+                                {...directoryInputProps}
                                 multiple
                                 onChange={handleFolderSelect}
                                 className="hidden"
@@ -456,110 +579,21 @@ export function Batch() {
                             <Loader2 className="h-5 w-5 animate-spin mr-2" />
                             <span className="text-sm">{t('common.loading')}</span>
                         </div>
-                    ) : folders.length === 0 ? (
+                    ) : !directoryTree || (directoryTree.children.length === 0 && directoryTree.pdfs.length === 0) ? (
                         <div className="text-center py-10 text-gray-400">
                             <Folder className="h-10 w-10 mx-auto mb-2 opacity-40" />
                             <p className="text-sm">{t('batch.empty.folder')}</p>
                         </div>
                     ) : (
-                        folders.map((folder) => {
-                            const isExpanded = expandedFolders.has(folder.name)
-                            const checkState = getFolderCheckState(folder.name)
-                            const pdfs = folderPdfs[folder.name] || []
-                            const isLoadingPdfs = loadingPdfs.has(folder.name)
-
-                            return (
-                                <div key={folder.path} className="space-y-1">
-                                    {/* 文件夹行 */}
-                                    <div
-                                        className={cn(
-                                            "flex items-center gap-2 p-2 rounded-lg transition-all",
-                                            "hover:bg-gray-100 cursor-pointer",
-                                            isRunning && "opacity-50 cursor-not-allowed"
-                                        )}
-                                    >
-                                        {/* 展开/折叠 */}
-                                        <div
-                                            onClick={() => !isRunning && toggleFolder(folder.name)}
-                                            className="p-1"
-                                        >
-                                            {isExpanded ? (
-                                                <ChevronDown className="h-4 w-4 text-gray-400" />
-                                            ) : (
-                                                <ChevronRight className="h-4 w-4 text-gray-400" />
-                                            )}
-                                        </div>
-                                        {/* 勾选框 */}
-                                        <div
-                                            onClick={() => !isRunning && toggleFolderSelection(folder.name)}
-                                            className="p-1"
-                                        >
-                                            {checkState === 'all' ? (
-                                                <CheckSquare className="h-4 w-4 text-blue-600" />
-                                            ) : checkState === 'some' ? (
-                                                <div className="h-4 w-4 border-2 border-blue-600 rounded flex items-center justify-center">
-                                                    <div className="w-2 h-0.5 bg-blue-600" />
-                                                </div>
-                                            ) : (
-                                                <SquareIcon className="h-4 w-4 text-gray-300" />
-                                            )}
-                                        </div>
-                                        <Folder className="h-4 w-4 text-amber-500" />
-                                        <span className="text-sm font-medium flex-1 text-gray-700">{folder.name}</span>
-                                        <span className="text-xs text-gray-400">{folder.pdf_count}</span>
-                                    </div>
-
-                                    {/* PDF 列表 */}
-                                    {isExpanded && (
-                                        <div className="ml-8 space-y-1">
-                                            {isLoadingPdfs ? (
-                                                <div className="flex items-center gap-2 p-2 text-gray-400">
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span className="text-xs">{t('common.loading')}</span>
-                                                </div>
-                                            ) : pdfs.length === 0 ? (
-                                                <div className="p-2 text-xs text-gray-400">{t('batch.empty.pdf')}</div>
-                                            ) : (
-                                                pdfs.map(pdf => {
-                                                    const isSelected = selectedPdfs.has(pdf.path)
-                                                    const attachmentCount = pdf.attachment_count || 0
-                                                    return (
-                                                        <div
-                                                            key={pdf.path}
-                                                            onClick={() => !isRunning && togglePdfSelection(pdf.path)}
-                                                            className={cn(
-                                                                "flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer",
-                                                                isSelected ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50",
-                                                                isRunning && "opacity-50 cursor-not-allowed"
-                                                            )}
-                                                        >
-                                                            {isSelected ? (
-                                                                <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
-                                                            ) : (
-                                                                <SquareIcon className="h-4 w-4 text-gray-300 shrink-0" />
-                                                            )}
-                                                            <FileText className="h-4 w-4 text-red-400 shrink-0" />
-                                                            <span className="text-sm text-gray-700 truncate flex-1">{pdf.name}</span>
-                                                            {/* 附件数量徽标 */}
-                                                            {attachmentCount > 0 && (
-                                                                <span
-                                                                    className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700 shrink-0"
-                                                                    title={`${attachmentCount} 个附件`}
-                                                                >
-                                                                    +{attachmentCount}
-                                                                </span>
-                                                            )}
-                                                            <span className="text-xs text-gray-400 shrink-0">{formatSize(pdf.size)}</span>
-                                                        </div>
-                                                    )
-                                                })
-
-                                            )}
-                                        </div>
-                                    )}
+                        <>
+                            {directoryTree.children.map((folder) => renderDirectoryNode(folder))}
+                            {directoryTree.pdfs.length > 0 && (
+                                <div className="pt-2 mt-2 border-t border-gray-100 space-y-1">
+                                    <p className="px-2 text-xs text-gray-400">input</p>
+                                    {directoryTree.pdfs.map((pdf) => renderPdfRow(pdf, 0))}
                                 </div>
-                            )
-                        })
+                            )}
+                        </>
                     )}
                 </div>
 
@@ -669,6 +703,64 @@ export function Batch() {
 
                 {/* 任务卡片列表 */}
                 <div className="flex-1 overflow-y-auto p-6">
+                    {!isRunning && resumableStatus && (
+                        <div className="mb-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 text-amber-700">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <span className="text-sm font-semibold">{t('batch.resume.title')}</span>
+                                    </div>
+                                    <p className="mt-2 text-sm text-slate-700">
+                                        {t('batch.resume.description', {
+                                            current: resumableRound,
+                                            total: resumableStatus.experiment_rounds,
+                                        })}
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
+                                        <span>{t('batch.resume.total', { count: resumableStatus.total })}</span>
+                                        <span>{t('batch.resume.done', { count: resumableStatus.done })}</span>
+                                        <span>{t('batch.resume.remaining', { count: resumableIncompleteCount })}</span>
+                                        {resumeCandidate?.last_updated && (
+                                            <span>{t('batch.resume.updated', { time: resumeCandidate.last_updated.replace('T', ' ').slice(0, 16) })}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="shrink-0 flex items-end gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs font-medium text-amber-800">
+                                            {t('batch.resume.concurrency')}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            max={10}
+                                            value={resumeConcurrency}
+                                            onChange={(e) => setResumeConcurrency(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                            disabled={isResuming}
+                                            className="w-16 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:opacity-50"
+                                        />
+                                    </div>
+                                    <Button
+                                        onClick={handleResumeLatest}
+                                        disabled={isResuming}
+                                        className="bg-amber-600 text-white hover:bg-amber-700"
+                                    >
+                                        {isResuming ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Play className="mr-2 h-4 w-4" />
+                                        )}
+                                        {t('batch.resume.action')}
+                                    </Button>
+                                </div>
+                            </div>
+                            <p className="mt-3 text-xs text-amber-800/80">
+                                {t('batch.resume.concurrencyHint', { count: resumableStatus.concurrency })}
+                            </p>
+                        </div>
+                    )}
+
                     {!batchStatus || batchStatus.tasks.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400">
                             <Clock className="h-12 w-12 mb-3 opacity-30" />

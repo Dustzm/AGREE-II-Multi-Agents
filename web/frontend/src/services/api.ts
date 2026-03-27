@@ -14,16 +14,24 @@ export interface PdfFile {
     size: number
     modified: string
     is_attachment?: boolean  // 是否为附件文件
+    attachment_count?: number
 }
 
-export interface FolderInfo {
+export interface InputDirectoryNode {
     name: string
     path: string
+    modified: string
+    children: InputDirectoryNode[]
     files: PdfFile[]
+    pdfs: PdfFile[]
+    file_count: number
+    pdf_count: number
+    selectable_pdf_count: number
 }
 
 export interface PdfListResponse {
-    folders: FolderInfo[]
+    tree: InputDirectoryNode
+    folders: InputDirectoryNode[]
     root_files: PdfFile[]
     input_dir: string
 }
@@ -151,6 +159,13 @@ export interface EvidenceLocationResponse {
     total: number
 }
 
+export interface ManualResponse {
+    lang: 'zh-CN' | 'en-US'
+    available: boolean
+    title: string
+    content: string
+}
+
 export const api = {
     // 列出 input 目录下的 PDF 文件
     async listPdfFiles(): Promise<PdfListResponse> {
@@ -268,6 +283,23 @@ export const api = {
         return response.json()
     },
 
+    // 获取使用手册
+    async getManual(lang: 'zh-CN' | 'en-US'): Promise<ManualResponse> {
+        const response = await fetch(`${API_BASE}/manual?lang=${encodeURIComponent(lang)}`)
+        if (!response.ok) {
+            throw new Error('获取使用手册失败')
+        }
+        return response.json()
+    },
+
+    // 获取使用手册资源 URL
+    getManualAssetUrl(path: string): string {
+        return `${API_BASE}/manual-assets/${path
+            .split('/')
+            .map(segment => encodeURIComponent(segment))
+            .join('/')}`
+    },
+
     // 获取证据在 PDF 中的位置
     async getEvidenceLocation(
         taskId: string,
@@ -360,6 +392,18 @@ export const api = {
         const response = await fetch(`${API_BASE}/benchmark/results`)
         if (!response.ok) {
             throw new Error('获取结果列表失败')
+        }
+        return response.json()
+    },
+
+    // 删除 Benchmark 结果
+    async deleteBenchmarkResult(filename: string): Promise<{ status: string; message: string; deleted_files: string[] }> {
+        const response = await fetch(`${API_BASE}/benchmark/results/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: '删除实验结果失败' }))
+            throw new Error(error.detail || '删除实验结果失败')
         }
         return response.json()
     },
@@ -663,4 +707,3 @@ export interface HealthCheckResult {
     model_name?: string
     reply?: string
 }
-
