@@ -391,7 +391,8 @@ async def list_batches():
         return {"batches": []}
     
     for batch_path in sorted(output_dir.iterdir(), reverse=True):
-        if batch_path.is_dir() and batch_path.name.startswith('batch_'):
+        # 仅排除状态目录，保留所有可用 batch_* 实验目录
+        if batch_path.is_dir() and batch_path.name.startswith('batch_') and batch_path.name != 'batch_state':
             # 按报告页相同口径统计已完成任务数量
             task_count = count_completed_batch_reports(batch_path)
             

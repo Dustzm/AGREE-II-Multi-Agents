@@ -15,22 +15,105 @@ description_zh: "许多指南开发时使用外部赞助（比如政府，专业
 locating_info: Check Declarations, Acknowledgement, Funding sections.
 locating_info_zh: 查看声明、致谢、基金/资金章节。
 criteria: []
+special_rules_en: |-
+  Core principle: item 22 requires explicit evidence about funding/sponsorship for THIS guideline and explicit evidence
+  about whether that funding body influenced the guideline content.
+
+  Silence is NOT evidence of no funding.
+  If the document does not state funding/sponsorship status for THIS guideline, treat the funding status as undisclosed,
+  not as "no funding". Missing disclosure may mean the document simply did not report it.
+
+  First gate:
+  Before doing anything else, find a sentence that explicitly states funding/sponsorship status for THIS guideline/document/manuscript or its development.
+  If you cannot find such a sentence, treat the case as undisclosed funding status.
+  Do NOT continue into higher-score logic by assuming that silence means no funding.
+
+  Decision order:
+  1. Find a guideline-specific funding/sponsorship statement.
+  2. If found, identify the funding body type.
+  3. Then find a direct statement about whether that sponsor/funder influenced the guideline content/recommendations.
+  4. If any step lacks direct textual support, treat it as missing evidence rather than inference.
+
+  Scope rule:
+  Use only statements that are clearly about THIS guideline/document/manuscript or its development.
+  Statements about conferences, workshops, consensus meetings, task forces, related initiatives, companion documents,
+  parent organizations, general institutional support, or general operating funds do NOT count unless the text explicitly
+  says they funded or sponsored THIS guideline itself.
+
+  High-score rule:
+  Score 7 is allowed ONLY when the original text explicitly states one of the following:
+  - this guideline had no sponsorship/funding, or
+  - this guideline had sponsorship/funding and the sponsor/funder had no influence, no role, or no effect on the content/recommendations.
+
+  If there is no valid guideline-specific funding/sponsorship statement, do NOT enter the 2-7 ranges.
+  In that case, score 1 is usually correct.
+
+  Do NOT infer editorial independence from:
+  - publisher identity, issuing body, approving body, author affiliation, or copyright owner
+  - nonprofit/government/professional-association status
+  - peer review, committee review, evidence review, or methodological rigor
+  - conflict-of-interest disclosures
+  - mission statements, public-interest goals, or statements that an organization funds research
+  - "no other entity provided support"
+  - absence of commercial sponsors
+  - co-sponsored meetings, consensus conferences, workshops, or related statements unless they explicitly refer to THIS guideline
+
+  If you cannot quote a sentence that directly establishes funding status or sponsor influence for THIS guideline,
+  then that evidence is missing.
+special_rules_zh: |-
+  核心原则：item 22 必须有关于“本指南”的明确资助/赞助证据，以及关于资助方是否影响内容的明确证据。
+
+  “没有写 funding” 不等于 “没有 funding”。
+  如果原文没有明确披露本指南的资助/赞助状态，应视为“未披露”，而不是“无资助”。
+  沉默不能作为无资助的证据，也可能只是没有报告。
+
+  第一门槛：
+  在做任何高分判断之前，先找一条原文，明确说明“本指南/本文档/本手稿”是否有资助或赞助。
+  如果找不到这样的句子，就按“未披露”处理，不要继续往高分逻辑走。
+  不能因为原文沉默、没有商业 sponsor、或发布机构是非营利组织，就默认本指南无资助。
+
+  评分顺序必须是：
+  1. 先找到“本指南自身”的资助/赞助陈述；
+  2. 如果找到了，再判断资助方类型；
+  3. 再判断原文是否明确说明该资助方是否影响了指南内容或推荐形成；
+  4. 任一步只要缺乏直接文本支持，都按“证据缺失”处理，不能脑补。
+
+  适用范围规则：
+  只能使用明确指向“本指南/本文档/本手稿”或其制定过程的句子。
+  如果原文说的是会议、workshop、共识会、task force、相关项目、配套文件、母机构、
+  一般性机构支持或机构运营经费，这些都不能直接当作本条目的资助证据；
+  除非文本明确写出它们资助/赞助了“本指南”本身。
+
+  高分规则：
+  只有当原文明确写出以下任一内容时，才允许给 7 分：
+  - 本指南无资助/无赞助；或
+  - 本指南有资助/赞助，且资助方未影响、未参与、未决定指南内容或推荐形成。
+
+  如果找不到一条“本指南自身”的有效资助/赞助陈述，就不要进入 2-7 分区间；
+  这种情况下通常应判 1 分。
+
+  下列内容都不能用来推断“编辑独立”：
+  - 发布机构、发文机构、审批机构、作者单位、版权持有者
+  - 非营利/政府/学会属性
+  - 同行评审、委员会评审、证据评审、方法学严谨
+  - 利益冲突披露
+  - 机构使命、公益目标、机构“资助研究/提供客观信息”等描述
+  - “没有其他实体提供支持”
+  - 未出现商业 sponsor 名称
+  - 某个会议、共识会、workshop、相关声明被 co-sponsored，除非原文明确说的是“本指南”
+
+  如果你不能直接引用一句原文来证明“本指南有无资助”或“资助方是否影响内容”，
+  就应视为该证据不存在。
 scoring_principle:
 - range: '1'
-  condition: Not mentioned
-  condition_zh: 未提及
+  condition: No sponsorship/funding for this guideline is disclosed, or the text contains only acknowledgments/copyright/committee/COI/review/mission information, or only sponsorship statements about related meetings/documents/organizations without an actual guideline-specific sponsorship disclosure.
+  condition_zh: 未披露本指南的任何赞助/资助信息，或文本只有致谢、版权、委员会、利益冲突、评审、机构使命等信息，或只有与相关会议/相关文件/机构有关的赞助表述，而没有本指南自身的真实赞助/资助披露。
 - range: 2-4
-  condition: Provision of sponsorship source only when sponsorship comes from a for-profit
-    organization (e.g., companies, pharmaceutical firms)
-  condition_zh: 若有赞助，来源于营利机构（公司、药企等），仅仅描述赞助来源
+  condition: Sponsorship/funding source for this guideline is explicitly disclosed and it comes from a for-profit organization, but there is no explicit statement that the sponsor had no influence on the guideline content.
+  condition_zh: 明确披露了本指南的赞助/资助来源，且来源于营利机构（公司、药企等），但没有明确声明赞助方未影响指南内容。
 - range: 5-6
-  condition: If there is sponsorship, ① if it comes from non-profit organizations
-    (government, societies, etc.), only describe the source of sponsorship, or ② if
-    it comes from for-profit organizations (companies, pharmaceutical companies, etc.),
-    provide the source of sponsorship and disclose whether the sponsor has influenced
-    the guideline content.
-  condition_zh: 若有赞助，①来源于非营利机构（政府、学会等），仅描述赞助来源，或②来源于营利机构（公司、药企等），提供赞助来源并声明赞助方对指南内容有影响
+  condition: Either ① sponsorship/funding source for this guideline is explicitly disclosed and it comes from a non-profit organization, government body, or professional association, but there is no explicit statement that the sponsor had no influence on the guideline content; or ② sponsorship/funding source for this guideline is disclosed and the text explicitly states that the sponsor influenced the guideline content.
+  condition_zh: ① 明确披露了本指南的赞助/资助来源，且来源于非营利机构、政府机构或专业学会，但没有明确声明赞助方未影响指南内容；或 ② 披露了本指南的赞助/资助来源，且原文明确说明赞助方影响了指南内容。
 - range: '7'
-  condition: Disclosure of no sponsorship, or sponsorship with disclosure of the source
-    and clear statement that the sponsor’s views have not influenced the guidelines
-  condition_zh: 声明无赞助，或有赞助，且提供赞助来源并明确声明赞助方的观点未影响指南内容
+  condition: The original text explicitly states no sponsorship/funding for this guideline, or explicitly discloses the sponsorship/funding source for this guideline and explicitly states that the sponsor/funder had no influence on the guideline content/recommendations. Do not use 7 when this conclusion depends on inference from publisher identity, nonprofit status, peer review, absence of named commercial sponsors, or sponsorship of related meetings/documents.
+  condition_zh: 原文明确声明本指南无赞助/无资助，或明确披露了本指南的赞助/资助来源，并明确声明赞助方/资助方未影响指南内容或推荐形成。若该结论依赖于对发布者身份、非营利属性、同行评审、“未出现商业公司名称”或相关会议/相关文件赞助信息的推断，则不得给 7 分。

@@ -369,10 +369,7 @@ class IterativeEvaluator:
         title = self.skill_config.get("title", "")
         shots = self.skill_config.get("shots", [])
         target_pages = meta["target_pages"]
-        vision_prompt = self.skill_config.get(
-            f"vision_prompt_{self.lang}",
-            self.skill_config.get("vision_prompt_en", "Please judge based on the provided images."),
-        )
+        vision_prompt = self.skill_config.get("vision_prompt", "Please judge based on the provided images.")
 
         def build_text_prompt(evidence_subset: list[str], chunk_ids: list[str]) -> str:
             return strip_surrogates(render_scoring_prompt(
@@ -382,6 +379,7 @@ class IterativeEvaluator:
                 evidence_cache=evidence_subset,
                 scoring_table=scoring_table,
                 n_sources=len(set(chunk_ids)),
+                special_instruction=self.skill_config.get("special_rules", ""),
             ))
 
         def build_multimodal_prompt(evidence_subset: list[str], chunk_ids: list[str]) -> str:
@@ -677,6 +675,7 @@ class IterativeEvaluator:
             title=self.skill_config.get("title", ""),
             scoring_table=scoring_table,
             chunk_content=full_text,
+            special_instruction=self.skill_config.get("special_rules", ""),
         )
         prompt = strip_surrogates(prompt)
         
@@ -823,6 +822,7 @@ class IterativeEvaluator:
                     evidence_cache=self.evidence_cache,
                     scoring_table=scoring_table,
                     n_sources=len(self.evidence_sources),
+                    special_instruction=self.skill_config.get("special_rules", ""),
                 )
                 api_prompt = strip_surrogates(prompt)
                 messages = [

@@ -20,6 +20,7 @@ EVIDENCE_EXTRACTION_PROMPT = """# Evidence Extraction Task
 | Score Range | Condition |
 |-------------|-----------|
 {scoring_table}
+{special_rules_section}
 
 ## Content to Analyze
 ```
@@ -85,6 +86,7 @@ DYNAMIC_SCORING_PROMPT = """# Dynamic Scoring Task
 | Score Range | Condition |
 |-------------|-----------|
 {scoring_table}
+{special_rules_section}
 
 ## Scoring Reference Examples
 The following are reference examples showing how similar guidelines were scored. Use these as behavioral guidance for applying the scoring rubric, not as direct templates:
@@ -182,7 +184,8 @@ def render_extraction_prompt(
     item_id: str,
     title: str,
     scoring_table: str,
-    chunk_content: str
+    chunk_content: str,
+    special_instruction: str = "",
 ) -> str:
     """
     渲染证据提取提示词
@@ -192,14 +195,20 @@ def render_extraction_prompt(
         title: 评价标题
         scoring_table: 评分表格 (用于指导提取)
         chunk_content: 待分析的 chunk 内容
+        special_instruction: 条目专属规则
     
     Returns:
         渲染后的提示词
     """
+    special_rules_section = ""
+    if special_instruction:
+        special_rules_section = f"\n## Item-Specific Rules\n{special_instruction}\n"
+
     return EVIDENCE_EXTRACTION_PROMPT.format(
         item_id=item_id,
         title=title,
         scoring_table=scoring_table,
+        special_rules_section=special_rules_section,
         chunk_content=chunk_content,
     )
 
@@ -210,7 +219,8 @@ def render_scoring_prompt(
     shots: list[str],  # 评分示例列表
     evidence_cache: list[str],
     scoring_table: str,
-    n_sources: int
+    n_sources: int,
+    special_instruction: str = "",
 ) -> str:
     """
     渲染动态评分提示词
@@ -222,6 +232,7 @@ def render_scoring_prompt(
         evidence_cache: 累积的证据列表
         scoring_table: 评分表格 (markdown)
         n_sources: 证据来源数量
+        special_instruction: 条目专属规则
     
     Returns:
         渲染后的提示词
@@ -233,12 +244,17 @@ def render_scoring_prompt(
         shots_text = "\n" + "\n".join(f"- {s}" for s in shots) + "\n"
     else:
         shots_text = "\n(No reference examples available)\n"
+
+    special_rules_section = ""
+    if special_instruction:
+        special_rules_section = f"\n## Item-Specific Rules\n{special_instruction}\n"
     
     return DYNAMIC_SCORING_PROMPT.format(
         item_id=item_id,
         title=title,
         evidence_cache=evidence_text,
         scoring_table=scoring_table,
+        special_rules_section=special_rules_section,
         shots_section=shots_text,
         n_sources=n_sources,
     )

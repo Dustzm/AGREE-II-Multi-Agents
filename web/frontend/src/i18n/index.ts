@@ -30,8 +30,8 @@ i18n
             escapeValue: false // React 已经安全处理了 XSS
         },
         detection: {
-            // 语言检测顺序
-            order: ['localStorage', 'navigator'],
+            // 首次进入站点时固定使用默认英语；若用户手动切换过，则优先读取本地持久化语言
+            order: ['localStorage'],
             // 缓存到 localStorage
             caches: ['localStorage'],
             lookupLocalStorage: 'i18nextLng'

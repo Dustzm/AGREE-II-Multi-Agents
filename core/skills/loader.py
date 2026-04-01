@@ -14,6 +14,11 @@ import yaml
 # Skill 配置目录路径 (当前目录)
 SKILLS_DIR = Path(__file__).parent
 
+_LANG_AWARE_EXTRA_FIELDS = (
+    "vision_prompt",
+    "special_rules",
+)
+
 
 def _load_skill_config_raw(skill_id: str) -> dict:
     """
@@ -30,6 +35,51 @@ def _load_skill_config_raw(skill_id: str) -> dict:
         config = yaml.safe_load(f)
     
     return config
+
+
+def _resolve_lang_value(config: dict, field_name: str, lang: str) -> str:
+    """
+    按语言解析扩展字段，优先当前语言，其次英文，最后无后缀字段。
+    """
+    for key in (f"{field_name}_{lang}", f"{field_name}_en", field_name):
+        value = config.get(key)
+        if value:
+            return value
+    return ""
+
+
+def _build_lang_config(config: dict, skill_id: str, lang: str) -> dict:
+    if lang == "zh":
+        result = {
+            "item_id": skill_id,
+            "enabled": config.get("enabled", False),
+            "domain": config.get("domain", 0),
+            "domain_name": config.get("domain_name_zh", config.get("domain_name", "")),
+            "title": config.get("title_zh", config.get("title", "")),
+            "description": config.get("description_zh", config.get("description", "")),
+            "locating_info": config.get("locating_info_zh", config.get("locating_info", "")),
+            "shots": config.get("shots", config.get("criteria", [])),  # 兼容旧字段名 criteria
+            "scoring_principle": config.get("scoring_principle", []),
+        }
+    else:
+        result = {
+            "item_id": skill_id,
+            "enabled": config.get("enabled", False),
+            "domain": config.get("domain", 0),
+            "domain_name": config.get("domain_name", ""),
+            "title": config.get("title", ""),
+            "description": config.get("description", ""),
+            "locating_info": config.get("locating_info", ""),
+            "shots": config.get("shots", config.get("criteria", [])),  # 兼容旧字段名 criteria
+            "scoring_principle": config.get("scoring_principle", []),
+        }
+
+    for field_name in _LANG_AWARE_EXTRA_FIELDS:
+        value = _resolve_lang_value(config, field_name, lang)
+        if value:
+            result[field_name] = value
+
+    return result
 
 
 def load_skill_config(skill_id: str, check_enabled: bool = True, lang: Optional[str] = None) -> dict:
@@ -59,29 +109,9 @@ def load_skill_config(skill_id: str, check_enabled: bool = True, lang: Optional[
     
     # 如果指定语言，转换字段名
     if lang == "zh":
-        return {
-            "item_id": skill_id,
-            "enabled": config.get("enabled", False),
-            "domain": config.get("domain", 0),
-            "domain_name": config.get("domain_name_zh", config.get("domain_name", "")),
-            "title": config.get("title_zh", config.get("title", "")),
-            "description": config.get("description_zh", config.get("description", "")),
-            "locating_info": config.get("locating_info_zh", config.get("locating_info", "")),
-            "shots": config.get("shots", config.get("criteria", [])),  # 兼容旧字段名 criteria
-            "scoring_principle": config.get("scoring_principle", []),
-        }
+        return _build_lang_config(config, skill_id, "zh")
     elif lang == "en":
-        return {
-            "item_id": skill_id,
-            "enabled": config.get("enabled", False),
-            "domain": config.get("domain", 0),
-            "domain_name": config.get("domain_name", ""),
-            "title": config.get("title", ""),
-            "description": config.get("description", ""),
-            "locating_info": config.get("locating_info", ""),
-            "shots": config.get("shots", config.get("criteria", [])),  # 兼容旧字段名 criteria
-            "scoring_principle": config.get("scoring_principle", []),
-        }
+        return _build_lang_config(config, skill_id, "en")
     
     return config
 

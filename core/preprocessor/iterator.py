@@ -7,7 +7,7 @@ import logging
 from typing import List, Iterator
 
 from .pojo import SemanticChunk, SemanticLabel
-from .evidence import DOMAIN_LABEL_MAPPING
+from .evidence import DOMAIN_LABEL_MAPPING, order_chunks_for_domain
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,10 @@ class EvidenceIterator:
                 f"in_check={first_chunk.label in relevant_labels}"
             )
         
-        # 过滤：只保留相关标签的 chunks，保持原始顺序
-        self.chunks = [
-            c for c in chunks
-            if c.label in relevant_labels and c.label != SemanticLabel.IRRELEVANT
-        ]
+        # 过滤并按领域要求排序：
+        # - 默认保持原始顺序
+        # - 对定义了优先级的领域（如 domain 6）先按标签优先级，再保持同标签内原始顺序
+        self.chunks = order_chunks_for_domain(chunks, domain_id)
         
         self.domain_id = domain_id
         self.current_index = 0

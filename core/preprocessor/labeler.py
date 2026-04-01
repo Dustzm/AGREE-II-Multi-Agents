@@ -4,6 +4,7 @@
 使用 LLM 为文档内容块分配语义标签，作为预处理流水线的核心组件
 """
 import logging
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -74,6 +75,56 @@ class SemanticLabeler:
             page=page,
             total_pages=total_pages
         )
+
+    def _coerce_message_text(self, value) -> str:
+        """把不同响应形态统一提取为纯文本。"""
+        if isinstance(value, str):
+            return value.strip()
+
+        if isinstance(value, list):
+            parts: list[str] = []
+            for item in value:
+                if isinstance(item, str) and item.strip():
+                    parts.append(item.strip())
+                    continue
+
+                if not isinstance(item, dict):
+                    continue
+
+                for key in ("text", "content", "value"):
+                    text = item.get(key)
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text.strip())
+                        break
+
+            return "\n".join(parts).strip()
+
+        return ""
+
+    def _extract_response_text(self, response) -> str:
+        """兼容 content=None、分段 content，以及 reasoning 字段。"""
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            return ""
+
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            return ""
+
+        candidates = [
+            self._coerce_message_text(getattr(message, "content", None)),
+            self._coerce_message_text(getattr(message, "reasoning", None)),
+            self._coerce_message_text(getattr(message, "reasoning_content", None)),
+        ]
+
+        for candidate in candidates:
+            if not candidate:
+                continue
+            cleaned = re.sub(r"<think>.*?</think>", "", candidate, flags=re.DOTALL).strip()
+            if cleaned:
+                return cleaned
+
+        return ""
     
     async def _call_llm(self, prompt: str) -> str:
         """
@@ -128,7 +179,10 @@ class SemanticLabeler:
             )
             
             # 提取文本响应
-            result = response.choices[0].message.content.strip()
+            result = self._extract_response_text(response)
+            if not result:
+                logger.warning("LLM 返回空文本响应，回退为 Irrelevant")
+                return '{"thinking": "LLM返回空文本响应", "tag": "Irrelevant"}'
             logger.debug(f"LLM 原始返回: {result}")
             return result
         
@@ -254,7 +308,6 @@ class SemanticLabeler:
         Returns:
             (SemanticLabel 枚举值, reasoning 字符串)
         """
-        import re
         import json
         
         # 过滤 Qwen3 thinking 模型的 <think>...</think> 标签

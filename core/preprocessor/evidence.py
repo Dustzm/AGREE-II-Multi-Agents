@@ -21,8 +21,39 @@ DOMAIN_LABEL_MAPPING: Dict[int, List[SemanticLabel]] = {
     3: [SemanticLabel.METHOD, SemanticLabel.RECOMMENDATION, SemanticLabel.APPENDIX],      # Rigour of Development
     4: [SemanticLabel.EXECUTIVE_SUMMARY, SemanticLabel.RECOMMENDATION],                                  # Clarity of Presentation
     5: [SemanticLabel.RECOMMENDATION, SemanticLabel.APPENDIX],                                  # Applicability
-    6: [SemanticLabel.OVERVIEW, SemanticLabel.OTHERS, SemanticLabel.APPENDIX, SemanticLabel.CONCLUSION],                              # Editorial Independence
+    6: [SemanticLabel.OTHERS, SemanticLabel.OVERVIEW, SemanticLabel.APPENDIX, SemanticLabel.CONCLUSION],                              # Editorial Independence
 }
+
+
+# 仅对需要重排的领域定义显式扫描优先级。
+# 未出现在该表中的领域，保持文档原始顺序。
+DOMAIN_LABEL_PRIORITY_OVERRIDE: Dict[int, List[SemanticLabel]] = {
+    6: [SemanticLabel.OTHERS, SemanticLabel.OVERVIEW, SemanticLabel.APPENDIX, SemanticLabel.CONCLUSION],
+}
+
+
+def order_chunks_for_domain(chunks: List[SemanticChunk], domain_id: int) -> List[SemanticChunk]:
+    """
+    按领域要求返回有序 chunks。
+
+    默认保持原始文档顺序；若领域定义了显式优先级，则先按标签优先级排序，
+    同一标签内仍保持原始顺序。
+    """
+    relevant_labels = DOMAIN_LABEL_MAPPING.get(domain_id, [])
+    filtered_chunks = [
+        chunk for chunk in chunks
+        if chunk.label in relevant_labels and chunk.label != SemanticLabel.IRRELEVANT
+    ]
+
+    priority_labels = DOMAIN_LABEL_PRIORITY_OVERRIDE.get(domain_id)
+    if not priority_labels:
+        return filtered_chunks
+
+    label_rank = {label: idx for idx, label in enumerate(priority_labels)}
+    return sorted(
+        filtered_chunks,
+        key=lambda chunk: label_rank.get(chunk.label, len(priority_labels)),
+    )
 
 
 class EvidencePool:
@@ -49,17 +80,10 @@ class EvidencePool:
         Returns:
             领域 -> 块 ID 列表的映射
         """
-        index = {domain: [] for domain in range(1, 7)}
-        
-        for chunk in self.chunks:
-            # 跳过 Irrelevant 标签
-            if chunk.label == SemanticLabel.IRRELEVANT:
-                continue
-            
-            # 根据映射关系将块 ID 添加到相关领域
-            for domain, labels in DOMAIN_LABEL_MAPPING.items():
-                if chunk.label in labels:
-                    index[domain].append(chunk.chunk_id)
+        index = {
+            domain: [chunk.chunk_id for chunk in order_chunks_for_domain(self.chunks, domain)]
+            for domain in range(1, 7)
+        }
         
         logger.debug(f"Domain index built: {[(k, len(v)) for k, v in index.items()]}")
         return index

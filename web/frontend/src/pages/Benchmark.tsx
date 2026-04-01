@@ -62,6 +62,10 @@ const initialState: BenchmarkState = {
   currentIsSaving: false
 }
 
+function isSelectableBatch(name: string): boolean {
+  return name.startsWith('batch_') && name !== 'batch_state'
+}
+
 function benchmarkReducer(state: BenchmarkState, action: BenchmarkAction): BenchmarkState {
   switch (action.type) {
     case 'SET_LOADING':
@@ -122,7 +126,10 @@ export function Benchmark() {
         dispatch({ type: 'SET_HUMAN_FILES', payload: humanFilesRes.value.files })
       }
       if (batchesRes.status === 'fulfilled') {
-        dispatch({ type: 'SET_BATCHES', payload: batchesRes.value.batches })
+        dispatch({
+          type: 'SET_BATCHES',
+          payload: batchesRes.value.batches.filter((batch) => isSelectableBatch(batch.name))
+        })
       }
       if (resultsRes.status === 'fulfilled') {
         dispatch({ type: 'SET_RESULTS', payload: resultsRes.value.results })
