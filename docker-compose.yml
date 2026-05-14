@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: web/backend/Dockerfile
+      args:
+        INSTALL_PLAYWRIGHT: ${INSTALL_PLAYWRIGHT:-true}
+    container_name: ama-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - '8011:8011'
+    volumes:
+      - ./.env:/app/.env
+      - ./data:/app/data
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./benchmark/uploads:/app/benchmark/uploads
+      - ./benchmark/output:/app/benchmark/output
+
+  frontend:
+    build:
+      context: ./web/frontend
+      dockerfile: Dockerfile
+    container_name: ama-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: 8011
+    ports:
+      - '8012:80'
