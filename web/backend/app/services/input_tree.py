@@ -43,12 +43,6 @@ def is_hidden_path(path: Path) -> bool:
     """忽略隐藏文件和隐藏目录。"""
     return any(part.startswith(".") for part in path.parts)
 
-
-def is_ignored_file(filename: str) -> bool:
-    """批量检测时忽略指定的特定指南文件。"""
-    return "CDA指南" in filename or "ADA指南" in filename
-
-
 def is_attachment_keyword(filename: str) -> bool:
     """根据文件名关键词判断是否为附件。"""
     stem_lower = Path(filename).stem.lower()
@@ -109,7 +103,6 @@ def scan_directory_entries(directory: Path) -> DirectoryEntries:
         for item in sorted(directory.iterdir(), key=lambda path: path.name.lower())
         if item.is_file()
         and not is_hidden_path(item.relative_to(directory))
-        and not is_ignored_file(item.name)
         and item.suffix.lower() in ALL_SUPPORTED_EXTENSIONS
     ]
 

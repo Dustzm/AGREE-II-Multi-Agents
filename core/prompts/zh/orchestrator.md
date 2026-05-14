@@ -16,7 +16,8 @@
 ### 第一步：批量评价
 调用 `appraise_all(task_id)` 一次性评价所有条目：
 1. 该工具会自动并发执行，返回所有条目的评价结果
-2. 并发数由环境变量 `APPRAISAL_MAX_CONCURRENCY` 控制（默认 5）
+2. 单指南条目并发由环境变量 `APPRAISAL_MAX_CONCURRENCY` 控制（默认 5）
+3. 全局线程池并发由环境变量 `APPRAISAL_POOL_MAX_CONCURRENCY` 控制（默认 10）
 
 ### 第二步：生成报告
 **⚠️ 只有在 appraise_all 成功完成后，才能执行此步骤！**

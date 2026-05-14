@@ -11,10 +11,7 @@ description: 'A description of the methods used to formulate the recommendations
   Delphi, Glaser techniques). Areas of disagreement and methods of resolving them
   should be specified. '
 description_zh: '应当描述形成推荐建议的方法和如何得出最终的决定。方法很多，比如投票法、非正式共识法、正式共识会议（如特尔菲法，Glaser方法），还应该说明有争议
-
-  的地方和解决争议的方法。
-
-  '
+  的地方和解决争议的方法。'
 locating_info: Check Method and Appendices sections.
 locating_info_zh: 查看方法、附录章节。
 criteria: []

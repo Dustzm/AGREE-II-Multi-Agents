@@ -18,6 +18,8 @@ from core.skills import AGREE_DOMAINS
 
 logger = logging.getLogger(__name__)
 
+REPORT_LANGUAGE = "en"
+
 
 def get_guideline_title(task_id: str) -> dict:
     """
@@ -119,9 +121,7 @@ def load_all_evaluations(task_id: str) -> dict:
     """
     logger.info(f"[Reporter] load_all_evaluations 被调用, task_id={task_id}")
     try:
-        # 获取配置语言
-        from core.config import get_ama_settings
-        lang = get_ama_settings().skill_lang
+        lang = REPORT_LANGUAGE
         
         domain_scores = {}
         all_evaluations = []
@@ -352,9 +352,8 @@ def generate_appraisal_report(
 
 
 def _generate_markdown_report(report: dict) -> str:
-    """生成 Markdown 格式的评价报告（支持双语）"""
-    from core.config import get_ama_settings
-    lang = get_ama_settings().skill_lang
+    """生成 Markdown 格式的评价报告（固定英文模板）。"""
+    lang = REPORT_LANGUAGE
     
     # 双语模板
     templates = {
@@ -442,4 +441,3 @@ def _generate_markdown_report(report: dict) -> str:
     ])
     
     return "\n".join(lines)
-

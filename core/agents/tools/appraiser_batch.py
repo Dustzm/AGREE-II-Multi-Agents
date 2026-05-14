@@ -1,7 +1,8 @@
 """
 并发批量评价工具
 
-使用 asyncio.Semaphore 控制并发，从 .env 读取 APPRAISAL_MAX_CONCURRENCY
+使用 asyncio.Semaphore 控制单指南条目并发，从 .env 读取 APPRAISAL_MAX_CONCURRENCY。
+使用全局线程池控制整体评价并发，从 .env 读取 APPRAISAL_POOL_MAX_CONCURRENCY。
 支持进度回调，用于前端实时展示
 """
 import asyncio
@@ -22,22 +23,22 @@ logger = logging.getLogger(__name__)
 # 全局线程池（扩展默认12线程限制，支持更高并发）
 # ============================================================================
 _llm_executor: Optional[ThreadPoolExecutor] = None
-_llm_executor_workers: Optional[int] = None
+_llm_executor_pool_size: Optional[int] = None
 
 
-def _get_llm_executor(max_workers: int) -> ThreadPoolExecutor:
+def _get_llm_executor(pool_concurrency: int) -> ThreadPoolExecutor:
     """
     获取 LLM 调用专用线程池
     
-    线程池大小与实际条目评价并发保持一致，避免后台长期保留过多空闲线程。
+    线程池大小由全局池并发控制，避免多个指南任务同时运行时总并发失控。
     """
-    global _llm_executor, _llm_executor_workers
-    if _llm_executor is None or _llm_executor_workers != max_workers:
+    global _llm_executor, _llm_executor_pool_size
+    if _llm_executor is None or _llm_executor_pool_size != pool_concurrency:
         if _llm_executor is not None:
             _llm_executor.shutdown(wait=False, cancel_futures=False)
-        _llm_executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="llm_eval_")
-        _llm_executor_workers = max_workers
-        logger.info(f"创建 LLM 评价线程池: max_workers={max_workers}")
+        _llm_executor = ThreadPoolExecutor(max_workers=pool_concurrency, thread_name_prefix="llm_eval_")
+        _llm_executor_pool_size = pool_concurrency
+        logger.info(f"创建 LLM 评价线程池: pool_concurrency={pool_concurrency}")
     return _llm_executor
 
 
@@ -74,7 +75,7 @@ def clear_progress_callbacks():
 async def appraise_all(
     task_id: str,
     skill_ids: Optional[List[str]] = None,
-    lang: str = "zh",
+    lang: str = "en",
     on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
     on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
 ) -> Dict[str, Any]:
@@ -99,18 +100,23 @@ async def appraise_all(
             "failed": {"item_3": "error message", ...},
             "total": 23,
             "duration": 45.2,
-            "max_workers": 5
+            "item_concurrency": 5,
+            "pool_concurrency": 10
         }
     """
     settings = get_settings()
-    max_workers = settings.app.appraisal_max_concurrency
+    item_concurrency = settings.app.appraisal_max_concurrency
+    pool_concurrency = settings.app.appraisal_pool_max_concurrency
     
     # 获取待评价的条目列表
     if skill_ids is None:
         skill_ids = list_available_skills(enabled_only=True)
     
     total = len(skill_ids)
-    logger.info(f"开始并发评价: task_id={task_id}, 条目数={total}, 最大并发={max_workers}")
+    logger.info(
+        f"开始并发评价: task_id={task_id}, 条目数={total}, "
+        f"单指南并发={item_concurrency}, 全局池并发={pool_concurrency}"
+    )
 
     # 使用传入的回调或全局回调
     progress_callback = on_item_progress or _global_progress_callback
@@ -125,8 +131,8 @@ async def appraise_all(
         except Exception as e:
             logger.warning(f"推送初始进度失败: {e}")
     
-    # 并发控制信号量
-    semaphore = asyncio.Semaphore(max_workers)
+    # 单个指南任务的条目并发控制
+    semaphore = asyncio.Semaphore(item_concurrency)
     
     # 结果收集
     completed: List[str] = []
@@ -149,9 +155,9 @@ async def appraise_all(
                     logger.warning(f"进度回调失败: {e}")
             
             try:
-                # 使用自定义线程池执行同步评价（突破默认12线程限制）
+                # 使用全局线程池执行同步评价，统一限制所有指南任务的总并发。
                 loop = asyncio.get_running_loop()
-                executor = _get_llm_executor(max_workers)
+                executor = _get_llm_executor(pool_concurrency)
                 result = await loop.run_in_executor(
                     executor,
                     run_iterative_evaluation,
@@ -255,12 +261,13 @@ async def appraise_all(
         "failed": failed,
         "total": total,
         "duration": total_duration,
-        "max_workers": max_workers
+        "item_concurrency": item_concurrency,
+        "pool_concurrency": pool_concurrency,
     }
 
 
 def create_appraise_all_tool(
-    lang: str = "zh",
+    lang: str = "en",
     on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
     on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
 ):
@@ -280,7 +287,8 @@ def create_appraise_all_tool(
         并发评价所有启用的 AGREE-II 条目
 
         使用此工具可以一次性评价所有条目，比逐个调用 Appraiser_item_X 更高效。
-        并发数由 APPRAISAL_MAX_CONCURRENCY 环境变量控制。
+        单指南条目并发由 APPRAISAL_MAX_CONCURRENCY 控制，
+        全局线程池并发由 APPRAISAL_POOL_MAX_CONCURRENCY 控制。
 
         Args:
             task_id: 任务 ID
@@ -299,7 +307,8 @@ def create_appraise_all_tool(
     appraise_all_tool.__doc__ = """并发评价所有启用的 AGREE-II 条目
 
 使用此工具可以一次性评价所有条目，比逐个调用 Appraiser_item_X 更高效。
-并发数由 APPRAISAL_MAX_CONCURRENCY 环境变量控制（默认 5）。
+单指南条目并发由 APPRAISAL_MAX_CONCURRENCY 控制（默认 5）。
+全局线程池并发由 APPRAISAL_POOL_MAX_CONCURRENCY 控制（默认 10）。
 
 Args:
     task_id: 任务 ID
@@ -311,6 +320,8 @@ Returns:
     - failed: 失败的条目及原因
     - total: 总条目数
     - duration: 总耗时（秒）
+    - item_concurrency: 单指南条目并发
+    - pool_concurrency: 全局线程池并发
 """
     
     return appraise_all_tool

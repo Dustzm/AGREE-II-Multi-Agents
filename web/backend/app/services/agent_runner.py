@@ -43,6 +43,7 @@ class AppraisalRunner:
         "connection refused",
         "network",
     )
+    _WORKFLOW_LANG = "en"
     
     def __init__(
         self,
@@ -70,6 +71,7 @@ class AppraisalRunner:
         self.on_cancelled = on_cancelled or (lambda *_: None)
         self.on_error = on_error or (lambda *_: None)
         self.lang = get_language(lang)
+        self.workflow_lang = self._WORKFLOW_LANG
         self.output_subdir = output_subdir
         
         self._cancelled = False
@@ -212,7 +214,7 @@ class AppraisalRunner:
 
         result = await appraise_all(
             task_id,
-            lang=self.lang,
+            lang=self.workflow_lang,
             on_item_progress=self._handle_item_progress,
             on_summary=self._handle_batch_summary,
         )
@@ -238,7 +240,7 @@ class AppraisalRunner:
         from google.adk import runners
         from google.genai import types
 
-        reporter = create_reporter_agent(self.lang)
+        reporter = create_reporter_agent(self.workflow_lang)
         runner = runners.InMemoryRunner(
             agent=reporter,
             app_name='ama_web_reporter',
@@ -249,17 +251,7 @@ class AppraisalRunner:
             user_id='web_user',
         )
 
-        prompt = f"""请开始处理 AGREE-II 最终报告生成任务。
-
-任务信息：
-- task_id: {task_id}
-
-请严格按 Reporter 工作流程执行：
-1. 调用 get_guideline_title(task_id)
-2. 调用 load_all_evaluations(task_id)
-3. 分析结果并调用 generate_appraisal_report(...) 保存报告
-4. 返回报告摘要
-"""
+        prompt = self._build_reporter_prompt(task_id)
 
         initial_message = types.Content(
             role='user',
@@ -580,7 +572,7 @@ class AppraisalRunner:
                                 content_list_path=str(content_list_path),
                                 output_path=str(evidence_pool_path),
                                 pdf_path=str(pdf_file),  # 添加 PDF 路径以构建 docindex
-                                lang=self.lang,  # 使用实例的语言设置
+                                lang=self.workflow_lang,
                                 progress_callback=lambda message: self.on_status("status", message),
                             )
                             
@@ -645,3 +637,17 @@ class AppraisalRunner:
             # 清除全局 Token 追踪器
             from core.utils.token_tracker import set_global_tracker
             set_global_tracker(None)
+
+    def _build_reporter_prompt(self, task_id: str) -> str:
+        """构造固定英文的 Reporter 用户提示，避免被界面语言带偏。"""
+        return f"""Please start the AGREE-II final report generation task.
+
+Task information:
+- task_id: {task_id}
+
+Follow the Reporter workflow strictly:
+1. Call get_guideline_title(task_id)
+2. Call load_all_evaluations(task_id)
+3. Analyze the results and call generate_appraisal_report(...) to save the report
+4. Return a concise report summary
+"""

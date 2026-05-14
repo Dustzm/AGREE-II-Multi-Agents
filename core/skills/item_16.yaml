@@ -10,27 +10,64 @@ description: 'A guideline that targets the management of a disease should consid
   the different possible options for screening, prevention, diagnosis or treatment
   of the condition it covers. These possible options should be clearly presented in
   the guideline. '
-description_zh: '目标为一种疾病管理的指南将考虑临床筛查、预防、诊断或治疗存在各种不同的选择，在指南中应该明确提到这些可能的选择。
-
-  '
+description_zh: '目标为一种疾病管理的指南将考虑临床筛查、预防、诊断或治疗存在各种不同的选择，在指南中应该明确提到这些可能的选择。'
 locating_info: Check Executive summary, Recommendations, Conclusion sections.
 locating_info_zh: 查看执行摘要、推荐意见、结论章节。
 criteria:
 - '例如，对抑郁症管理包括下列治疗选择：a.TCA治疗;b.SSRI治疗;c.心理治疗;d.药理心理联合疗法。 '
 - 推荐顺序可表述为当血糖控制不达标（HbA₁₆>7.0%）时，单药治疗可选二甲双胍，二线治疗为二甲双胍+钠-葡萄糖共转运蛋白2抑制剂或胰岛素；也可直接表述为推荐二甲双胍做为一线用药或首选用药。
+special_rules_en: |-
+  Core principle: item 16 asks whether the guideline clearly presents different management options for the same clinical issue.
+
+  Decision order:
+  1. Identify one clinical issue, decision point, or management scenario.
+  2. Check whether the guideline presents two or more distinct options for that same issue.
+  3. Check whether the text shows when, for whom, or under what condition each option should be used.
+  4. Then check whether the guideline gives an order of preference, explicit selection criteria, or a clear decision pathway/branching logic.
+
+  The following may all count as strong evidence:
+  - first-line / second-line recommendations
+  - if/then branching recommendations
+  - subgroup-based options
+  - treatment pathways or algorithms
+  - tables that clearly compare options by scenario or population
+
+  Do NOT require all options to appear in one sentence or one list.
+  Score 7 is allowed when the reader can clearly tell what the options are and how to choose among them.
+special_rules_zh: |-
+  核心原则：item 16 看的是，指南是否针对同一临床问题，清楚呈现了不同管理选项。
+
+  评分顺序：
+  1. 先锁定一个临床问题、决策点或管理场景；
+  2. 判断指南是否针对这个问题呈现了两个及以上不同方案；
+  3. 判断原文是否说明了各方案适用于何时、何人或何种情况；
+  4. 再判断指南是否给出了推荐顺序、明确选择依据，或清晰的决策路径/分支逻辑。
+
+  下列表达都可以算较强证据：
+  - 一线/二线推荐
+  - if/then 分支推荐
+  - 按亚组/人群区分的方案
+  - 治疗路径图、算法图
+  - 按场景或人群清楚对比不同方案的表格
+
+  不要求所有方案必须写在同一句话或同一个列表里。
+  只要读者能够清楚看出“有哪些方案，以及该如何选择”，就可以进入高分。
 scoring_principle:
 - range: '1'
-  condition: Only a single option mentioned
-  condition_zh: 未提及，即仅有一种方案
+  condition: Only a single option is presented, or different management options are not clearly distinguishable
+  condition_zh: 仅呈现单一方案，或虽提到内容但不同管理选项并未被清楚区分
 - range: 2-3
-  condition: Multiple options for the same issue
-  condition_zh: 针对同一问题存在多个方案
+  condition: Multiple options for the same issue are presented, but without clear indication of when, for whom, or under what condition each option should be used
+  condition_zh: 针对同一问题呈现了多个方案，但没有清楚说明各方案适用于何时、何人或何种情况
 - range: 4-5
-  condition: Multiple options for the same issue with description of suitable populations
-    or clinical status
-  condition_zh: 针对同一问题存在多个方案，且对适用人群或临床状况进行描述
+  condition: Multiple options for the same issue are presented with suitable populations,
+    clinical status, or branching conditions
+  condition_zh: 针对同一问题呈现了多个方案，并说明了适用人群、临床状态或分支条件
 - range: 6-7
-  condition: Multiple options for the same issue with description of suitable populations
-    or clinical status, and with an explicit order of preference or criteria for option
-    selection
-  condition_zh: 针对同一问题存在多个方案，对适用人群或临床状况进行描述，且存在推荐顺序或选择依据
+  condition: Multiple options for the same issue are clearly presented, and the guideline
+    provides an order of preference, explicit selection criteria, or a clear decision
+    pathway/branching logic for choosing among them
+  condition_zh: 针对同一问题清楚呈现了多个方案，且指南提供了推荐顺序、明确选择依据，或清晰的决策路径/分支逻辑
+- range: '7'
+  condition: Use score 7 only when the reader can clearly identify the available options and how to choose among them; do not require all options to appear in one sentence or one list.
+  condition_zh: 只有当读者能够清楚识别“有哪些可选方案，以及该如何选择它们”时，才能给 7 分；不要求所有方案必须写在同一句话或同一个列表里。

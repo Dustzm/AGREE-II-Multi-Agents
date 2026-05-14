@@ -6,14 +6,8 @@ domain_name_zh: 表达清晰性
 title: The recommendations are specific and unambiguous.
 title_zh: 推荐意见明确，不含糊。
 description: 'A recommendation should provide a concrete and precise description of
-  which option is appropriate in which situation and in what population group.
-
-  '
-description_zh: '指南应具体精确地描述推荐建议是在什么情况下、针
-
-  对何种人群的。
-
-  '
+  which option is appropriate in which situation and in what population group.'
+description_zh: '指南应具体精确地描述推荐建议是在什么情况下、针对何种人群的。'
 locating_info: Check Recommendations, Executive Summary sections.
 locating_info_zh: 查看推荐意见、执行摘要章节。
 criteria:

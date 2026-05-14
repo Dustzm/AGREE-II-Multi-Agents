@@ -9,15 +9,13 @@ description: 'Measuring the application of guideline recommendations can facilit
   their ongoing use. This requires clearly defined criteria that are derived from
   the key recommendations in the guideline. The criteria may include process measures,
   behavioural measures, clinical or health outcome measures. '
-description_zh: '测量指南推荐建议的应用有助于推荐建议的持续使用，这要求有清晰确定的并源自于指南中重要推荐建议的标准。标准可以是过程测量、行为测量、临床或健康结局的测量。
-
-  '
+description_zh: '测量指南推荐建议的应用有助于推荐建议的持续使用，这要求有清晰确定的并源自于指南中重要推荐建议的标准。标准可以是过程测量、行为测量、临床或健康结局的测量。'
 locating_info: Check Recommendations, Implementation, Appendices sections.
 locating_info_zh: 查看推荐意见、实施、附录章节。
 criteria:
 - '譬如下面监督和审计标准： HbA1c应小于8.0%。 '
-- '舒张压应小于95mmHg。 '
-- '80%的＞50岁人群将接受使用粪便潜血试验作结肠直肠癌筛查评估。 '
+- '舒张压应小于95mmHg。'
+- '80%的大于50岁人群将接受使用粪便潜血试验作结肠直肠癌筛查评估。 '
 - 如果急性中耳炎的症状持续3天以上应该使用阿莫西林。
 scoring_principle:
 - range: '1'
