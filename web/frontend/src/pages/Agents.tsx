@@ -177,14 +177,16 @@ export function Agents() {
 
     return (
         <>
-            <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 p-8 space-y-10">
+            <div className="h-full w-full overflow-y-auto bg-[#f5f5f7] p-8 space-y-10">
                 {/* 页面标题 */}
                 <header className="mb-12 relative z-10">
-                    <div className="absolute top-0 left-0 w-64 h-64 bg-amber-400/20 rounded-full blur-[100px] -z-10 pointer-events-none" />
-                    <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-orange-600 mb-2">
+                    <div className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
+                        Prompt control
+                    </div>
+                    <h2 className="mb-2 text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                         智能体提示词管理
                     </h2>
-                    <p className="text-lg text-gray-600 max-w-2xl font-light">
+                    <p className="max-w-2xl text-[1.02rem] leading-[1.55] text-black/58">
                         管理各智能体的系统提示词，定制评价流程和行为模式。
                     </p>
                 </header>

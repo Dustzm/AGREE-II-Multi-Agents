@@ -21,13 +21,13 @@ export function LanguageSwitch() {
         <button
             onClick={toggleLanguage}
             className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
+                'inline-flex h-9 items-center gap-2 rounded-full border border-white/10 px-3 text-sm font-medium transition-all',
+                'bg-white/6 text-white/76 hover:border-white/20 hover:bg-white/10 hover:text-white'
             )}
             title={currentLang === 'zh' ? 'Switch to English' : '切换到中文'}
         >
             <Globe className="h-4 w-4" />
-            <span className="uppercase font-mono text-xs">
+            <span className="font-mono text-[0.72rem] uppercase tracking-[0.18em]">
                 {currentLang === 'zh' ? '中文' : 'EN'}
             </span>
         </button>

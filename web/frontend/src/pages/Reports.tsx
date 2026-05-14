@@ -640,15 +640,16 @@ export function Reports() {
 
     // 报告列表视图
     return (
-        <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-gray-50 via-gray-50 to-emerald-50/30 p-8 space-y-10" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
+        <div className="h-full w-full overflow-y-auto bg-[#f5f5f7] p-8 space-y-10" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
             <header className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-6 border-b border-gray-200/50">
-                <div className="absolute top-0 left-0 w-64 h-64 bg-emerald-400/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
-
                 <div className="space-y-2">
-                    <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600">
+                    <div className="text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
+                        Reporting surface
+                    </div>
+                    <h2 className="text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                         {t('reports.title')}
                     </h2>
-                    <p className="text-lg text-gray-600 max-w-2xl font-light">
+                    <p className="max-w-2xl text-[1.02rem] leading-[1.55] text-black/58">
                         {t('reports.description')}
                     </p>
                 </div>
@@ -662,7 +663,7 @@ export function Reports() {
                             className={cn(
                                 "h-8 w-8 p-0 rounded-lg transition-all",
                                 viewMode === 'grid'
-                                    ? "bg-emerald-50 text-emerald-600 shadow-sm"
+                                    ? "bg-[#0071e3]/8 text-[#0071e3] shadow-sm"
                                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
                             )}
                         >
@@ -675,7 +676,7 @@ export function Reports() {
                             className={cn(
                                 "h-8 w-8 p-0 rounded-lg transition-all",
                                 viewMode === 'list'
-                                    ? "bg-emerald-50 text-emerald-600 shadow-sm"
+                                    ? "bg-[#0071e3]/8 text-[#0071e3] shadow-sm"
                                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
                             )}
                         >
@@ -688,7 +689,7 @@ export function Reports() {
                         size="sm"
                         onClick={() => loadReports(currentFolder)}
                         disabled={loading}
-                        className="h-10 px-4 bg-white border-emerald-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all text-gray-600 gap-2 rounded-xl shadow-sm"
+                        className="h-10 gap-2 rounded-full border-black/10 bg-white px-4 text-gray-600 shadow-sm transition-all hover:border-[#0071e3]/20 hover:bg-[#0071e3]/6 hover:text-[#0071e3]"
                     >
                         <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
                         {t('reports.refresh')}
@@ -704,8 +705,8 @@ export function Reports() {
                         className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all",
                             !currentFolder
-                                ? "font-medium text-emerald-600 bg-emerald-50"
-                                : "text-gray-600 hover:text-emerald-600 hover:bg-gray-50"
+                                ? "font-medium text-[#0071e3] bg-[#0071e3]/8"
+                                : "text-gray-600 hover:text-[#0071e3] hover:bg-gray-50"
                         )}
                     >
                         <Home className="h-4 w-4" />
@@ -714,7 +715,7 @@ export function Reports() {
                     {currentFolder && (
                         <>
                             <ChevronRight className="h-4 w-4 text-gray-400" />
-                            <span className="flex items-center gap-1.5 px-3 py-1.5 font-medium text-emerald-600 bg-emerald-50 rounded-lg">
+                            <span className="flex items-center gap-1.5 rounded-lg bg-[#0071e3]/8 px-3 py-1.5 font-medium text-[#0071e3]">
                                 <Folder className="h-4 w-4" />
                                 {currentFolder}
                             </span>
