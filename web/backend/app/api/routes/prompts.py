@@ -1,10 +1,11 @@
 """
 提示词管理 API 路由
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional
 
+from ...permissions import require_admin
 from ...services import prompts_service
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
@@ -50,9 +51,10 @@ async def get_prompt(
 async def update_prompt(
     agent_name: str,
     request: PromptUpdateRequest,
-    lang: str = Query(default="en", regex="^(en|zh)$")
+    lang: str = Query(default="en", regex="^(en|zh)$"),
+    _user=Depends(require_admin),
 ):
-    """更新指定智能体的提示词"""
+    """更新指定智能体的提示词（仅管理员）"""
     try:
         result = prompts_service.update_prompt(agent_name, lang, request.content)
         return result

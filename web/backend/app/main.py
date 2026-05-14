@@ -20,7 +20,9 @@ STARTUP_TIME = int(time.time() * 1000)
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from .api.routes import health, upload, chat, files, reports, skills, prompts, batch, benchmark, config, manual
+from .api.routes import auth, health, upload, chat, files, reports, skills, prompts, batch, benchmark, config, manual, users
+from .auth import validate_auth_configuration
+from .auth_middleware import AuthMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -34,6 +36,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("🚀 AMA Web API 正在启动...")
+
+    validate_auth_configuration()
     
     # 检查 LLM 服务可达性
     try:
@@ -94,9 +98,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AuthMiddleware)
 
 # 注册路由 - 统一使用 /ama 前缀
 app.include_router(health.router, prefix="/ama", tags=["健康检查"])
+app.include_router(auth.router, prefix="/ama/api", tags=["认证"])
 app.include_router(upload.router, prefix="/ama/api", tags=["文件上传"])
 app.include_router(chat.router, prefix="/ama/api", tags=["对话"])
 app.include_router(files.router, prefix="/ama/api", tags=["文件管理"])
@@ -107,6 +113,7 @@ app.include_router(batch.router, prefix="/ama/api", tags=["批量任务"])
 app.include_router(benchmark.router, prefix="/ama/api", tags=["Benchmark"])
 app.include_router(config.router, prefix="/ama/api", tags=["配置管理"])
 app.include_router(manual.router, prefix="/ama/api", tags=["使用手册"])
+app.include_router(users.router, prefix="/ama/api", tags=["用户管理"])
 
 
 @app.get("/")

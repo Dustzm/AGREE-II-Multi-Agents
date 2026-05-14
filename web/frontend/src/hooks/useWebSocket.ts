@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { WS_URL } from '@/config'
+import { createAuthenticatedWebSocket, isUnauthorizedClose, notifyUnauthorized } from '@/services/http'
 
 export interface ChatMessage {
     type: 'status' | 'agent' | 'progress' | 'complete' | 'cancelled' | 'error' | 'item_progress' | 'batch_summary' | 'pong'
@@ -111,7 +111,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         sessionIdRef.current = sessionId
         allowReconnectRef.current = true
 
-        const ws = new WebSocket(`${WS_URL}/chat/${sessionId}`)
+        const ws = createAuthenticatedWebSocket(`/chat/${sessionId}`)
 
         ws.onopen = () => {
             console.log('WebSocket 已连接')
@@ -145,7 +145,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             optionsRef.current.onError?.(error)
         }
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             console.log('WebSocket 已断开')
             setIsConnected(false)
             stopHeartbeat()
@@ -153,6 +153,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                 wsRef.current = null
             }
             optionsRef.current.onClose?.()
+
+            if (isUnauthorizedClose(event)) {
+                notifyUnauthorized()
+                return
+            }
 
             if (allowReconnectRef.current && sessionIdRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
                 scheduleReconnect(reconnectAttemptsRef.current + 1)

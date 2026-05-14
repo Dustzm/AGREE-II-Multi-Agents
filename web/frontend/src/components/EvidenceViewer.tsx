@@ -3,11 +3,12 @@
  * 
  * 以 PDF 页面为单位渲染，用不同颜色标注各语义类别区域
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { apiFetch, buildApiUrl } from '@/services/http'
 
 // 配置 PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
@@ -69,13 +70,15 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
     const [pageSize, setPageSize] = useState<{ width: number; height: number } | null>(null)
 
     const pageContainerRef = useRef<HTMLDivElement>(null)
+    const pdfFile = useMemo(() => buildApiUrl(`/reports/${taskId}/pdf`), [taskId])
+    const documentOptions = useMemo(() => ({ withCredentials: true }), [])
 
     // 加载可视化证据数据
     useEffect(() => {
         async function loadData() {
             try {
                 setLoading(true)
-                const response = await fetch(`/ama/api/reports/${taskId}/visual_evidence`)
+                const response = await apiFetch(buildApiUrl(`/reports/${taskId}/visual_evidence`))
                 if (!response.ok) {
                     throw new Error(t('evidence.error.visualLoadFailed'))
                 }
@@ -88,26 +91,35 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
             }
         }
         loadData()
-    }, [taskId])
+    }, [taskId, t])
 
     // PDF 加载完成回调
     const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
         setNumPages(numPages)
     }, [])
 
-    // 页面渲染完成回调 - 获取实际 canvas 尺寸
-    const onPageRenderSuccess = useCallback(() => {
-        // 查找渲染的 canvas 元素
+    const syncPageSize = useCallback(() => {
         if (pageContainerRef.current) {
             const canvas = pageContainerRef.current.querySelector('canvas')
             if (canvas) {
-                setPageSize({
+                const nextSize = {
                     width: canvas.offsetWidth,
                     height: canvas.offsetHeight
+                }
+                setPageSize((prev) => {
+                    if (prev?.width === nextSize.width && prev?.height === nextSize.height) {
+                        return prev
+                    }
+                    return nextSize
                 })
             }
         }
     }, [])
+
+    // 页面渲染完成回调 - 获取实际 canvas 尺寸
+    const onPageRenderSuccess = useCallback(() => {
+        syncPageSize()
+    }, [syncPageSize])
 
     // 获取标签名称的国际化函数
     const getLabelName = (label: string) => {
@@ -225,7 +237,8 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                 <div className="flex-1 overflow-auto p-4 flex justify-center">
                     <div ref={pageContainerRef} className="relative inline-block">
                         <Document
-                            file={`/ama/api/reports/${taskId}/pdf`}
+                            file={pdfFile}
+                            options={documentOptions}
                             onLoadSuccess={onDocumentLoadSuccess}
                             loading={
                                 <div className="flex items-center justify-center h-96">

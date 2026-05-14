@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, FileText, Settings, PlayCircle, BarChart2, Sliders, BookOpenText } from 'lucide-react'
+import { BarChart2, BookOpenText, FileText, LogOut, MessageSquare, PlayCircle, Settings, Sliders, Users } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { useAuth } from '@/auth/useAuth'
+import { BrandSignature } from './BrandSignature'
 import { LanguageSwitch } from './LanguageSwitch'
 import { APP_BASE_PATH } from '@/config'
 
@@ -11,87 +13,114 @@ const navItems = [
     { to: '/benchmark', icon: BarChart2, labelKey: 'nav.benchmark' },
     { to: '/reports', icon: FileText, labelKey: 'nav.reports' },
     { to: '/skills', icon: Settings, labelKey: 'nav.skills' },
-    // { to: '/agents', icon: Bot, labelKey: 'nav.agents' },  // 已隐藏
     { to: '/config', icon: Sliders, labelKey: 'nav.config' },
+]
+
+// 仅管理员可见的导航项
+const adminNavItems = [
+    { to: '/users', icon: Users, labelKey: 'nav.users' },
 ]
 
 export function Sidebar() {
     const { t } = useTranslation()
+    const { user, isAdmin, logout } = useAuth()
+
     const openDocs = () => {
         window.open(`${APP_BASE_PATH}/docs`, '_blank', 'noopener,noreferrer')
     }
 
-    return (
-        <aside className="w-64 border-r border-gray-200/60 h-screen flex flex-col transition-all duration-300 relative overflow-hidden bg-white/95 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]" style={{ isolation: 'isolate' }}>
-            <div className="absolute inset-0 bg-gradient-to-b from-white/60 to-white/10 pointer-events-none" />
+    const renderNavItem = (item: typeof navItems[0] & { fallbackLabel?: string }) => (
+        <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+                cn(
+                    'group relative flex items-center gap-3 rounded-[18px] px-4 py-3.5 text-sm transition-all duration-200',
+                    isActive
+                        ? 'bg-white text-[#1d1d1f] shadow-[0_14px_36px_-26px_rgba(255,255,255,0.8)]'
+                        : 'text-white/66 hover:bg-white/8 hover:text-white'
+                )
+            }
+        >
+            {({ isActive }) => (
+                <>
+                    <item.icon className={cn(
+                        'h-4 w-4 shrink-0',
+                        isActive ? 'text-[#0071e3]' : 'text-white/42 group-hover:text-white/72'
+                    )} />
+                    <span className="font-medium tracking-[-0.01em]">
+                        {t(item.labelKey)}
+                    </span>
+                    {isActive ? <span className="ml-auto h-2 w-2 rounded-full bg-[#0071e3]" /> : null}
+                </>
+            )}
+        </NavLink>
+    )
 
-            <div className="relative p-6 border-b border-white/20">
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="rounded-xl overflow-hidden shadow-lg shadow-blue-500/20">
-                        <img src="/ama/logo.png" alt="AMA Logo" className="h-10 w-10" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight text-gray-800">AMA</h1>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">AGREE-II-Multi-Agents</p>
-                    </div>
-                </div>
+    return (
+        <aside className="relative flex h-screen w-[312px] shrink-0 flex-col overflow-hidden border-r border-white/8 bg-[rgba(0,0,0,0.84)] text-white shadow-[10px_0_40px_-24px_rgba(0,0,0,0.45)] backdrop-blur-[24px]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(41,151,255,0.16),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0))]" />
+
+            <div className="relative border-b border-white/4 px-6 pb-6 pt-8">
+                <BrandSignature compact inverted />
             </div>
 
-            <nav className="relative flex-1 p-4 space-y-2">
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={({ isActive }) =>
-                            cn(
-                                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group relative overflow-hidden',
-                                isActive
-                                    ? 'text-blue-600 shadow-md shadow-blue-500/10 bg-white/80'
-                                    : 'text-gray-600 hover:bg-white/50 hover:text-gray-900'
-                            )
-                        }
-                    >
-                        {({ isActive }) => (
-                            <>
-                                <div className={cn(
-                                    "absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5 opacity-0 transition-opacity duration-300",
-                                    isActive && "opacity-100"
-                                )} />
-                                <item.icon className={cn(
-                                    "h-4 w-4 transition-all duration-300",
-                                    isActive ? "text-blue-600 scale-110" : "text-gray-400 group-hover:text-gray-600"
-                                )} />
-                                <span className="relative">{t(item.labelKey)}</span>
-                                {isActive && (
-                                    <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                )}
-                            </>
-                        )}
-                    </NavLink>
-                ))}
-            </nav>
+            <nav className="relative flex-1 px-4 py-8">
+                <div className="space-y-1.5">
+                    {navItems.map(renderNavItem)}
+                </div>
 
-            <div className="relative p-4 border-t border-white/20">
-                <div className="flex items-center justify-between text-xs text-gray-500 px-2">
-                    <span className="font-mono opacity-70">v1.0.0</span>
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={openDocs}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-gray-100/80 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                            title={t('docs.openInNewTab')}
-                            aria-label={t('docs.openInNewTab')}
-                        >
-                            <BookOpenText className="h-4 w-4" />
-                        </button>
-                        <LanguageSwitch />
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                            <span className="opacity-70">{t('sidebar.status.online')}</span>
+                {/* 管理员专属导航 */}
+                {isAdmin && (
+                    <div className="mt-6">
+                        <div className="mb-2 px-4 text-[0.62rem] font-medium uppercase tracking-[0.22em] text-white/24">
+                            {t('users.sidebar.adminSection')}
+                        </div>
+                        <div className="space-y-1.5">
+                            {adminNavItems.map(renderNavItem)}
                         </div>
                     </div>
+                )}
+            </nav>
+
+            <div className="relative px-6 py-6 border-t border-white/4">
+                <div className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-white/30 mb-3">
+                    Account
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium tracking-[-0.01em] text-white">
+                        {user?.display_name || user?.username || 'Unknown'}
+                    </div>
+                    {isAdmin && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase tracking-wider">
+                            {t('users.sidebar.adminLabel')}
+                        </span>
+                    )}
+                </div>
+                <div className="mt-0.5 truncate text-xs text-white/46">{user?.username}</div>
+
+                <div className="mt-4 flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={openDocs}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/6 text-white/68 transition-all hover:bg-white/10 hover:text-white"
+                        title={t('docs.openInNewTab')}
+                        aria-label={t('docs.openInNewTab')}
+                    >
+                        <BookOpenText className="h-4 w-4" />
+                    </button>
+                    <LanguageSwitch />
+                    <button
+                        type="button"
+                        onClick={() => void logout()}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/6 text-white/68 transition-all hover:bg-white/10 hover:text-white"
+                        title="退出登录"
+                        aria-label="退出登录"
+                    >
+                        <LogOut className="h-4 w-4" />
+                    </button>
                 </div>
             </div>
-        </aside >
+        </aside>
     )
 }

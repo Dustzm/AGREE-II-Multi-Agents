@@ -1,4 +1,5 @@
 import { API_URL } from '@/config'
+import { apiFetch } from '@/services/http'
 
 const API_BASE_URL = API_URL
 
@@ -38,7 +39,7 @@ export const skillsService = {
         const currentLang = document.documentElement.lang || 'en'
         const lang = currentLang.split('-')[0]
 
-        const response = await fetch(`${API_BASE_URL}/skills`, {
+        const response = await apiFetch(`${API_BASE_URL}/skills`, {
             headers: {
                 'Accept-Language': lang
             }
@@ -50,7 +51,7 @@ export const skillsService = {
     },
 
     async updateStatus(id: string, enabled: boolean): Promise<Skill> {
-        const response = await fetch(`${API_BASE_URL}/skills/${id}`, {
+        const response = await apiFetch(`${API_BASE_URL}/skills/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -64,7 +65,7 @@ export const skillsService = {
     },
 
     async updateDetails(id: string, details: SkillUpdateDetails): Promise<Skill> {
-        const response = await fetch(`${API_BASE_URL}/skills/${id}/details`, {
+        const response = await apiFetch(`${API_BASE_URL}/skills/${id}/details`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ export const skillsService = {
      * 批量更新所有 skills 的启用状态
      */
     async batchUpdateStatus(enabled: boolean): Promise<Skill[]> {
-        const response = await fetch(`${API_BASE_URL}/skills/batch/status`, {
+        const response = await apiFetch(`${API_BASE_URL}/skills/batch/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -94,4 +95,3 @@ export const skillsService = {
         return response.json()
     }
 }
-

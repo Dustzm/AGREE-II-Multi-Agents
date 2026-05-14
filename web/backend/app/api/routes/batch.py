@@ -7,14 +7,17 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import DefaultDict, List, Optional
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from core.config import get_settings
+from ...auth import AuthenticatedUser, get_authenticated_user_from_websocket, is_auth_enabled
+from ...session_registry import register_session_websocket, unregister_session_websocket
 from ...services.batch_runner import (
     BatchTask,
     create_batch_runner,
@@ -129,33 +132,39 @@ class BatchConnectionManager:
     """批量任务 WebSocket 连接管理器"""
     
     def __init__(self):
-        self.active_connections: dict[str, WebSocket] = {}
+        self.active_connections: DefaultDict[str, set[WebSocket]] = defaultdict(set)
     
     async def connect(self, session_id: str, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections[session_id] = websocket
+        self.active_connections[session_id].add(websocket)
         logger.info(f"批量任务 WebSocket 连接: {session_id}")
     
-    def disconnect(self, session_id: str):
-        if session_id in self.active_connections:
-            del self.active_connections[session_id]
-            logger.info(f"批量任务 WebSocket 断开: {session_id}")
+    def disconnect(self, session_id: str, websocket: WebSocket):
+        connections = self.active_connections.get(session_id)
+        if not connections:
+            return
+        connections.discard(websocket)
+        if not connections:
+            self.active_connections.pop(session_id, None)
+        logger.info(f"批量任务 WebSocket 断开: {session_id}")
     
     async def broadcast(self, message: dict):
         """广播消息到所有连接"""
-        logger.debug(f"广播消息到 {len(self.active_connections)} 个连接: {message.get('type')}")
-        disconnected = []
-        for session_id, ws in self.active_connections.items():
-            try:
-                await ws.send_json(message)
-                logger.debug(f"消息已发送到 {session_id}")
-            except Exception as e:
-                logger.warning(f"发送消息失败 ({session_id}): {e}")
-                disconnected.append(session_id)
+        connection_count = sum(len(connections) for connections in self.active_connections.values())
+        logger.debug(f"广播消息到 {connection_count} 个连接: {message.get('type')}")
+        disconnected: list[tuple[str, WebSocket]] = []
+        for session_id, connections in list(self.active_connections.items()):
+            for websocket in list(connections):
+                try:
+                    await websocket.send_json(message)
+                    logger.debug(f"消息已发送到 {session_id}")
+                except Exception as e:
+                    logger.warning(f"发送消息失败 ({session_id}): {e}")
+                    disconnected.append((session_id, websocket))
 
         # 清理断开的连接
-        for session_id in disconnected:
-            self.disconnect(session_id)
+        for session_id, websocket in disconnected:
+            self.disconnect(session_id, websocket)
 
 
 batch_manager = BatchConnectionManager()
@@ -502,7 +511,18 @@ async def batch_websocket(websocket: WebSocket, session_id: str):
     
     用于接收实时任务状态更新
     """
+    auth_user: AuthenticatedUser | None = None
+    auth_session_id = ""
+    if is_auth_enabled():
+        auth_user = get_authenticated_user_from_websocket(websocket)
+        if auth_user is None:
+            await websocket.close(code=1008, reason="unauthorized")
+            return
+        auth_session_id = auth_user.session_id or ""
+
     await batch_manager.connect(session_id, websocket)
+    if auth_session_id:
+        await register_session_websocket(auth_session_id, websocket)
     
     try:
         # 发送当前状态
@@ -524,13 +544,20 @@ async def batch_websocket(websocket: WebSocket, session_id: str):
         while True:
             try:
                 data = await websocket.receive_json()
+                if is_auth_enabled():
+                    current_user = get_authenticated_user_from_websocket(websocket)
+                    if current_user is None:
+                        await websocket.close(code=1008, reason="unauthorized")
+                        break
                 # 处理客户端消息（如果需要）
                 if data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
             except WebSocketDisconnect:
                 break
     finally:
-        batch_manager.disconnect(session_id)
+        if auth_session_id:
+            await unregister_session_websocket(auth_session_id, websocket)
+        batch_manager.disconnect(session_id, websocket)
 
 
 # ===== 状态持久化相关端点 =====

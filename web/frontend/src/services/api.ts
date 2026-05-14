@@ -1,4 +1,5 @@
 import { API_URL } from '@/config'
+import { apiFetch } from '@/services/http'
 
 const API_BASE = API_URL
 
@@ -169,7 +170,7 @@ export interface ManualResponse {
 export const api = {
     // 列出 input 目录下的 PDF 文件
     async listPdfFiles(): Promise<PdfListResponse> {
-        const response = await fetch(`${API_BASE}/files/list`)
+        const response = await apiFetch(`${API_BASE}/files/list`)
         if (!response.ok) {
             throw new Error('获取文件列表失败')
         }
@@ -178,7 +179,7 @@ export const api = {
 
     // 启动评价任务
     async startTask(pdfPath: string): Promise<StartTaskResponse> {
-        const response = await fetch(`${API_BASE}/files/start`, {
+        const response = await apiFetch(`${API_BASE}/files/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pdf_path: pdfPath }),
@@ -194,7 +195,7 @@ export const api = {
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await fetch(`${API_BASE}/upload`, {
+        const response = await apiFetch(`${API_BASE}/upload`, {
             method: 'POST',
             body: formData,
         })
@@ -211,7 +212,7 @@ export const api = {
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await fetch(`${API_BASE}/files/upload`, {
+        const response = await apiFetch(`${API_BASE}/files/upload`, {
             method: 'POST',
             body: formData,
         })
@@ -238,7 +239,7 @@ export const api = {
             formData.append('files', file, relativePath)
         })
 
-        const response = await fetch(`${API_BASE}/files/upload-folder`, {
+        const response = await apiFetch(`${API_BASE}/files/upload-folder`, {
             method: 'POST',
             body: formData,
         })
@@ -254,7 +255,7 @@ export const api = {
     // 获取报告列表
     async listReports(folder?: string): Promise<ReportListResponse> {
         const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
-        const response = await fetch(`${API_BASE}/reports${params}`)
+        const response = await apiFetch(`${API_BASE}/reports${params}`)
         if (!response.ok) {
             throw new Error('获取报告列表失败')
         }
@@ -264,7 +265,7 @@ export const api = {
     // 获取报告详情
     async getReport(taskId: string, folder?: string): Promise<ReportDetail> {
         const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
-        const response = await fetch(`${API_BASE}/reports/${taskId}${params}`)
+        const response = await apiFetch(`${API_BASE}/reports/${taskId}${params}`)
         if (!response.ok) {
             throw new Error('获取报告详情失败')
         }
@@ -276,7 +277,7 @@ export const api = {
         // health 路由挂载在 /ama/health，不是 /ama/api/health
         // API_BASE 是 /ama/api，所以需要替换
         const url = API_BASE.replace('/api', '/health')
-        const response = await fetch(url)
+        const response = await apiFetch(url)
         if (!response.ok) {
             throw new Error('健康检查失败')
         }
@@ -285,7 +286,7 @@ export const api = {
 
     // 获取使用手册
     async getManual(lang: 'zh-CN' | 'en-US'): Promise<ManualResponse> {
-        const response = await fetch(`${API_BASE}/manual?lang=${encodeURIComponent(lang)}`)
+        const response = await apiFetch(`${API_BASE}/manual?lang=${encodeURIComponent(lang)}`)
         if (!response.ok) {
             throw new Error('获取使用手册失败')
         }
@@ -310,7 +311,7 @@ export const api = {
         folder?: string
     ): Promise<EvidenceLocationResponse> {
         const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
-        const response = await fetch(`${API_BASE}/reports/${taskId}/evidence_location${params}`, {
+        const response = await apiFetch(`${API_BASE}/reports/${taskId}/evidence_location${params}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -328,7 +329,7 @@ export const api = {
 
     // 列出已上传的人类评分文件
     async listHumanFiles(): Promise<{ files: HumanFileInfo[] }> {
-        const response = await fetch(`${API_BASE}/benchmark/human-files`)
+        const response = await apiFetch(`${API_BASE}/benchmark/human-files`)
         if (!response.ok) {
             throw new Error('获取人类评分文件列表失败')
         }
@@ -339,7 +340,7 @@ export const api = {
     async uploadHumanFile(file: File): Promise<{ status: string; message: string; file: HumanFileInfo }> {
         const formData = new FormData()
         formData.append('file', file)
-        const response = await fetch(`${API_BASE}/benchmark/human-files`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/human-files`, {
             method: 'POST',
             body: formData,
         })
@@ -352,7 +353,7 @@ export const api = {
 
     // 删除人类评分文件
     async deleteHumanFile(filename: string): Promise<{ status: string; message: string }> {
-        const response = await fetch(`${API_BASE}/benchmark/human-files/${encodeURIComponent(filename)}`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/human-files/${encodeURIComponent(filename)}`, {
             method: 'DELETE',
         })
         if (!response.ok) {
@@ -363,7 +364,7 @@ export const api = {
 
     // 列出可用的 batch 目录
     async listBatches(): Promise<{ batches: BatchInfo[] }> {
-        const response = await fetch(`${API_BASE}/benchmark/batches`)
+        const response = await apiFetch(`${API_BASE}/benchmark/batches`)
         if (!response.ok) {
             throw new Error('获取 batch 列表失败')
         }
@@ -372,7 +373,7 @@ export const api = {
 
     // 执行 Benchmark
     async runBenchmark(humanFile: string, batchIds: string[], threshold: number = 2): Promise<BenchmarkRunResponse> {
-        const response = await fetch(`${API_BASE}/benchmark/run`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -389,7 +390,7 @@ export const api = {
 
     // 列出 Benchmark 结果
     async listBenchmarkResults(): Promise<{ results: BenchmarkResultInfo[] }> {
-        const response = await fetch(`${API_BASE}/benchmark/results`)
+        const response = await apiFetch(`${API_BASE}/benchmark/results`)
         if (!response.ok) {
             throw new Error('获取结果列表失败')
         }
@@ -398,7 +399,7 @@ export const api = {
 
     // 删除 Benchmark 结果
     async deleteBenchmarkResult(filename: string): Promise<{ status: string; message: string; deleted_files: string[] }> {
-        const response = await fetch(`${API_BASE}/benchmark/results/${encodeURIComponent(filename)}`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/results/${encodeURIComponent(filename)}`, {
             method: 'DELETE',
         })
         if (!response.ok) {
@@ -415,7 +416,7 @@ export const api = {
 
     // 获取 Benchmark 结果详情
     async getBenchmarkDetail(filename: string): Promise<BenchmarkDetailResponse> {
-        const response = await fetch(`${API_BASE}/benchmark/detail/${encodeURIComponent(filename)}`)
+        const response = await apiFetch(`${API_BASE}/benchmark/detail/${encodeURIComponent(filename)}`)
         if (!response.ok) {
             throw new Error('获取结果详情失败')
         }
@@ -424,7 +425,7 @@ export const api = {
 
     // 保存 Benchmark 修改
     async saveBenchmarkChanges(filename: string, updates: ScoreUpdate[]): Promise<{ status: string; message: string }> {
-        const response = await fetch(`${API_BASE}/benchmark/save`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -440,7 +441,7 @@ export const api = {
 
     // 添加评论
     async addComment(filename: string, guideId: string, content: string): Promise<{ status: string; comment: GuideComment }> {
-        const response = await fetch(`${API_BASE}/benchmark/comments`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/comments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -457,7 +458,7 @@ export const api = {
 
     // 更新评论
     async updateComment(filename: string, guideId: string, commentId: string, content: string): Promise<{ status: string; comment: GuideComment }> {
-        const response = await fetch(`${API_BASE}/benchmark/comments`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/comments`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -475,7 +476,7 @@ export const api = {
 
     // 删除评论
     async deleteComment(filename: string, guideId: string, commentId: string): Promise<{ status: string }> {
-        const response = await fetch(`${API_BASE}/benchmark/comments`, {
+        const response = await apiFetch(`${API_BASE}/benchmark/comments`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -494,7 +495,7 @@ export const api = {
 
     // 获取 LLM 配置
     async getLLMConfig(): Promise<LLMConfigResponse> {
-        const response = await fetch(`${API_BASE}/config/llm`)
+        const response = await apiFetch(`${API_BASE}/config/llm`)
         if (!response.ok) {
             throw new Error('获取 LLM 配置失败')
         }
@@ -503,7 +504,7 @@ export const api = {
 
     // 更新 LLM 配置
     async updateLLMConfig(config: LLMConfigUpdate): Promise<LLMConfigResponse> {
-        const response = await fetch(`${API_BASE}/config/llm`, {
+        const response = await apiFetch(`${API_BASE}/config/llm`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
@@ -516,9 +517,11 @@ export const api = {
     },
 
     // 测试 LLM 连接
-    async testLLMConnection(): Promise<ConnectionTestResult> {
-        const response = await fetch(`${API_BASE}/config/llm/test`, {
+    async testLLMConnection(config?: LLMConfigUpdate): Promise<ConnectionTestResult> {
+        const response = await apiFetch(`${API_BASE}/config/llm/test`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config ?? {}),
         })
         if (!response.ok) {
             throw new Error('测试连接失败')
@@ -527,9 +530,11 @@ export const api = {
     },
 
     // LLM 健康验证
-    async checkLLMHealth(): Promise<HealthCheckResult> {
-        const response = await fetch(`${API_BASE}/config/llm/health`, {
+    async checkLLMHealth(config?: LLMConfigUpdate): Promise<HealthCheckResult> {
+        const response = await apiFetch(`${API_BASE}/config/llm/health`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config ?? {}),
         })
         if (!response.ok) {
             throw new Error('健康验证失败')
@@ -539,7 +544,7 @@ export const api = {
 
     // 获取提供商预设列表
     async getProviders(): Promise<Record<string, ProviderInfo>> {
-        const response = await fetch(`${API_BASE}/config/providers`)
+        const response = await apiFetch(`${API_BASE}/config/providers`)
         if (!response.ok) {
             throw new Error('获取提供商列表失败')
         }

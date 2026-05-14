@@ -3,6 +3,7 @@ KG-Weaver 配置管理模块
 
 使用 pydantic-settings 从环境变量加载配置
 """
+import logging
 from pathlib import Path
 from typing import Literal
 
@@ -12,6 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # 获取项目根目录的 .env 文件路径
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _ENV_FILE = _PROJECT_ROOT / ".env"
+logger = logging.getLogger(__name__)
 
 
 class LLMSettings(BaseSettings):
@@ -285,9 +287,17 @@ class AppSettings(BaseSettings):
     appraisal_max_concurrency: int = Field(
         default=5,
         alias="APPRAISAL_MAX_CONCURRENCY",
-        description="条目评价最大并发数",
+        description="单个指南任务的条目评价最大并发数",
         ge=1,
         le=20
+    )
+
+    appraisal_pool_max_concurrency: int = Field(
+        default=10,
+        alias="APPRAISAL_POOL_MAX_CONCURRENCY",
+        description="Appraiser 全局线程池最大并发数",
+        ge=1,
+        le=100
     )
     
     # 标签分类并发配置
@@ -322,6 +332,39 @@ class AppSettings(BaseSettings):
         return _PROJECT_ROOT / path
 
 
+class AuthSettings(BaseSettings):
+    """Web 认证配置"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AMA_AUTH_",
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+    enabled: bool = Field(
+        default=True,
+        description="是否启用 Web 登录认证"
+    )
+
+    secret: str = Field(
+        default="ama-default-auth-secret",
+        description="会话签名密钥"
+    )
+
+    session_ttl_hours: int = Field(
+        default=12,
+        description="登录会话有效期（小时）",
+        ge=1,
+        le=168
+    )
+
+    users_file: str = Field(
+        default="users.json",
+        description="账号文件路径，默认使用项目根目录下的 users.json"
+    )
+
+
 class Settings(BaseSettings):
     """全局配置聚合"""
     
@@ -336,6 +379,13 @@ class Settings(BaseSettings):
     asr: ASRSettings = Field(default_factory=ASRSettings)
     app: AppSettings = Field(default_factory=AppSettings)
     url_attachment: URLAttachmentSettings = Field(default_factory=URLAttachmentSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
+    llm_config_secret: str = Field(
+        default="",
+        alias="LLM_CONFIG_SECRET",
+        repr=False,
+        description="运行时 LLM 配置加密密钥",
+    )
 
 
 # 可刷新的配置单例
@@ -347,6 +397,7 @@ def get_settings() -> Settings:
     global _settings_instance
     if _settings_instance is None:
         _settings_instance = Settings()
+        _apply_runtime_llm_overrides(_settings_instance)
     return _settings_instance
 
 
@@ -355,6 +406,20 @@ def refresh_settings() -> Settings:
     global _settings_instance
     _settings_instance = None
     return get_settings()
+
+
+def _apply_runtime_llm_overrides(settings: Settings) -> None:
+    """将 SQLite 中的运行时 LLM 配置覆盖到当前 settings。"""
+    from .runtime_store import get_runtime_llm_config
+
+    runtime_config = get_runtime_llm_config(settings.llm_config_secret)
+    if not runtime_config:
+        return
+
+    for key in ("provider", "base_url", "api_key", "model_name", "timeout", "is_vision_model"):
+        value = runtime_config.get(key)
+        if value is not None:
+            setattr(settings.llm, key, value)
 
 
 def update_env_file(updates: dict[str, str]) -> None:

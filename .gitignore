@@ -48,6 +48,9 @@ data/maps/*
 data/plans/*
 data/buffer/*
 data/output/*
+data/ama.db
+data/ama.db-shm
+data/ama.db-wal
 !data/**/.gitkeep
 
 # 日志

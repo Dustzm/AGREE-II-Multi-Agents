@@ -4,6 +4,7 @@ import { skillsService, Skill, SkillUpdateDetails } from '../services/skills'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Layers, Check, X, AlertCircle, Pencil, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { useAuth } from '@/auth/useAuth'
 import {
     Dialog,
     DialogContent,
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button'
 
 export function Skills() {
     const { t, i18n } = useTranslation()
+    const { isAdmin } = useAuth()
     const [skills, setSkills] = useState<Skill[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -173,25 +175,28 @@ export function Skills() {
     )
 
     return (
-        <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 p-8 space-y-10" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
+        <div className="h-full w-full overflow-y-auto bg-[#f5f5f7] p-8 space-y-10" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
             <header className="mb-12 relative z-10">
-                <div className="absolute top-0 left-0 w-64 h-64 bg-blue-400/20 rounded-full blur-[100px] -z-10 pointer-events-none" />
                 <div className="flex items-start justify-between">
                     <div>
-                        <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 mb-2">
+                        <div className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
+                            Configuration surface
+                        </div>
+                        <h2 className="mb-2 text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                             {t('skills.title')}
                         </h2>
-                        <p className="text-lg text-gray-600 max-w-2xl font-light">
+                        <p className="max-w-2xl text-[1.02rem] leading-[1.55] text-black/58">
                             {t('skills.description')}
                         </p>
                     </div>
+                    {isAdmin && (
                     <div className="flex items-center gap-3">
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => batchToggle(true)}
                             disabled={batchUpdating}
-                            className="gap-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+                            className="gap-2 rounded-full border-black/10 bg-white text-[#1d1d1f] hover:border-[#0071e3]/22 hover:bg-[#0071e3]/6"
                         >
                             {batchUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ToggleRight className="h-4 w-4" />}
                             {t('skills.button.enableAll')}
@@ -201,12 +206,13 @@ export function Skills() {
                             size="sm"
                             onClick={() => batchToggle(false)}
                             disabled={batchUpdating}
-                            className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                            className="gap-2 rounded-full border-black/10 bg-white text-black/66 hover:border-[#0071e3]/22 hover:bg-[#0071e3]/6 hover:text-[#1d1d1f]"
                         >
                             {batchUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ToggleLeft className="h-4 w-4" />}
                             {t('skills.button.disableAll')}
                         </Button>
                     </div>
+                    )}
                 </div>
             </header>
 
@@ -216,12 +222,12 @@ export function Skills() {
 
                 return (
                     <section key={domain} className="space-y-6">
-                        <div className="flex items-center gap-3 border-b border-gray-200/60 pb-2">
-                            <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100/50">
-                                <Layers className="h-5 w-5 text-indigo-500" />
+                        <div className="flex items-center gap-3 border-b border-black/8 pb-3">
+                            <div className="rounded-2xl border border-black/6 bg-white p-2 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.25)]">
+                                <Layers className="h-5 w-5 text-[#0071e3]" />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-800">
-                                <span className="text-indigo-500/80 mr-2">#{domain}</span>
+                            <h3 className="text-2xl font-semibold tracking-[-0.035em] text-[#1d1d1f]">
+                                <span className="mr-2 text-[#0071e3]">#{domain}</span>
                                 {domainName}
                             </h3>
                         </div>
@@ -233,6 +239,7 @@ export function Skills() {
                                     skill={skill}
                                     onToggle={() => toggleSkill(skill.item_id, skill.enabled)}
                                     onEdit={() => openEditDialog(skill)}
+                                    isAdmin={isAdmin}
                                 />
                             ))}
                         </div>
@@ -244,7 +251,7 @@ export function Skills() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="sm:max-w-[800px] max-h-[85vh] overflow-hidden flex flex-col bg-white/95 border-white/20 shadow-2xl">
                     <DialogHeader className="flex flex-row items-center justify-between mr-8 sticky top-0 bg-white/95 z-10 pb-4 border-b border-gray-100">
-                        <DialogTitle>编辑条目 ({editingSkill?.item_id})</DialogTitle>
+                        <DialogTitle>{t('skills.dialog.title')} ({editingSkill?.item_id})</DialogTitle>
 
                         <div className="h-6"> {/* Fixed height to prevent layout shift */}
                             <AnimatePresence mode="wait">
@@ -257,7 +264,7 @@ export function Skills() {
                                         className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/50 text-xs font-medium text-blue-600 shadow-sm will-change-transform"
                                     >
                                         <Loader2 className="w-3 h-3 animate-spin" />
-                                        <span>保存中...</span>
+                                        <span>{t('skills.dialog.saving')}</span>
                                     </motion.div>
                                 )}
                                 {saveStatus === 'saved' && (
@@ -269,7 +276,7 @@ export function Skills() {
                                         className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 border border-green-200/50 text-xs font-medium text-green-600 shadow-sm will-change-transform"
                                     >
                                         <Check className="w-3 h-3" />
-                                        <span>已自动保存</span>
+                                        <span>{t('skills.dialog.saved')}</span>
                                     </motion.div>
                                 )}
                                 {saveStatus === 'error' && (
@@ -281,7 +288,7 @@ export function Skills() {
                                         className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200/50 text-xs font-medium text-red-600 shadow-sm will-change-transform"
                                     >
                                         <AlertCircle className="w-3 h-3" />
-                                        <span>保存失败</span>
+                                        <span>{t('skills.dialog.saveFailed')}</span>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -293,7 +300,7 @@ export function Skills() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium leading-none text-gray-500">
-                                    Title (English)
+                                    {t('skills.form.titleEn')}
                                 </label>
                                 <input
                                     className="flex h-9 w-full rounded-md border border-input bg-white/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -303,7 +310,7 @@ export function Skills() {
                             </div>
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium leading-none text-blue-600">
-                                    标题 (中文)
+                                    {t('skills.form.titleZh')}
                                 </label>
                                 <input
                                     className="flex h-9 w-full rounded-md border border-input bg-white/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -317,7 +324,7 @@ export function Skills() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium leading-none text-gray-500">
-                                    Description (English)
+                                    {t('skills.form.descEn')}
                                 </label>
                                 <textarea
                                     className="flex min-h-[80px] w-full rounded-md border border-input bg-white/50 px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -327,7 +334,7 @@ export function Skills() {
                             </div>
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium leading-none text-blue-600">
-                                    描述 (中文)
+                                    {t('skills.form.descZh')}
                                 </label>
                                 <textarea
                                     className="flex min-h-[80px] w-full rounded-md border border-input bg-white/50 px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -341,7 +348,7 @@ export function Skills() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium leading-none text-gray-500">
-                                    Locating Info (English)
+                                    {t('skills.form.locatingEn')}
                                 </label>
                                 <input
                                     className="flex h-9 w-full rounded-md border border-input bg-white/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -351,7 +358,7 @@ export function Skills() {
                             </div>
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium leading-none text-blue-600">
-                                    定位信息提示 (中文)
+                                    {t('skills.form.locatingZh')}
                                 </label>
                                 <input
                                     className="flex h-9 w-full rounded-md border border-input bg-white/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -365,7 +372,7 @@ export function Skills() {
                         <div className="grid gap-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium leading-none text-gray-700">
-                                    评分细则 / Scoring Principle
+                                    {t('skills.form.scoringPrinciple')}
                                 </label>
                                 <Button
                                     type="button"
@@ -384,10 +391,10 @@ export function Skills() {
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                                         <tr>
-                                            <th className="p-3 w-24 text-center">Range</th>
-                                            <th className="p-3">Condition (English)</th>
-                                            <th className="p-3 text-blue-600">Condition (Chinese)</th>
-                                            <th className="p-3 w-12 text-center">操作</th>
+                                            <th className="p-3 w-24 text-center">{t('skills.form.range')}</th>
+                                            <th className="p-3">{t('skills.form.conditionEn')}</th>
+                                            <th className="p-3 text-blue-600">{t('skills.form.conditionZh')}</th>
+                                            <th className="p-3 w-12 text-center">{t('skills.form.actions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 bg-white/50">
@@ -427,7 +434,7 @@ export function Skills() {
                                                             setEditForm({ ...editForm, scoring_principle: newPrinciples })
                                                         }}
                                                         className="h-6 w-6 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                                                        title="删除此行"
+                                                        title={t('skills.form.deleteRow')}
                                                     >
                                                         <X className="h-3.5 w-3.5" />
                                                     </Button>
@@ -437,7 +444,7 @@ export function Skills() {
                                         {editForm.scoring_principle.length === 0 && (
                                             <tr>
                                                 <td colSpan={4} className="p-4 text-center text-gray-400 text-sm">
-                                                    暂无评分规则，点击上方"添加规则"按钮添加
+                                                    {t('skills.form.noRules')}
                                                 </td>
                                             </tr>
                                         )}
@@ -448,7 +455,7 @@ export function Skills() {
 
                         <div className="grid gap-2">
                             <label className="text-sm font-medium leading-none text-gray-700">
-                                举例/example
+                                {t('skills.form.criteria')}
                             </label>
                             <textarea
                                 className="flex min-h-[120px] w-full rounded-md border border-input bg-white/50 px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono text-xs"
@@ -463,7 +470,7 @@ export function Skills() {
     )
 }
 
-function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => void, onEdit: () => void }) {
+function SkillCard({ skill, onToggle, onEdit, isAdmin }: { skill: Skill, onToggle: () => void, onEdit: () => void, isAdmin: boolean }) {
     const { t } = useTranslation()
 
     return (
@@ -501,16 +508,19 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {isAdmin && (
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onEdit}
-                            className="hidden h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                            className="hidden group-hover:flex h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
                             title="编辑条目"
                         >
                             <Pencil className="h-4 w-4" />
                         </Button>
+                        )}
 
+                        {isAdmin ? (
                         <button
                             onClick={onToggle}
                             className={cn(
@@ -528,6 +538,14 @@ function SkillCard({ skill, onToggle, onEdit }: { skill: Skill, onToggle: () => 
                                 )}
                             />
                         </button>
+                        ) : (
+                        <span className={cn(
+                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium",
+                            skill.enabled ? 'bg-green-50 text-green-600 border border-green-200/60' : 'bg-gray-100 text-gray-400 border border-gray-200/60'
+                        )}>
+                            {skill.enabled ? t('skills.card.enabled') : t('skills.card.disabled')}
+                        </span>
+                        )}
                     </div>
                 </div>
 

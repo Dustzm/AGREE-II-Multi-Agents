@@ -73,10 +73,10 @@ export function Batch() {
     // 初始化 sessionId，优先从 localStorage 读取
     // 使用 useState lazy init 来保证只执行一次
     const [sessionId] = useState(() => {
-        const saved = localStorage.getItem('batch_session_id')
+        const saved = sessionStorage.getItem('batch_session_id')
         if (saved) return saved
         const newId = `batch-${Date.now()}`
-        localStorage.setItem('batch_session_id', newId)
+        sessionStorage.setItem('batch_session_id', newId)
         return newId
     })
 
@@ -526,14 +526,15 @@ export function Batch() {
     }
 
     return (
-        <div className="flex h-full bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100">
+        <div className="flex h-full bg-[#f5f5f7]">
             {/* 左侧：文件夹 + PDF 层级 */}
-            <div className="w-96 border-r border-gray-200/60 bg-white/95 flex flex-col shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)]">
-                <div className="p-6 border-b border-gray-100">
+            <div className="flex w-96 flex-col border-r border-black/6 bg-white/92 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)]">
+                <div className="border-b border-black/6 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800">{t('batch.select.title')}</h2>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">Batch library</div>
+                            <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('batch.select.title')}</h2>
+                            <p className="mt-1 text-xs text-black/48">
                                 {t('batch.select.count', { count: selectedPdfs.size })}
                             </p>
                         </div>
@@ -551,7 +552,7 @@ export function Batch() {
                                 size="icon"
                                 onClick={() => folderInputRef.current?.click()}
                                 disabled={isRunning || isUploadingFolder}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-amber-500/20 hover:to-orange-500/20 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
+                                className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                                 title={t('batch.uploadFolder')}
                             >
                                 {isUploadingFolder ? (
@@ -565,7 +566,7 @@ export function Batch() {
                                 size="icon"
                                 onClick={loadFolders}
                                 disabled={loadingFolders || isUploadingFolder}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-500/20 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
+                                className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                             >
                                 <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFolders && "animate-spin")} />
                             </Button>
@@ -630,7 +631,7 @@ export function Batch() {
                         <Button
                             onClick={handleStart}
                             disabled={selectedPdfs.size === 0 || isRunning}
-                            className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+                            className="flex-1 rounded-full bg-[#0071e3] hover:bg-[#0066cc]"
                         >
                             <Play className="h-4 w-4 mr-2" />
                             {t('batch.button.start')} ({selectedPdfs.size})
@@ -651,11 +652,12 @@ export function Batch() {
             {/* 右侧：任务状态 */}
             <div className="flex-1 flex flex-col">
                 {/* 统计头部 */}
-                <div className="p-6 border-b border-gray-200/50 bg-white/95">
+                <div className="border-b border-black/6 bg-white/92 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800">{t('batch.status.title')}</h2>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">Execution status</div>
+                            <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('batch.status.title')}</h2>
+                            <p className="mt-1 text-xs text-black/48">
                                 {isRunning ? (
                                     batchStatus && batchStatus.experiment_rounds > 1
                                         ? `${t('batch.status.running')} - ${t('batch.status.round', { current: batchStatus.current_round, total: batchStatus.experiment_rounds })}`

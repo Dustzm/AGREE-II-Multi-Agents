@@ -6,7 +6,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, RefreshCw, Sparkles, Upload, Folder, ChevronRight, ChevronDown, FolderOpen, Paperclip, Eye, EyeOff, FileSpreadsheet, FileImage, Film, Music, FileCode, File, Presentation } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, Upload, Folder, ChevronRight, ChevronDown, FolderOpen, Paperclip, Eye, EyeOff, FileSpreadsheet, FileImage, Film, Music, FileCode, File, Presentation } from 'lucide-react'
 import { api, type PdfFile, type InputDirectoryNode } from '@/services/api'
 import { useWebSocket, type ChatMessage } from '@/hooks/useWebSocket'
 import { cn } from '@/utils/cn'
@@ -60,10 +60,10 @@ export function Chat() {
     const { t } = useTranslation()
     // 持久化状态初始化
     const [sessionId] = useState(() => {
-        const saved = localStorage.getItem('ama_session_id')
+        const saved = sessionStorage.getItem('ama_session_id')
         if (saved) return saved
         const newId = `session-${Date.now()}`
-        localStorage.setItem('ama_session_id', newId)
+        sessionStorage.setItem('ama_session_id', newId)
         return newId
     })
 
@@ -836,16 +836,14 @@ export function Chat() {
     }
 
     return (
-        <div className="flex h-full bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 isolate overflow-hidden">
+        <div className="flex h-full bg-[#f5f5f7] isolate overflow-hidden">
             {/* Left Panel: File Explorer */}
-            <div className="w-80 border-r border-gray-200/60 bg-white/95 flex flex-col transition-all relative z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)]" style={{ isolation: 'isolate' }}>
-                <div className="p-6 border-b border-white/20">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-800 tracking-tight">{t('chat.fileList.title')}</h2>
-                            <p className="text-xs text-gray-500 mt-1">{t('chat.fileList.hint')}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
+            <div className="relative z-20 flex w-80 flex-col bg-transparent" style={{ isolation: 'isolate' }}>
+                <div className="p-6">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('chat.fileList.title')}</h2>
+                            <div className="flex items-center gap-0.5">
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -866,13 +864,13 @@ export function Chat() {
                                 size="icon"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading || isUploadingFolder}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500/20 hover:to-pink-500/20 hover:shadow-lg hover:shadow-purple-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
+                                className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                                 title={t('chat.fileList.uploadPdf')}
                             >
                                 {isUploading ? (
                                     <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
                                 ) : (
-                                    <Upload className="h-4 w-4 text-gray-600 transition-colors group-hover:text-purple-600" />
+                                    <Upload className="h-4 w-4 text-gray-600 transition-colors group-hover:text-[#0071e3]" />
                                 )}
                             </Button>
                             <Button
@@ -880,7 +878,7 @@ export function Chat() {
                                 size="icon"
                                 onClick={() => folderInputRef.current?.click()}
                                 disabled={isUploading || isUploadingFolder}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-amber-500/20 hover:to-orange-500/20 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
+                                className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                                 title={t('chat.fileList.uploadFolder')}
                             >
                                 {isUploadingFolder ? (
@@ -894,7 +892,7 @@ export function Chat() {
                                 size="icon"
                                 onClick={loadPdfFiles}
                                 disabled={loadingFiles || isUploadingFolder}
-                                className="h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-500/20 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer"
+                                className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                                 title={t('chat.fileList.refresh')}
                             >
                                 <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFiles && "animate-spin")} />
@@ -923,8 +921,8 @@ export function Chat() {
                                     }
                                 }}
                                 className={cn(
-                                    "h-9 w-9 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-gray-500/20 hover:to-slate-500/20 hover:shadow-lg hover:shadow-gray-500/10 hover:scale-110 hover:backdrop-blur-sm active:scale-95 cursor-pointer",
-                                    hiddenAttachments.size > 0 && "bg-gray-100"
+                                    'h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]',
+                                    hiddenAttachments.size > 0 && 'bg-black/4 text-[#0071e3]'
                                 )}
                                 title={hiddenAttachments.size > 0 ? t('chat.fileList.showAttachments') : t('chat.fileList.hideAttachments')}
                             >
@@ -935,6 +933,7 @@ export function Chat() {
                                 )}
                             </Button>
                         </div>
+                    </div>
                     </div>
                 </div>
 
@@ -977,20 +976,16 @@ export function Chat() {
             </div>
 
             {/* Right Panel: Timeline View */}
-            <div className="flex-1 flex flex-col relative z-10">
+            <div className="flex-1 flex flex-col relative z-10 bg-white shadow-xl shadow-black/[0.02] rounded-l-[40px] border border-black/5">
                 {/* Header */}
-                <div className="h-20 border-b border-gray-200/50 flex items-center justify-between px-8 bg-white/95 sticky top-0 z-10">
-                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/5 to-pink-500/5 pointer-events-none" />
+                <div className="sticky top-0 z-10 flex h-24 items-center justify-between px-8 bg-white/90 backdrop-blur-[20px] rounded-tl-[40px]">
 
                     <div className="flex items-center gap-4 relative">
-                        <div className="p-2.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg shadow-purple-500/20 text-white">
-                            <Sparkles className="h-5 w-5" />
-                        </div>
                         <div className="flex flex-col">
-                            <h1 className="text-xl font-bold text-gray-900 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
+                            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#1d1d1f]">
                                 {t('chat.progress.title')}
                             </h1>
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-2 mt-1.5">
                                 <span className={cn(
                                     "w-1.5 h-1.5 rounded-full",
                                     connectionError ? "bg-red-500" :

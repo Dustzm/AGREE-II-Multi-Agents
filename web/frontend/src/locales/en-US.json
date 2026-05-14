@@ -13,7 +13,8 @@
         "reports": "Reports",
         "skills": "Items",
         "agents": "Agents",
-        "config": "Config"
+        "config": "Config",
+        "users": "Users"
     },
     "sidebar": {
         "subtitle": "Appraisal System",
@@ -554,6 +555,74 @@
             "latency": "Latency:",
             "model": "Model:",
             "reply": "LLM Reply:"
+        }
+    },
+    "users": {
+        "title": "User Management",
+        "subtitle": "Access control",
+        "description": "Manage system user accounts, assign roles, and control access permissions",
+        "addUser": "Add User",
+        "table": {
+            "username": "Username",
+            "displayName": "Display Name",
+            "role": "Role",
+            "status": "Status",
+            "createdAt": "Created",
+            "actions": "Actions"
+        },
+        "role": {
+            "admin": "Admin",
+            "user": "User"
+        },
+        "status": {
+            "enabled": "Enabled",
+            "disabled": "Disabled"
+        },
+        "badge": {
+            "current": "You"
+        },
+        "empty": "No users found",
+        "error": {
+            "loadFailed": "Failed to load user list",
+            "usernameRequired": "Username and password are required"
+        },
+        "toast": {
+            "created": "User {{username}} created",
+            "updated": "User {{username}} updated",
+            "deleted": "User {{username}} deleted",
+            "createFailed": "Create failed",
+            "updateFailed": "Update failed",
+            "deleteFailed": "Delete failed"
+        },
+        "dialog": {
+            "createTitle": "Add User",
+            "editTitle": "Edit User — {{username}}",
+            "username": "Username",
+            "usernamePlaceholder": "Enter username (2-32 characters)",
+            "usernameRequired": "*",
+            "password": "Password",
+            "passwordPlaceholder": "Enter password (at least 4 characters)",
+            "passwordRequired": "*",
+            "displayName": "Display Name",
+            "displayNamePlaceholder": "Optional, shown in the UI",
+            "role": "Role",
+            "resetPassword": "Reset Password",
+            "resetPasswordHint": "(leave empty to keep current)",
+            "newPasswordPlaceholder": "Enter new password",
+            "enabledStatus": "Account Status",
+            "enabledHint": "Disabled users cannot log in",
+            "createButton": "Create User",
+            "creating": "Creating...",
+            "saveButton": "Save Changes",
+            "saving": "Saving..."
+        },
+        "confirm": {
+            "delete": "Confirm",
+            "cancel": "Cancel"
+        },
+        "sidebar": {
+            "adminLabel": "Admin",
+            "adminSection": "Admin"
         }
     }
 }

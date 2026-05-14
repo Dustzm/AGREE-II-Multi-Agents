@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Save, Wifi, WifiOff, Heart, Loader2, Eye, EyeOff, CheckCircle, XCircle, Clock, Sliders, AlertCircle, Zap, Server, Globe, Sparkles, BrainCircuit, Telescope, Sparkle, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, ConnectionTestResult, HealthCheckResult, ProviderInfo, ProviderModelInfo } from '@/services/api'
+import { api, ConnectionTestResult, HealthCheckResult, LLMConfigUpdate, ProviderInfo, ProviderModelInfo } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import toast from 'react-hot-toast'
 import { cn } from '@/utils/cn'
@@ -121,7 +121,7 @@ export function Config() {
     const handleSave = async () => {
         setSaving(true)
         try {
-            const update: Record<string, unknown> = {
+            const update: LLMConfigUpdate = {
                 provider: provider,
                 model_name: modelName,
                 timeout: timeout,
@@ -131,7 +131,7 @@ export function Config() {
             if (providerCfg?.need_base_url) {
                 update.base_url = getBaseUrlValue(provider)
             }
-            if (apiKeyEdited && apiKey) {
+            if (apiKeyEdited) {
                 update.api_key = apiKey
             }
             await api.updateLLMConfig(update)
@@ -153,7 +153,20 @@ export function Config() {
         setTestStatus('testing')
         setTestResult(null)
         try {
-            const result = await api.testLLMConnection()
+            const draftUpdate: LLMConfigUpdate = {
+                provider,
+                model_name: modelName,
+                timeout,
+                is_vision_model: isVisionModel,
+            }
+            const providerCfg = providersData[provider]
+            if (providerCfg?.need_base_url) {
+                draftUpdate.base_url = getBaseUrlValue(provider)
+            }
+            if (apiKeyEdited) {
+                draftUpdate.api_key = apiKey
+            }
+            const result = await api.testLLMConnection(draftUpdate)
             setTestResult(result)
             setTestStatus(result.success ? 'success' : 'error')
         } catch {
@@ -167,7 +180,20 @@ export function Config() {
         setHealthStatus('checking')
         setHealthResult(null)
         try {
-            const result = await api.checkLLMHealth()
+            const draftUpdate: LLMConfigUpdate = {
+                provider,
+                model_name: modelName,
+                timeout,
+                is_vision_model: isVisionModel,
+            }
+            const providerCfg = providersData[provider]
+            if (providerCfg?.need_base_url) {
+                draftUpdate.base_url = getBaseUrlValue(provider)
+            }
+            if (apiKeyEdited) {
+                draftUpdate.api_key = apiKey
+            }
+            const result = await api.checkLLMHealth(draftUpdate)
             setHealthResult(result)
             setHealthStatus(result.success ? 'healthy' : 'unhealthy')
         } catch {
@@ -183,14 +209,16 @@ export function Config() {
     )
 
     return (
-        <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 p-8 space-y-8" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
+        <div className="h-full w-full overflow-y-auto bg-[#f5f5f7] p-8 space-y-8" style={{ overscrollBehavior: 'contain', willChange: 'scroll-position' }}>
             {/* 页面标题 */}
             <header className="mb-8 relative z-10">
-                <div className="absolute top-0 left-0 w-64 h-64 bg-teal-400/20 rounded-full blur-[100px] -z-10 pointer-events-none" />
-                <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-2">
+                <div className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
+                    Model operations
+                </div>
+                <h2 className="mb-2 text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                     {t('config.title')}
                 </h2>
-                <p className="text-lg text-gray-600 max-w-2xl font-light">
+                <p className="max-w-2xl text-[1.02rem] leading-[1.55] text-black/58">
                     {t('config.subtitle')}
                 </p>
             </header>
@@ -200,10 +228,10 @@ export function Config() {
                 <div>
                     {/* 卡片标题 */}
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-teal-50 rounded-xl border border-teal-100/50">
-                            <Sliders className="h-5 w-5 text-teal-600" />
+                        <div className="rounded-2xl border border-black/6 bg-white p-2 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.25)]">
+                            <Sliders className="h-5 w-5 text-[#0071e3]" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800">
+                        <h3 className="text-xl font-semibold tracking-[-0.03em] text-[#1d1d1f]">
                             {t('config.llm.title')}
                         </h3>
                     </div>

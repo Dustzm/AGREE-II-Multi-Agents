@@ -5,15 +5,18 @@ WebSocket 对话 API
 """
 import asyncio
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, DefaultDict, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from core.utils.unicode_sanitizer import strip_surrogates
+from web.backend.app.auth import AuthenticatedUser, get_authenticated_user_from_websocket, is_auth_enabled
 from web.backend.app.i18n import t, get_language
+from ...session_registry import register_session_websocket, unregister_session_websocket
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +60,13 @@ class ConnectionManager:
     """WebSocket 连接管理器"""
     
     def __init__(self):
-        self.active_connections: dict[str, WebSocket] = {}
+        self.active_connections: DefaultDict[str, set[WebSocket]] = defaultdict(set)
         # 离线消息队列: session_id -> list[message_dict]
         self.message_queues: dict[str, list[dict]] = {}
     
     async def connect(self, session_id: str, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections[session_id] = websocket
+        self.active_connections[session_id].add(websocket)
         
         # 检查并发送离线消息
         if session_id in self.message_queues:
@@ -79,16 +82,31 @@ class ConnectionManager:
                 # 清空队列
                 self.message_queues[session_id] = []
     
-    def disconnect(self, session_id: str):
-        if session_id in self.active_connections:
-            del self.active_connections[session_id]
+    def disconnect(self, session_id: str, websocket: WebSocket):
+        connections = self.active_connections.get(session_id)
+        if not connections:
+            return
+        connections.discard(websocket)
+        if not connections:
+            self.active_connections.pop(session_id, None)
     
     async def send_message(self, session_id: str, message: dict):
-        if session_id in self.active_connections:
-            try:
-                await self.active_connections[session_id].send_json(message)
-            except Exception as e:
-                logger.warning(f"发送消息失败，转入离线队列: {e}")
+        connections = list(self.active_connections.get(session_id, set()))
+        if connections:
+            sent = False
+            disconnected: list[WebSocket] = []
+            for websocket in connections:
+                try:
+                    await websocket.send_json(message)
+                    sent = True
+                except Exception as e:
+                    logger.warning(f"发送消息失败，准备移除断开的连接: {e}")
+                    disconnected.append(websocket)
+
+            for websocket in disconnected:
+                self.disconnect(session_id, websocket)
+
+            if not sent:
                 self._enqueue_message(session_id, message)
         else:
             # 用户离线，加入队列
@@ -200,13 +218,29 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     - 客户端发送: {"type": "start", "task_id": "xxx", "pdf_path": "/path/to/file.pdf"}
     - 服务端发送: {"type": "status", "agent": "Initiator", "content": "..."}
     """
+    auth_user: AuthenticatedUser | None = None
+    auth_session_id = ""
+    if is_auth_enabled():
+        auth_user = get_authenticated_user_from_websocket(websocket)
+        if auth_user is None:
+            await websocket.close(code=1008, reason="unauthorized")
+            return
+        auth_session_id = auth_user.session_id or ""
+
     await manager.connect(session_id, websocket)
+    if auth_session_id:
+        await register_session_websocket(auth_session_id, websocket)
     logger.info(f"WebSocket 连接: {session_id}")
     
     try:
         while True:
             # 接收客户端消息
             data = await websocket.receive_json()
+            if is_auth_enabled():
+                current_user = get_authenticated_user_from_websocket(websocket)
+                if current_user is None:
+                    await websocket.close(code=1008, reason="unauthorized")
+                    break
             msg_type = data.get("type")
             
             if msg_type == "ping":
@@ -301,7 +335,9 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         logger.info(f"WebSocket 断开: {session_id}")
     finally:
-        manager.disconnect(session_id)
+        if auth_session_id:
+            await unregister_session_websocket(auth_session_id, websocket)
+        manager.disconnect(session_id, websocket)
 
 
 async def run_appraisal(

@@ -1,3 +1,5 @@
+import { apiFetch, createAuthenticatedWebSocket, isUnauthorizedClose, notifyUnauthorized } from '@/services/http'
+
 const API_BASE = '/ama/api'
 
 async function parseJsonSafely<T>(res: Response): Promise<T | null> {
@@ -121,7 +123,7 @@ export interface FolderTreeResponse {
 
 export const batchApi = {
     async listFolders(): Promise<FolderTreeResponse> {
-        const res = await fetch(`${API_BASE}/batch/folders`)
+        const res = await apiFetch(`${API_BASE}/batch/folders`)
         if (!res.ok) {
             throw new Error('获取文件夹列表失败')
         }
@@ -129,7 +131,7 @@ export const batchApi = {
     },
 
     async listPdfs(folderName: string): Promise<PdfInfo[]> {
-        const res = await fetch(`${API_BASE}/batch/folders/${encodeURIComponent(folderName)}/pdfs`)
+        const res = await apiFetch(`${API_BASE}/batch/folders/${encodeURIComponent(folderName)}/pdfs`)
         if (!res.ok) {
             throw new Error('获取 PDF 列表失败')
         }
@@ -138,7 +140,7 @@ export const batchApi = {
     },
 
     async start(folder: string, concurrency: number): Promise<BatchStatus> {
-        const res = await fetch(`${API_BASE}/batch/start`, {
+        const res = await apiFetch(`${API_BASE}/batch/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folder, concurrency }),
@@ -150,7 +152,7 @@ export const batchApi = {
     },
 
     async stop(): Promise<void> {
-        const res = await fetch(`${API_BASE}/batch/stop`, {
+        const res = await apiFetch(`${API_BASE}/batch/stop`, {
             method: 'POST',
         })
         if (!res.ok) {
@@ -159,7 +161,7 @@ export const batchApi = {
     },
 
     async getStatus(): Promise<BatchStatus> {
-        const res = await fetch(`${API_BASE}/batch/status`)
+        const res = await apiFetch(`${API_BASE}/batch/status`)
         if (!res.ok) {
             throw new Error('获取批量任务状态失败')
         }
@@ -167,7 +169,7 @@ export const batchApi = {
     },
 
     async getLatestResumable(): Promise<ResumeLatestResponse> {
-        const res = await fetch(`${API_BASE}/batch/resume/latest`)
+        const res = await apiFetch(`${API_BASE}/batch/resume/latest`)
         if (!res.ok) {
             throw new Error('获取可继续任务失败')
         }
@@ -175,7 +177,7 @@ export const batchApi = {
     },
 
     async resumeLatest(concurrency?: number): Promise<BatchStatus> {
-        const res = await fetch(`${API_BASE}/batch/resume/latest`, {
+        const res = await apiFetch(`${API_BASE}/batch/resume/latest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(concurrency ? { concurrency } : {}),
@@ -187,7 +189,7 @@ export const batchApi = {
     },
 
     async startSelected(pdfPaths: string[], concurrency: number, experimentRounds: number = 1): Promise<BatchStatus> {
-        const res = await fetch(`${API_BASE}/batch/start-selected`, {
+        const res = await apiFetch(`${API_BASE}/batch/start-selected`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -203,7 +205,7 @@ export const batchApi = {
     },
 
     async listSessions(): Promise<SessionInfo[]> {
-        const res = await fetch(`${API_BASE}/batch/sessions`)
+        const res = await apiFetch(`${API_BASE}/batch/sessions`)
         if (!res.ok) {
             throw new Error('获取会话列表失败')
         }
@@ -212,7 +214,7 @@ export const batchApi = {
     },
 
     async restoreSession(sessionId: string): Promise<{ message: string; session_id: string; status: BatchStatus }> {
-        const res = await fetch(`${API_BASE}/batch/restore/${encodeURIComponent(sessionId)}`, {
+        const res = await apiFetch(`${API_BASE}/batch/restore/${encodeURIComponent(sessionId)}`, {
             method: 'POST',
         })
         if (!res.ok) {
@@ -222,7 +224,7 @@ export const batchApi = {
     },
 
     async deleteSession(sessionId: string): Promise<{ message: string }> {
-        const res = await fetch(`${API_BASE}/batch/sessions/${encodeURIComponent(sessionId)}`, {
+        const res = await apiFetch(`${API_BASE}/batch/sessions/${encodeURIComponent(sessionId)}`, {
             method: 'DELETE',
         })
         if (!res.ok) {
@@ -248,9 +250,7 @@ export interface BatchWebSocketHandle {
 
 export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSocketHandle {
     const { sessionId, onTaskUpdate, onComplete, onError, onConnectionChange } = options
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ama/api/batch/ws/${sessionId}`
-    
+
     const state = {
         reconnectAttempts: 0,
         maxReconnectAttempts: 5,
@@ -296,7 +296,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
         state.reconnectTimeout = setTimeout(() => {
             if (state.reconnectAttempts < state.maxReconnectAttempts) {
                 state.reconnectAttempts++
-                const newWs = new WebSocket(wsUrl)
+                const newWs = createAuthenticatedWebSocket(`/batch/ws/${sessionId}`)
                 setupWebSocketHandlers(newWs)
                 state.ws = newWs
             } else {
@@ -337,10 +337,15 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
             onError?.('WebSocket 连接错误')
         }
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             console.log('批量任务 WebSocket 已断开')
             stopHeartbeat()
             onConnectionChange?.(false, state.reconnectAttempts)
+
+            if (isUnauthorizedClose(event)) {
+                notifyUnauthorized()
+                return
+            }
             
             if (state.reconnectAttempts < state.maxReconnectAttempts) {
                 scheduleReconnect()
@@ -354,7 +359,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
             state.ws.close()
         }
         state.reconnectAttempts = 0
-        const newWs = new WebSocket(wsUrl)
+        const newWs = createAuthenticatedWebSocket(`/batch/ws/${sessionId}`)
         setupWebSocketHandlers(newWs)
         state.ws = newWs
     }
@@ -368,7 +373,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
         }
     }
 
-    const ws = new WebSocket(wsUrl)
+    const ws = createAuthenticatedWebSocket(`/batch/ws/${sessionId}`)
     setupWebSocketHandlers(ws)
     state.ws = ws
 

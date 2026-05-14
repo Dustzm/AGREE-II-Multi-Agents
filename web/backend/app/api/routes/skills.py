@@ -1,10 +1,11 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Path as PathParam, Header
+from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Header
 
 from web.backend.app.schemas.skills import SkillBase, SkillUpdate, SkillUpdateDetails
 from web.backend.app.services.skills_service import get_all_skills, update_skill_status, update_skill_details
 from web.backend.app.i18n import get_language
+from web.backend.app.permissions import require_admin
 
 router = APIRouter()
 
@@ -23,10 +24,13 @@ async def list_skills(
 @router.put("/skills/{skill_id}", response_model=dict)
 async def update_skill(
     skill_id: str = PathParam(..., description="The ID of the skill to update"),
-    data: SkillUpdate = ...
+    data: SkillUpdate = ...,
+    _user=Depends(require_admin),
 ):
     """
     Update a skill's configuration (enable/disable)
+    
+    仅管理员可操作
     """
     try:
         updated_config = update_skill_status(skill_id, data.enabled)
@@ -37,7 +41,16 @@ async def update_skill(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/skills/{skill_id}/details")
-async def update_item_details(skill_id: str, details: SkillUpdateDetails):
+async def update_item_details(
+    skill_id: str,
+    details: SkillUpdateDetails,
+    _user=Depends(require_admin),
+):
+    """
+    更新条目详细信息
+    
+    仅管理员可操作
+    """
     try:
         return update_skill_details(skill_id, details)
     except FileNotFoundError:
@@ -47,15 +60,18 @@ async def update_item_details(skill_id: str, details: SkillUpdateDetails):
 
 
 @router.put("/skills/batch/status", response_model=List[dict])
-async def batch_update_skills(data: SkillUpdate):
+async def batch_update_skills(
+    data: SkillUpdate,
+    _user=Depends(require_admin),
+):
     """
     批量更新所有 skills 的启用状态
     
     - enabled: true 全部启用，false 全部禁用
+    - 仅管理员可操作
     """
     from web.backend.app.services.skills_service import update_all_skills_status
     try:
         return update_all_skills_status(data.enabled)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
