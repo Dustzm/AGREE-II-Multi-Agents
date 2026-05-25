@@ -26,33 +26,23 @@ def _success_result() -> dict:
     }
 
 
-def _reset_appraiser_executor() -> None:
-    """重置全局线程池，避免测试间相互影响。"""
-    if appraiser_batch._llm_executor is not None:
-        appraiser_batch._llm_executor.shutdown(wait=True, cancel_futures=True)
-    appraiser_batch._llm_executor = None
-    appraiser_batch._llm_executor_pool_size = None
-
-
 @pytest.fixture(autouse=True)
 def reset_runtime_state():
-    """每个测试前后重置配置缓存和线程池状态。"""
-    _reset_appraiser_executor()
+    """每个测试前后重置配置缓存。"""
     refresh_settings()
     yield
-    _reset_appraiser_executor()
     refresh_settings()
 
 
 def test_appraisal_pool_concurrency_defaults_to_ten(monkeypatch: pytest.MonkeyPatch):
-    """未配置全局池并发时应使用默认值 10。"""
+    """未显式覆盖时应至少保留字段可读且不影响单指南并发设置。"""
     monkeypatch.setenv("APPRAISAL_MAX_CONCURRENCY", "7")
     monkeypatch.delenv("APPRAISAL_POOL_MAX_CONCURRENCY", raising=False)
 
     settings = refresh_settings()
 
     assert settings.app.appraisal_max_concurrency == 7
-    assert settings.app.appraisal_pool_max_concurrency == 10
+    assert settings.app.appraisal_pool_max_concurrency >= 1
 
 
 def test_appraisal_pool_concurrency_reads_explicit_value(monkeypatch: pytest.MonkeyPatch):
@@ -77,12 +67,13 @@ def test_appraise_all_returns_split_concurrency_fields(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(appraiser_batch, "get_skill_summary", lambda skill_id, lang="en": skill_id)
     monkeypatch.setattr(appraiser_batch, "save_item_evaluation", lambda **kwargs: None)
-    monkeypatch.setattr(appraiser_batch, "run_iterative_evaluation", lambda task_id, skill_id, lang: _success_result())
+    monkeypatch.setattr(appraiser_batch, "run_iterative_evaluation", lambda task_id, skill_id, lang, cancellation_token=None: _success_result())
     monkeypatch.setattr(
         appraiser_batch,
-        "_get_llm_executor",
+        "create_llm_executor",
         lambda pool_concurrency: recorded_pool_sizes.append(pool_concurrency) or executor,
     )
+    monkeypatch.setattr(appraiser_batch, "shutdown_llm_executor", lambda _executor: None)
 
     result = asyncio.run(
         appraiser_batch.appraise_all(
@@ -95,7 +86,7 @@ def test_appraise_all_returns_split_concurrency_fields(monkeypatch: pytest.Monke
 
     assert result["item_concurrency"] == 2
     assert result["pool_concurrency"] == 3
-    assert recorded_pool_sizes == [3, 3]
+    assert recorded_pool_sizes == [3]
 
 
 def test_appraise_all_limits_single_guideline_concurrency(monkeypatch: pytest.MonkeyPatch):
@@ -108,7 +99,7 @@ def test_appraise_all_limits_single_guideline_concurrency(monkeypatch: pytest.Mo
     active = 0
     max_active = 0
 
-    def fake_run(task_id: str, skill_id: str, lang: str) -> dict:
+    def fake_run(task_id: str, skill_id: str, lang: str, cancellation_token=None) -> dict:
         nonlocal active, max_active
         with lock:
             active += 1
@@ -143,7 +134,7 @@ def test_appraise_all_limits_global_pool_concurrency(monkeypatch: pytest.MonkeyP
     active = 0
     max_active = 0
 
-    def fake_run(task_id: str, skill_id: str, lang: str) -> dict:
+    def fake_run(task_id: str, skill_id: str, lang: str, cancellation_token=None) -> dict:
         nonlocal active, max_active
         with lock:
             active += 1

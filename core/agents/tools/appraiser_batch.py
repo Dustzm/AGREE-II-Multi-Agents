@@ -2,7 +2,7 @@
 并发批量评价工具
 
 使用 asyncio.Semaphore 控制单指南条目并发，从 .env 读取 APPRAISAL_MAX_CONCURRENCY。
-使用全局线程池控制整体评价并发，从 .env 读取 APPRAISAL_POOL_MAX_CONCURRENCY。
+支持显式注入线程池控制整体评价并发，避免跨 worker 共享全局线程池。
 支持进度回调，用于前端实时展示
 """
 import asyncio
@@ -16,30 +16,20 @@ from core.config import get_settings
 from core.agents.appraiser import run_iterative_evaluation
 from core.agents.tools.appraiser_tools import save_item_evaluation
 from core.skills import list_available_skills, get_skill_summary
+from core.utils.cancellation import CancellationRequested, CancellationToken
 
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# 全局线程池（扩展默认12线程限制，支持更高并发）
-# ============================================================================
-_llm_executor: Optional[ThreadPoolExecutor] = None
-_llm_executor_pool_size: Optional[int] = None
+def create_llm_executor(pool_concurrency: int) -> ThreadPoolExecutor:
+    """创建批量条目评价线程池。"""
+    logger.info("创建 LLM 评价线程池: pool_concurrency=%s", pool_concurrency)
+    return ThreadPoolExecutor(max_workers=pool_concurrency, thread_name_prefix="llm_eval_")
 
 
-def _get_llm_executor(pool_concurrency: int) -> ThreadPoolExecutor:
-    """
-    获取 LLM 调用专用线程池
-    
-    线程池大小由全局池并发控制，避免多个指南任务同时运行时总并发失控。
-    """
-    global _llm_executor, _llm_executor_pool_size
-    if _llm_executor is None or _llm_executor_pool_size != pool_concurrency:
-        if _llm_executor is not None:
-            _llm_executor.shutdown(wait=False, cancel_futures=False)
-        _llm_executor = ThreadPoolExecutor(max_workers=pool_concurrency, thread_name_prefix="llm_eval_")
-        _llm_executor_pool_size = pool_concurrency
-        logger.info(f"创建 LLM 评价线程池: pool_concurrency={pool_concurrency}")
-    return _llm_executor
+def shutdown_llm_executor(executor: ThreadPoolExecutor | None) -> None:
+    """关闭批量条目评价线程池。"""
+    if executor is not None:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 # ============================================================================
@@ -55,7 +45,7 @@ def register_progress_callbacks(
 ):
     """
     注册全局进度回调
-    
+
     Args:
         on_item_progress: 单条目进度回调 (skill_id, title, status, duration)
         on_summary: 汇总进度回调 (total, completed, elapsed)
@@ -78,6 +68,8 @@ async def appraise_all(
     lang: str = "en",
     on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
     on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
+    cancellation_token: Optional[CancellationToken] = None,
+    executor: Optional[ThreadPoolExecutor] = None,
 ) -> Dict[str, Any]:
     """
     并发评价所有/指定条目
@@ -107,11 +99,14 @@ async def appraise_all(
     settings = get_settings()
     item_concurrency = settings.app.appraisal_max_concurrency
     pool_concurrency = settings.app.appraisal_pool_max_concurrency
-    
+    llm_timeout = settings.app.batch_item_llm_timeout
+    owns_executor = executor is None
+    executor = executor or create_llm_executor(pool_concurrency)
+
     # 获取待评价的条目列表
     if skill_ids is None:
         skill_ids = list_available_skills(enabled_only=True)
-    
+
     total = len(skill_ids)
     logger.info(
         f"开始并发评价: task_id={task_id}, 条目数={total}, "
@@ -130,45 +125,54 @@ async def appraise_all(
             logger.info(f"初始进度推送完成")
         except Exception as e:
             logger.warning(f"推送初始进度失败: {e}")
-    
+
     # 单个指南任务的条目并发控制
     semaphore = asyncio.Semaphore(item_concurrency)
-    
+
     # 结果收集
     completed: List[str] = []
     failed: Dict[str, str] = {}
     completed_count = 0
     start_time = time.time()
-    
+
     async def evaluate_item(skill_id: str) -> tuple[str, Dict[str, Any]]:
         """评价单个条目"""
         nonlocal completed_count
+        if cancellation_token:
+            cancellation_token.raise_if_cancelled()
         async with semaphore:
+            if cancellation_token:
+                cancellation_token.raise_if_cancelled()
             item_start = time.time()
             title = get_skill_summary(skill_id, lang=lang) or skill_id
-            
+
             # 通知开始
             if progress_callback:
                 try:
                     await progress_callback(skill_id, title, "started", None)
                 except Exception as e:
                     logger.warning(f"进度回调失败: {e}")
-            
+
             try:
                 # 使用全局线程池执行同步评价，统一限制所有指南任务的总并发。
                 loop = asyncio.get_running_loop()
-                executor = _get_llm_executor(pool_concurrency)
-                result = await loop.run_in_executor(
-                    executor,
-                    run_iterative_evaluation,
-                    task_id,
-                    skill_id,
-                    lang
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        executor,
+                        run_iterative_evaluation,
+                        task_id,
+                        skill_id,
+                        lang,
+                        cancellation_token,
+                    ),
+                    timeout=llm_timeout,
                 )
                 duration = time.time() - item_start
-                
+
                 # 保存结果
                 status = result.get("status")
+                if status == "cancelled":
+                    raise CancellationRequested(result.get("error", "任务已取消"))
                 if status in ("success", "no_evidence"):
                     cot = result.get("chain_of_thought", {})
                     save_item_evaluation(
@@ -180,7 +184,7 @@ async def appraise_all(
                         score=cot.get("score", 1),
                         evidence_sources=result.get("evidence_sources", [])
                     )
-                    
+
                     # 更新完成计数并通知
                     completed_count += 1
                     if progress_callback:
@@ -188,7 +192,7 @@ async def appraise_all(
                             await progress_callback(skill_id, title, "completed", duration)
                         except Exception as e:
                             logger.warning(f"进度回调失败: {e}")
-                    
+
                     # 发送汇总进度
                     if summary_callback:
                         try:
@@ -197,79 +201,126 @@ async def appraise_all(
                             await summary_callback(total, completed_count, elapsed)
                         except Exception as e:
                             logger.warning(f"汇总回调失败: {e}")
-                    
+
                     logger.info(f"评价完成: {skill_id} ({duration:.1f}s)")
                     return skill_id, {"status": "success", "duration": duration}
                 else:
                     error_msg = result.get("error", "评价失败")
-                    
+
                     # 通知失败
                     if progress_callback:
                         try:
                             await progress_callback(skill_id, title, "failed", None)
                         except Exception as e:
                             logger.warning(f"进度回调失败: {e}")
-                    
+
                     logger.warning(f"评价失败: {skill_id} - {error_msg}")
                     return skill_id, {"status": "failed", "error": error_msg}
-                    
+
+            except CancellationRequested:
+                raise
+            except asyncio.TimeoutError:
+                error_msg = f"条目评价超时 ({llm_timeout}s)"
+                if cancellation_token:
+                    cancellation_token.cancel()
+                if progress_callback:
+                    try:
+                        await progress_callback(skill_id, title, "failed", None)
+                    except Exception as ex:
+                        logger.warning(f"进度回调失败: {ex}")
+                logger.error(f"评价超时: {skill_id} - {error_msg}")
+                return skill_id, {"status": "failed", "error": error_msg, "reason": "llm_timeout"}
             except Exception as e:
                 error_msg = str(e)
-                
+
                 # 通知失败
                 if progress_callback:
                     try:
                         await progress_callback(skill_id, title, "failed", None)
                     except Exception as ex:
                         logger.warning(f"进度回调失败: {ex}")
-                
+
                 logger.error(f"评价异常: {skill_id} - {error_msg}")
                 return skill_id, {"status": "failed", "error": error_msg}
-    
+
     # 并发执行所有评价任务
+    if cancellation_token:
+        cancellation_token.raise_if_cancelled()
     tasks = [evaluate_item(sid) for sid in skill_ids]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # 汇总结果
-    for item in results:
-        if isinstance(item, Exception):
-            # gather 返回的异常
-            logger.error(f"任务异常: {item}")
-            continue
-        
-        skill_id, result = item
-        if result.get("status") == "success":
-            completed.append(skill_id)
+    try:
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        except CancellationRequested:
+            if cancellation_token:
+                cancellation_token.cancel()
+            logger.info("批量条目评价收到取消请求，停止等待新条目")
+            return {
+                "status": "cancelled",
+                "completed": completed,
+                "failed": failed,
+                "total": total,
+                "duration": time.time() - start_time,
+                "item_concurrency": item_concurrency,
+                "pool_concurrency": pool_concurrency,
+            }
+
+        # 汇总结果
+        for item in results:
+            if isinstance(item, Exception):
+                # gather 返回的异常
+                if isinstance(item, CancellationRequested):
+                    if cancellation_token:
+                        cancellation_token.cancel()
+                    logger.info("批量条目评价汇总阶段检测到取消")
+                    return {
+                        "status": "cancelled",
+                        "completed": completed,
+                        "failed": failed,
+                        "total": total,
+                        "duration": time.time() - start_time,
+                        "item_concurrency": item_concurrency,
+                        "pool_concurrency": pool_concurrency,
+                    }
+                logger.error(f"任务异常: {item}")
+                continue
+
+            skill_id, result = item
+            if result.get("status") == "success":
+                completed.append(skill_id)
+            else:
+                failed[skill_id] = result.get("error", "Unknown error")
+
+        total_duration = time.time() - start_time
+
+        # 确定整体状态
+        if not failed:
+            status = "success"
+        elif completed:
+            status = "partial"
         else:
-            failed[skill_id] = result.get("error", "Unknown error")
-    
-    total_duration = time.time() - start_time
-    
-    # 确定整体状态
-    if not failed:
-        status = "success"
-    elif completed:
-        status = "partial"
-    else:
-        status = "error"
-    
-    logger.info(f"并发评价完成: 成功={len(completed)}, 失败={len(failed)}, 耗时={total_duration:.1f}s")
-    
-    return {
-        "status": status,
-        "completed": completed,
-        "failed": failed,
-        "total": total,
-        "duration": total_duration,
-        "item_concurrency": item_concurrency,
-        "pool_concurrency": pool_concurrency,
-    }
+            status = "error"
+
+        logger.info(f"并发评价完成: 成功={len(completed)}, 失败={len(failed)}, 耗时={total_duration:.1f}s")
+
+        return {
+            "status": status,
+            "completed": completed,
+            "failed": failed,
+            "total": total,
+            "duration": total_duration,
+            "item_concurrency": item_concurrency,
+            "pool_concurrency": pool_concurrency,
+        }
+    finally:
+        if owns_executor:
+            shutdown_llm_executor(executor)
 
 
 def create_appraise_all_tool(
     lang: str = "en",
     on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
     on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
+    cancellation_token: Optional[CancellationToken] = None,
 ):
     """
     创建 appraise_all 工具函数（用于 Orchestrator）
@@ -301,8 +352,9 @@ def create_appraise_all_tool(
             lang=lang,
             on_item_progress=on_item_progress,
             on_summary=on_summary,
+            cancellation_token=cancellation_token,
         )
-    
+
     appraise_all_tool.__name__ = "appraise_all"
     appraise_all_tool.__doc__ = """并发评价所有启用的 AGREE-II 条目
 
@@ -323,5 +375,5 @@ Returns:
     - item_concurrency: 单指南条目并发
     - pool_concurrency: 全局线程池并发
 """
-    
+
     return appraise_all_tool

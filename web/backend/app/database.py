@@ -95,6 +95,9 @@ def init_db() -> None:
     conn = get_db()
     conn.executescript(_CREATE_USERS_TABLE)
     conn.executescript(_CREATE_AUTH_SESSIONS_TABLE)
+    from .services.batch_jobs import init_batch_job_tables
+
+    init_batch_job_tables(conn)
     conn.commit()
 
     # 优先从账号种子文件导入

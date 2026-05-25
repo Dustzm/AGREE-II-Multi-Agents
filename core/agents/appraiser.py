@@ -33,6 +33,7 @@ from core.preprocessor.iterator import EvidenceIterator
 from core.preprocessor.pojo import SemanticChunk
 from .tools.public_tools import get_task_paths
 from core.utils.pdf_vision import get_stitched_pdf_pages_as_base64
+from core.utils.cancellation import CancellationRequested, CancellationToken
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,13 @@ class IterativeEvaluator:
     5. 最终生成完整 CoT 报告
     """
     
-    def __init__(self, task_id: str, skill_id: str, lang: str = "en"):
+    def __init__(
+        self,
+        task_id: str,
+        skill_id: str,
+        lang: str = "en",
+        cancellation_token: CancellationToken | None = None,
+    ):
         """
         初始化评价器
         
@@ -99,6 +106,7 @@ class IterativeEvaluator:
         self.task_id = task_id
         self.skill_id = skill_id
         self.lang = lang
+        self.cancellation_token = cancellation_token
         
         # 累积状态
         self.evidence_cache: List[str] = []      # 累积的证据文本
@@ -123,6 +131,10 @@ class IterativeEvaluator:
         self.llm_timeout = settings.llm.timeout
         
         logger.info(f"IterativeEvaluator 初始化: task={task_id}, skill={skill_id}, domain={self.domain_id}")
+
+    def _raise_if_cancelled(self) -> None:
+        if self.cancellation_token is not None:
+            self.cancellation_token.raise_if_cancelled()
 
     @property
     def _is_item17(self) -> bool:
@@ -580,6 +592,7 @@ class IterativeEvaluator:
             评价结果字典
         """
         # 1. 加载证据池
+        self._raise_if_cancelled()
         paths = get_task_paths(self.task_id)
         if not paths:
             return self._error_result(f"任务不存在: {self.task_id}")
@@ -607,6 +620,7 @@ class IterativeEvaluator:
         iterator_list = list(iterator)
         
         for i in range(0, len(iterator_list), batch_size):
+            self._raise_if_cancelled()
             batch_chunks = iterator_list[i:i+batch_size]
             logger.info(f"处理 batch {i//batch_size + 1}/{(len(iterator_list)+batch_size-1)//batch_size}: 包含 {len(batch_chunks)} 个 chunks")
             
@@ -644,6 +658,7 @@ class IterativeEvaluator:
             (evidence_texts, chunk_ids) 元组：证据文本列表和对应的 chunk_id 列表
         """
         # 记录处理的 chunk 内容
+        self._raise_if_cancelled()
         for c in chunks:
             logger.info(f"Evaluating Chunk: {c.title}")
             logger.debug(f"Chunk Content: {self._preview_text(c.content, limit=_DEBUG_LOG_PREVIEW_LIMIT)}")
@@ -690,6 +705,7 @@ class IterativeEvaluator:
             evidence: List[EvidenceItem] = Field(description="List of evidence items with chunk_id")
 
         try:
+            self._raise_if_cancelled()
             # 使用 response_format={ "type": "json_object" } 配合 Pydantic Schema 约束
             system_instruction = "You are a strict extraction system. Output JSON only."
             # 提示词已在 iterative_prompts.py 中修改为新格式
@@ -804,6 +820,7 @@ class IterativeEvaluator:
         
         content = ""
         try:
+            self._raise_if_cancelled()
             if self._is_item17:
                 payload = self._build_item17_scoring_payload(scoring_table)
                 if payload["status"] == "error":
@@ -949,6 +966,7 @@ class IterativeEvaluator:
         
         for attempt in range(1, max_retries + 1):
             try:
+                self._raise_if_cancelled()
                 # 使用 Pydantic Schema 强制输出结构
                 system_instruction = "You are an evaluation report generator. Output valid JSON matching the required schema."
                 
@@ -1136,7 +1154,12 @@ class IterativeEvaluator:
         })
 
 
-def run_iterative_evaluation(task_id: str, skill_id: str, lang: str = "en") -> Dict[str, Any]:
+def run_iterative_evaluation(
+    task_id: str,
+    skill_id: str,
+    lang: str = "en",
+    cancellation_token: CancellationToken | None = None,
+) -> Dict[str, Any]:
     """
     执行迭代评价的快捷函数
     
@@ -1148,8 +1171,15 @@ def run_iterative_evaluation(task_id: str, skill_id: str, lang: str = "en") -> D
     Returns:
         评价结果
     """
-    evaluator = IterativeEvaluator(task_id, skill_id, lang)
-    return evaluator.evaluate()
+    evaluator = IterativeEvaluator(task_id, skill_id, lang, cancellation_token=cancellation_token)
+    try:
+        return evaluator.evaluate()
+    except CancellationRequested as exc:
+        return sanitize_unicode({
+            "status": "cancelled",
+            "skill_id": skill_id,
+            "error": str(exc),
+        })
 
 
 # ============================================================================

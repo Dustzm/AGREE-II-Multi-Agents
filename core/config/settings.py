@@ -215,12 +215,6 @@ class URLAttachmentSettings(BaseSettings):
         description="httpx 超时时间（秒）"
     )
     
-    # Playwright 超时（秒）
-    playwright_timeout: int = Field(
-        default=20,
-        description="Playwright 超时时间（秒）"
-    )
-    
     # 重试次数
     retry_attempts: int = Field(
         default=2,
@@ -298,6 +292,38 @@ class AppSettings(BaseSettings):
         description="Appraiser 全局线程池最大并发数",
         ge=1,
         le=100
+    )
+
+    batch_reporter_timeout: int = Field(
+        default=900,
+        alias="BATCH_REPORTER_TIMEOUT",
+        description="批量任务 Reporter 单次尝试超时时间（秒）",
+        ge=30,
+        le=7200,
+    )
+
+    batch_mineru_health_timeout: int = Field(
+        default=15,
+        alias="BATCH_MINERU_HEALTH_TIMEOUT",
+        description="批量任务 MinerU 健康检查超时时间（秒）",
+        ge=1,
+        le=300,
+    )
+
+    batch_mineru_parse_timeout: int = Field(
+        default=600,
+        alias="BATCH_MINERU_PARSE_TIMEOUT",
+        description="批量任务 MinerU 单次解析超时时间（秒）",
+        ge=30,
+        le=7200,
+    )
+
+    batch_item_llm_timeout: int = Field(
+        default=300,
+        alias="BATCH_ITEM_LLM_TIMEOUT",
+        description="批量任务单个条目评价硬超时时间（秒）",
+        ge=30,
+        le=3600,
     )
     
     # 标签分类并发配置

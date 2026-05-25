@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -15,10 +16,20 @@ sys.path.insert(0, str(project_root))
 
 from core.preprocessor import process_content_list
 from core.agents.tools.appraiser_batch import clear_progress_callbacks
+from core.config import get_settings
+from core.utils.cancellation import CancellationRequested, CancellationToken
 from core.utils.unicode_sanitizer import strip_surrogates
 from web.backend.app.i18n import t, get_language
 
 logger = logging.getLogger(__name__)
+
+
+class TaskStageTimeout(RuntimeError):
+    """批量任务阶段超时。"""
+
+    def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
 
 
 class AppraisalRunner:
@@ -54,6 +65,8 @@ class AppraisalRunner:
         on_error: Optional[Callable[[str], None]] = None,
         lang: Optional[str] = None,
         output_subdir: Optional[str] = None,
+        cancellation_token: Optional[CancellationToken] = None,
+        executor: Optional[ThreadPoolExecutor] = None,
     ):
         """
         Args:
@@ -73,9 +86,12 @@ class AppraisalRunner:
         self.lang = get_language(lang)
         self.workflow_lang = self._WORKFLOW_LANG
         self.output_subdir = output_subdir
-        
+        self.cancellation_token = cancellation_token
+        self.executor = executor
+
         self._cancelled = False
         self._cancel_notified = False
+        self._status_reason = "normal"
         
         # 用于 WebSocket 发送的回调（在 run 中设置）
         self._on_item_progress = None
@@ -84,6 +100,11 @@ class AppraisalRunner:
         # Token 使用统计
         self._token_tracker = None
         self._weaver_dir = None  # 保存路径
+
+        settings = get_settings()
+        self._reporter_timeout = settings.app.batch_reporter_timeout
+        self._mineru_health_timeout = settings.app.batch_mineru_health_timeout
+        self._mineru_parse_timeout = settings.app.batch_mineru_parse_timeout
     
     async def _handle_item_progress(self, skill_id: str, title: str, status: str, duration: float = None):
         """单条目进度回调"""
@@ -112,10 +133,21 @@ class AppraisalRunner:
     def cancel(self):
         """取消当前任务"""
         self._cancelled = True
+        if self.cancellation_token:
+            self.cancellation_token.cancel()
+
+    def _is_cancelled(self) -> bool:
+        return self._cancelled or bool(self.cancellation_token and self.cancellation_token.cancelled())
+
+    def _raise_if_cancelled(self):
+        if self._is_cancelled():
+            self._cancelled = True
+            raise CancellationRequested("任务已取消")
 
     def _notify_cancelled(self, task_id: str):
         """确保取消终态只通知一次。"""
-        if self._cancelled and not self._cancel_notified:
+        if self._is_cancelled() and not self._cancel_notified:
+            self._cancelled = True
             self._cancel_notified = True
             self.on_cancelled(task_id)
     
@@ -124,6 +156,10 @@ class AppraisalRunner:
         if self._token_tracker:
             return self._token_tracker.to_dict()
         return {}
+
+    def get_status_reason(self) -> str:
+        """返回最近一次失败原因。"""
+        return self._status_reason
 
     def _report_paths(self, task_id: str) -> tuple[Optional[Path], Optional[Path]]:
         """获取报告文件路径。"""
@@ -198,12 +234,12 @@ class AppraisalRunner:
         """带取消检查的等待。"""
         remaining = max(delay, 0.0)
         while remaining > 0:
-            if self._cancelled:
+            if self._is_cancelled():
                 return False
             interval = min(0.1, remaining)
             await asyncio.sleep(interval)
             remaining -= interval
-        return not self._cancelled
+        return not self._is_cancelled()
 
     async def _run_batch_appraisal(self, task_id: str):
         """直接执行批量条目评价阶段。"""
@@ -217,15 +253,19 @@ class AppraisalRunner:
             lang=self.workflow_lang,
             on_item_progress=self._handle_item_progress,
             on_summary=self._handle_batch_summary,
+            cancellation_token=self.cancellation_token,
+            executor=self.executor,
         )
 
-        if self._cancelled:
+        if self._is_cancelled():
             logger.info(f"[{task_id}] 批量条目评价结束后检测到取消")
             return
 
         status = result.get("status", "error")
         failed = result.get("failed", {})
         if status == "error":
+            if any("超时" in str(message) or "timeout" in str(message).lower() for message in failed.values()):
+                self._status_reason = "llm_timeout"
             raise RuntimeError(f"批量条目评价失败: {failed or 'Unknown error'}")
         if status == "partial":
             logger.warning(f"[{task_id}] 批量条目评价部分失败，将继续进入报告阶段: {failed}")
@@ -260,37 +300,45 @@ class AppraisalRunner:
 
         report_tool_called = False
 
-        async for event in runner.run_async(
-            user_id='web_user',
-            session_id=session.id,
-            new_message=initial_message,
-        ):
-            if hasattr(event, 'usage_metadata') and event.usage_metadata and self._token_tracker:
-                self._token_tracker.add_usage(event.usage_metadata)
+        try:
+            async with asyncio.timeout(self._reporter_timeout):
+                async for event in runner.run_async(
+                    user_id='web_user',
+                    session_id=session.id,
+                    new_message=initial_message,
+                ):
+                    if hasattr(event, 'usage_metadata') and event.usage_metadata and self._token_tracker:
+                        self._token_tracker.add_usage(event.usage_metadata)
 
-            if hasattr(event, 'content') and event.content:
-                for part in event.content.parts:
-                    if hasattr(part, 'function_call') and part.function_call:
-                        tool_name = part.function_call.name or ""
-                        logger.info(f"[{task_id}] Reporter 工具调用: {tool_name}")
-                        if 'generate_appraisal_report' in tool_name.lower():
-                            report_tool_called = True
-                    elif hasattr(part, 'function_response') and part.function_response:
-                        response = part.function_response
-                        tool_name = response.name if hasattr(response, 'name') else ""
-                        logger.info(f"[{task_id}] Reporter 工具完成: {tool_name}")
-                        if 'generate_appraisal_report' in tool_name.lower():
-                            report_tool_called = True
-                    elif hasattr(part, 'text') and part.text:
-                        text = part.text.strip()
-                        if text:
-                            logger.info(f"[{task_id}] Reporter 输出: {text[:300]}")
+                    if hasattr(event, 'content') and event.content:
+                        for part in event.content.parts:
+                            if hasattr(part, 'function_call') and part.function_call:
+                                tool_name = part.function_call.name or ""
+                                logger.info(f"[{task_id}] Reporter 工具调用: {tool_name}")
+                                if 'generate_appraisal_report' in tool_name.lower():
+                                    report_tool_called = True
+                            elif hasattr(part, 'function_response') and part.function_response:
+                                response = part.function_response
+                                tool_name = response.name if hasattr(response, 'name') else ""
+                                logger.info(f"[{task_id}] Reporter 工具完成: {tool_name}")
+                                if 'generate_appraisal_report' in tool_name.lower():
+                                    report_tool_called = True
+                            elif hasattr(part, 'text') and part.text:
+                                text = part.text.strip()
+                                if text:
+                                    logger.info(f"[{task_id}] Reporter 输出: {text[:300]}")
 
-            if self._cancelled:
-                logger.info(f"[{task_id}] Reporter 当前尝试结束后检测到取消")
-                break
+                    if self._is_cancelled():
+                        logger.info(f"[{task_id}] Reporter 当前尝试结束后检测到取消")
+                        break
+        except TimeoutError as exc:
+            self._status_reason = "reporter_timeout"
+            raise TaskStageTimeout(
+                f"Reporter 执行超时 ({self._reporter_timeout}s)",
+                "reporter_timeout",
+            ) from exc
 
-        if self._cancelled:
+        if self._is_cancelled():
             return
 
         if not report_tool_called and not self._report_exists(task_id):
@@ -302,7 +350,7 @@ class AppraisalRunner:
 
         last_error: Exception | None = None
         for attempt in range(1, self._REPORTER_MAX_RETRIES + 1):
-            if self._cancelled:
+            if self._is_cancelled():
                 logger.info(f"[{task_id}] Reporter 启动前检测到取消")
                 return
 
@@ -312,7 +360,7 @@ class AppraisalRunner:
             try:
                 await self._run_reporter_once(task_id)
 
-                if self._cancelled:
+                if self._is_cancelled():
                     logger.info(f"[{task_id}] Reporter 尝试完成后检测到取消")
                     return
 
@@ -372,12 +420,13 @@ class AppraisalRunner:
         try:
             self._cancelled = False
             self._cancel_notified = False
+            self._status_reason = "normal"
+            self._raise_if_cancelled()
             
             # 导入依赖（延迟导入避免循环依赖）
             from core.agents import init_task_directory
             from core.agents.tools.public_tools import get_task_paths
             from core.parsers import MinerUParser
-            from core.config import get_settings
             import shutil
             
             pdf_file = Path(pdf_path)
@@ -459,7 +508,7 @@ class AppraisalRunner:
             
             self.on_status("status", t("status.task_id", self.lang, task_id=actual_task_id))
             
-            if self._cancelled:
+            if self._is_cancelled():
                 self._notify_cancelled(actual_task_id)
                 return
 
@@ -479,7 +528,7 @@ class AppraisalRunner:
                 retry_delay = settings.mineru.parse_retry_delay
 
                 if not mineru_url:
-                    if self._cancelled:
+                    if self._is_cancelled():
                         self._notify_cancelled(actual_task_id)
                         return
 
@@ -490,9 +539,19 @@ class AppraisalRunner:
                 parser = MinerUParser()
 
                 # 先检查服务是否可用
-                service_ok = await parser.health_check()
+                try:
+                    service_ok = await asyncio.wait_for(
+                        parser.health_check(),
+                        timeout=self._mineru_health_timeout,
+                    )
+                except asyncio.TimeoutError as exc:
+                    self._status_reason = "mineru_timeout"
+                    raise TaskStageTimeout(
+                        f"MinerU 健康检查超时 ({self._mineru_health_timeout}s)",
+                        "mineru_timeout",
+                    ) from exc
                 if not service_ok:
-                    if self._cancelled:
+                    if self._is_cancelled():
                         self._notify_cancelled(actual_task_id)
                         return
 
@@ -502,15 +561,18 @@ class AppraisalRunner:
                 # 带重试的解析逻辑
                 last_error = None
                 for attempt in range(max_retries):
-                    if self._cancelled:
+                    if self._is_cancelled():
                         self._notify_cancelled(actual_task_id)
                         return
 
                     try:
-                        parse_result = await parser.parse_pdf_to_file(
-                            pdf_path=str(pdf_file),
-                            source_path=source_path,
-                            prep_dir=prep_dir
+                        parse_result = await asyncio.wait_for(
+                            parser.parse_pdf_to_file(
+                                pdf_path=str(pdf_file),
+                                source_path=source_path,
+                                prep_dir=prep_dir
+                            ),
+                            timeout=self._mineru_parse_timeout,
                         )
 
                         if parse_result.get("status") == "success":
@@ -525,17 +587,20 @@ class AppraisalRunner:
                             logger.warning(f"MinerU 解析失败 (尝试 {attempt + 1}/{max_retries}): {last_error}")
 
                     except Exception as e:
-                        last_error = str(e)
+                        if isinstance(e, asyncio.TimeoutError):
+                            self._status_reason = "mineru_timeout"
+                            last_error = f"MinerU 解析超时 ({self._mineru_parse_timeout}s)"
+                        else:
+                            last_error = str(e)
                         logger.warning(f"MinerU 解析异常 (尝试 {attempt + 1}/{max_retries}): {e}")
 
                     # 如果不是最后一次尝试，等待后重试
                     if attempt < max_retries - 1:
-                        if self._cancelled:
+                        if self._is_cancelled():
                             self._notify_cancelled(actual_task_id)
                             return
                         self.on_status("status", t("status.parse_retry", self.lang, delay=retry_delay, attempt=attempt + 1, max_retries=max_retries))
-                        await asyncio.sleep(retry_delay)
-                        if self._cancelled:
+                        if not await self._sleep_with_cancel(retry_delay):
                             self._notify_cancelled(actual_task_id)
                             return
 
@@ -544,7 +609,7 @@ class AppraisalRunner:
                     self.on_error(t("error.parse_failed", self.lang, error=last_error))
                     return
             
-            if self._cancelled:
+            if self._is_cancelled():
                 self._notify_cancelled(actual_task_id)
                 return
             
@@ -555,7 +620,7 @@ class AppraisalRunner:
                 evidence_pool_path = Path(prep_dir) / f"{pdf_stem}_evidence_pool.json"
                 
                 # 如果是复用模式且证据池已存在，跳过预处理（直接使用第一轮的证据池）
-                if self._cancelled:
+                if self._is_cancelled():
                     self._notify_cancelled(actual_task_id)
                     return
 
@@ -581,13 +646,13 @@ class AppraisalRunner:
                             else:
                                 logger.warning(f"预处理失败: {preprocess_result.get('error')}")
                                 self.on_status("status", t("status.evidence_failed", self.lang))
-                            if self._cancelled:
+                            if self._is_cancelled():
                                 self._notify_cancelled(actual_task_id)
                                 return
                         except Exception as e:
                             logger.error(f"预处理过程异常: {e}")
                             self.on_status("status", t("status.preprocess_error", self.lang))
-                            if self._cancelled:
+                            if self._is_cancelled():
                                 self._notify_cancelled(actual_task_id)
                                 return
                     else:
@@ -604,14 +669,14 @@ class AppraisalRunner:
 
             await self._run_batch_appraisal(actual_task_id)
 
-            if self._cancelled:
+            if self._is_cancelled():
                 logger.info(f"[{actual_task_id}] 批量评价阶段结束后任务已取消")
                 self._notify_cancelled(actual_task_id)
                 return
 
             await self._run_reporter_with_retries(actual_task_id)
 
-            if self._cancelled:
+            if self._is_cancelled():
                 self._notify_cancelled(actual_task_id)
                 return
 
@@ -626,7 +691,9 @@ class AppraisalRunner:
         
         except Exception as e:
             logger.exception(f"评价任务失败: {e}")
-            if self._cancelled:
+            if isinstance(e, TaskStageTimeout):
+                self._status_reason = e.reason
+            if self._is_cancelled():
                 self._notify_cancelled(actual_task_id)
             else:
                 self.on_error(str(e))

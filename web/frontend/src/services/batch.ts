@@ -70,7 +70,7 @@ export interface PdfInfo {
 export interface BatchTask {
     id: string
     pdf_path: string
-    status: 'pending' | 'running' | 'done' | 'error' | 'cancelled'
+    status: 'pending' | 'running' | 'done' | 'error' | 'cancelled' | 'stopped'
     retry_count: number
     error: string | null
     start_time: string | null
@@ -80,7 +80,11 @@ export interface BatchTask {
 }
 
 export interface BatchStatus {
+    job_id: string | null
     session_id: string | null
+    status: 'queued' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed' | 'interrupted'
+    status_reason: 'normal' | 'stop_requested' | 'lease_expired' | 'reporter_timeout' | 'mineru_timeout' | 'llm_timeout' | 'worker_error'
+    last_error: string | null
     is_running: boolean
     total: number
     concurrency: number
@@ -91,6 +95,8 @@ export interface BatchStatus {
     done: number
     error: number
     cancelled: number
+    stopped: number
+    stop_requested: boolean
     tasks: BatchTask[]
 }
 
@@ -151,13 +157,16 @@ export const batchApi = {
         return getJsonOrThrow<BatchStatus>(res, '启动批量任务失败')
     },
 
-    async stop(): Promise<void> {
-        const res = await apiFetch(`${API_BASE}/batch/stop`, {
+    async stop(jobId?: string | null): Promise<BatchStatus> {
+        const targetUrl = jobId ? `${API_BASE}/batch/jobs/${encodeURIComponent(jobId)}/stop` : `${API_BASE}/batch/stop`
+        const res = await apiFetch(targetUrl, {
             method: 'POST',
         })
         if (!res.ok) {
             throw new Error(await getErrorMessage(res, '停止批量任务失败'))
         }
+        const data = await getJsonOrThrow<BatchStatus | { status: BatchStatus }>(res, '停止批量任务失败')
+        return 'tasks' in data ? data : data.status
     },
 
     async getStatus(): Promise<BatchStatus> {
@@ -168,8 +177,16 @@ export const batchApi = {
         return getJsonOrThrow<BatchStatus>(res, '获取批量任务状态失败')
     },
 
+    async getJobStatus(jobId: string): Promise<BatchStatus> {
+        const res = await apiFetch(`${API_BASE}/batch/jobs/${encodeURIComponent(jobId)}`)
+        if (!res.ok) {
+            throw new Error('获取批量任务状态失败')
+        }
+        return getJsonOrThrow<BatchStatus>(res, '获取批量任务状态失败')
+    },
+
     async getLatestResumable(): Promise<ResumeLatestResponse> {
-        const res = await apiFetch(`${API_BASE}/batch/resume/latest`)
+        const res = await apiFetch(`${API_BASE}/batch/jobs/latest-resumable`)
         if (!res.ok) {
             throw new Error('获取可继续任务失败')
         }
@@ -256,6 +273,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
         maxReconnectAttempts: 5,
         reconnectTimeout: null as ReturnType<typeof setTimeout> | null,
         heartbeatInterval: null as ReturnType<typeof setInterval> | null,
+        manuallyClosed: false,
         ws: null as WebSocket | null
     }
 
@@ -286,6 +304,9 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
     }
 
     const scheduleReconnect = () => {
+        if (state.manuallyClosed) {
+            return
+        }
         if (state.reconnectTimeout) {
             clearTimeout(state.reconnectTimeout)
         }
@@ -294,6 +315,9 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
         onConnectionChange?.(false, state.reconnectAttempts + 1)
         
         state.reconnectTimeout = setTimeout(() => {
+            if (state.manuallyClosed) {
+                return
+            }
             if (state.reconnectAttempts < state.maxReconnectAttempts) {
                 state.reconnectAttempts++
                 const newWs = createAuthenticatedWebSocket(`/batch/ws/${sessionId}`)
@@ -309,6 +333,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
     const setupWebSocketHandlers = (ws: WebSocket) => {
         ws.onopen = () => {
             console.log('批量任务 WebSocket 已连接')
+            state.manuallyClosed = false
             state.reconnectAttempts = 0
             stopReconnect()
             onConnectionChange?.(true, 0)
@@ -342,6 +367,10 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
             stopHeartbeat()
             onConnectionChange?.(false, state.reconnectAttempts)
 
+            if (state.manuallyClosed) {
+                return
+            }
+
             if (isUnauthorizedClose(event)) {
                 notifyUnauthorized()
                 return
@@ -355,6 +384,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
 
     const reconnect = () => {
         console.log('手动触发批量任务 WebSocket 重连')
+        state.manuallyClosed = false
         if (state.ws) {
             state.ws.close()
         }
@@ -365,6 +395,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
     }
 
     const disconnect = () => {
+        state.manuallyClosed = true
         stopReconnect()
         stopHeartbeat()
         if (state.ws) {

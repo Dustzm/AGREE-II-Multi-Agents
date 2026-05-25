@@ -1,40 +1,45 @@
 /**
  * Batch - 批量任务运行页面
- * 
- * 选择 input 目录下的文件夹，勾选 PDF 批量执行评价任务
  */
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { AlertCircle, CheckCircle2, CheckSquare, ChevronDown, ChevronRight, Clock, FileText, Folder, FolderOpen, Loader2, Play, RefreshCw, Square, Square as SquareIcon, XCircle } from 'lucide-react'
+
 import { Toast, type ToastType } from '@/components/Toast'
-import {
-    Folder, FileText, Play, Square, RefreshCw, Loader2,
-    CheckCircle2, XCircle, Clock, AlertCircle, ChevronRight, ChevronDown,
-    CheckSquare, Square as SquareIcon, FolderOpen
-} from 'lucide-react'
-import { cn } from '@/utils/cn'
-import {
-    batchApi, createBatchWebSocket,
-    type BatchDirectoryNode, type PdfInfo, type BatchTask, type BatchStatus, type BatchWebSocketHandle, type ResumeLatestResponse
-} from '@/services/batch'
+import { Button } from '@/components/ui/button'
 import { api } from '@/services/api'
+import {
+    batchApi,
+    createBatchWebSocket,
+    type BatchDirectoryNode,
+    type BatchStatus,
+    type BatchTask,
+    type BatchWebSocketHandle,
+    type PdfInfo,
+    type ResumeLatestResponse,
+} from '@/services/batch'
+import { cn } from '@/utils/cn'
 
 type TaskStatusType = BatchTask['status']
+type JobStatusType = BatchStatus['status']
 
-// 状态配置
+interface ToastMessage {
+    id: number
+    type: ToastType
+    message: string
+}
+
 const statusConfig: Record<TaskStatusType, { icon: typeof Clock; color: string; bg: string; label: string }> = {
     pending: { icon: Clock, color: 'text-gray-500', bg: 'bg-gray-100', label: '等待中' },
     running: { icon: Loader2, color: 'text-blue-600', bg: 'bg-blue-50', label: '运行中' },
     done: { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', label: '已完成' },
     error: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', label: '失败' },
     cancelled: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', label: '已取消' },
+    stopped: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', label: '已停止' },
 }
 
-// Toast 提示信息
-interface ToastMessage {
-    id: number
-    type: ToastType
-    message: string
+function isJobActive(status: JobStatusType | null | undefined): boolean {
+    return status === 'queued' || status === 'running' || status === 'stopping'
 }
 
 function collectDirectoryPaths(node: BatchDirectoryNode): string[] {
@@ -45,67 +50,278 @@ function collectDescendantPdfs(node: BatchDirectoryNode): PdfInfo[] {
     return [...node.pdfs, ...node.children.flatMap(collectDescendantPdfs)]
 }
 
+function getJobSummary(status: BatchStatus | null, t: ReturnType<typeof useTranslation>['t']): string {
+    if (!status) {
+        return t('batch.status.waiting')
+    }
+    if (status.status === 'stopping') {
+        return '停止中...'
+    }
+    if (status.status === 'queued' || status.status === 'running') {
+        if (status.experiment_rounds > 1) {
+            return `${t('batch.status.running')} - ${t('batch.status.round', {
+                current: Math.max(status.current_round || 1, 1),
+                total: status.experiment_rounds,
+            })}`
+        }
+        return t('batch.status.running')
+    }
+    if (status.status === 'interrupted') {
+        return '已中断，可继续'
+    }
+    if (status.status === 'stopped') {
+        return '已停止'
+    }
+    if (status.status === 'failed') {
+        return '执行失败'
+    }
+    if (status.total > 0) {
+        return t('batch.status.completed')
+    }
+    return t('batch.status.waiting')
+}
+
 export function Batch() {
     const { t } = useTranslation()
-    // 文件夹列表
     const [directoryTree, setDirectoryTree] = useState<BatchDirectoryNode | null>(null)
     const [loadingFolders, setLoadingFolders] = useState(true)
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
-
-    // Toast 提示列表
-    const [toasts, setToasts] = useState<ToastMessage[]>([])
-    const toastIdRef = useRef(0)
-
-    // 勾选状态
     const [selectedPdfs, setSelectedPdfs] = useState<Set<string>>(new Set())
-
-    // 批量任务状态
     const [batchStatus, setBatchStatus] = useState<BatchStatus | null>(null)
     const [resumeCandidate, setResumeCandidate] = useState<ResumeLatestResponse | null>(null)
     const [concurrency, setConcurrency] = useState(2)
     const [resumeConcurrency, setResumeConcurrency] = useState(2)
     const [experimentRounds, setExperimentRounds] = useState(1)
     const [isResuming, setIsResuming] = useState(false)
-
-    // WebSocket
-    const wsHandleRef = useRef<BatchWebSocketHandle | null>(null)
-
-    // 初始化 sessionId，优先从 localStorage 读取
-    // 使用 useState lazy init 来保证只执行一次
-    const [sessionId] = useState(() => {
-        const saved = sessionStorage.getItem('batch_session_id')
-        if (saved) return saved
-        const newId = `batch-${Date.now()}`
-        sessionStorage.setItem('batch_session_id', newId)
-        return newId
-    })
-
-    const reconnectRef = useRef<(() => void) | null>(null)
+    const [isUploadingFolder, setIsUploadingFolder] = useState(false)
     const [wsConnected, setWsConnected] = useState(false)
     const [wsReconnectAttempts, setWsReconnectAttempts] = useState(0)
+    const [toasts, setToasts] = useState<ToastMessage[]>([])
+    const [activeJobId, setActiveJobId] = useState<string | null>(null)
 
-    // 文件夹上传
-    const [isUploadingFolder, setIsUploadingFolder] = useState(false)
+    const toastIdRef = useRef(0)
+    const wsHandleRef = useRef<BatchWebSocketHandle | null>(null)
+    const reconnectRef = useRef<(() => void) | null>(null)
     const folderInputRef = useRef<HTMLInputElement>(null)
 
-    // 加载文件夹列表
+    const isBusy = batchStatus ? isJobActive(batchStatus.status) : false
+    const isStopping = batchStatus?.status === 'stopping'
+    const resumableStatus = resumeCandidate?.status ?? null
+    const resumableRound = resumeCandidate?.resume_round ?? resumableStatus?.current_round ?? 0
+    const resumableIncompleteCount = resumeCandidate?.remaining_tasks ?? 0
+    const directoryInputProps: Record<string, string> = { webkitdirectory: '', directory: '' }
+
+    const showToast = useCallback((message: string, type: ToastType = 'info') => {
+        const id = toastIdRef.current++
+        setToasts((prev) => [...prev, { id, type, message }])
+    }, [])
+
+    const formatSize = useCallback((bytes: number) => {
+        if (bytes < 1024) return `${bytes} B`
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }, [])
+
+    const getStatusMessage = useCallback((step: string | null) => {
+        if (!step) return null
+        if (!step.startsWith('i18n:')) return step
+        try {
+            const parts = step.split(':')
+            const key = parts[1]
+            const args = parts.slice(2)
+            const fieldName = key.split('.')[1]
+            const transKey = `batch.statusMsg.${fieldName}`
+            if (key === 'batch.retrying') {
+                return t(transKey, { current: args[0], max: args[1] })
+            }
+            if (key === 'batch.failed') {
+                return t(transKey, { error: args.join(':') })
+            }
+            return t(transKey)
+        } catch {
+            return step
+        }
+    }, [t])
+
     const loadFolders = useCallback(async () => {
         setLoadingFolders(true)
         try {
             const data = await batchApi.listFolders()
             setDirectoryTree(data.tree)
-            // 默认全部展开
             setExpandedFolders(new Set(collectDirectoryPaths(data.tree)))
-        } catch (e) {
-            console.error('加载文件夹失败:', e)
+        } catch (error) {
+            console.error('加载文件夹失败:', error)
         } finally {
             setLoadingFolders(false)
         }
     }, [])
 
-    // 切换文件夹展开
+    const loadResumeCandidate = useCallback(async (hasActiveJob?: boolean) => {
+        if (hasActiveJob) {
+            setResumeCandidate(null)
+            return
+        }
+        try {
+            const candidate = await batchApi.getLatestResumable()
+            setResumeCandidate(candidate.available ? candidate : null)
+            if (candidate.available && candidate.status?.concurrency) {
+                setResumeConcurrency(candidate.status.concurrency)
+            }
+        } catch (error) {
+            console.error('加载可继续任务失败:', error)
+            setResumeCandidate(null)
+        }
+    }, [])
+
+    const establishWebSocket = useCallback((jobId: string) => {
+        wsHandleRef.current?.disconnect()
+        const handle = createBatchWebSocket({
+            sessionId: jobId,
+            onTaskUpdate: (task) => {
+                setBatchStatus((prev) => {
+                    if (!prev || prev.job_id !== jobId) return prev
+                    const existingIndex = prev.tasks.findIndex((entry) => entry.id === task.id)
+                    const nextTasks = [...prev.tasks]
+                    if (existingIndex >= 0) {
+                        nextTasks[existingIndex] = task
+                    } else {
+                        nextTasks.push(task)
+                    }
+                    const counts = { pending: 0, running: 0, done: 0, error: 0, stopped: 0 }
+                    nextTasks.forEach((entry) => {
+                        if (entry.status === 'pending') counts.pending += 1
+                        if (entry.status === 'running') counts.running += 1
+                        if (entry.status === 'done') counts.done += 1
+                        if (entry.status === 'error') counts.error += 1
+                        if (entry.status === 'stopped' || entry.status === 'cancelled') counts.stopped += 1
+                    })
+                    return {
+                        ...prev,
+                        tasks: nextTasks,
+                        pending: counts.pending,
+                        running: counts.running,
+                        done: counts.done,
+                        error: counts.error,
+                        stopped: counts.stopped,
+                        cancelled: counts.stopped,
+                    }
+                })
+            },
+            onComplete: (status) => {
+                if (status.job_id !== jobId) {
+                    return
+                }
+                setBatchStatus(status)
+                setActiveJobId(status.job_id)
+                if (!isJobActive(status.status)) {
+                    void loadResumeCandidate(false)
+                }
+            },
+            onError: (error) => {
+                console.error('批量 WebSocket 错误:', error)
+                if (jobId) {
+                    void batchApi.getJobStatus(jobId).then((status) => {
+                        setBatchStatus(status)
+                        setActiveJobId(status.job_id)
+                    }).catch(console.error)
+                }
+            },
+            onConnectionChange: (connected, reconnectAttempts) => {
+                setWsConnected(connected)
+                setWsReconnectAttempts(reconnectAttempts)
+            },
+        })
+        wsHandleRef.current = handle
+        reconnectRef.current = handle.reconnect
+    }, [loadResumeCandidate])
+
+    const loadStatus = useCallback(async () => {
+        try {
+            const status = await batchApi.getStatus()
+            setBatchStatus(status)
+            setActiveJobId(status.job_id)
+            if (status.job_id && isJobActive(status.status) && !wsHandleRef.current) {
+                establishWebSocket(status.job_id)
+            }
+            await loadResumeCandidate(isJobActive(status.status))
+        } catch (error) {
+            console.error('加载状态失败:', error)
+        }
+    }, [establishWebSocket, loadResumeCandidate])
+
+    const handleFolderSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files
+        if (!files || files.length === 0) return
+        setIsUploadingFolder(true)
+        try {
+            const result = await api.uploadFolder(Array.from(files))
+            if (result.failed_count > 0) {
+                alert(`上传完成: 成功 ${result.success_count} 个，失败 ${result.failed_count} 个`)
+            } else {
+                alert(`成功上传 ${result.success_count} 个 PDF 文件`)
+            }
+            await loadFolders()
+        } catch (error) {
+            console.error('文件夹上传失败:', error)
+            alert(error instanceof Error ? error.message : '文件夹上传失败')
+        } finally {
+            setIsUploadingFolder(false)
+            if (folderInputRef.current) {
+                folderInputRef.current.value = ''
+            }
+        }
+    }, [loadFolders])
+
+    const handleStart = useCallback(async () => {
+        if (selectedPdfs.size === 0) return
+        try {
+            const status = await batchApi.startSelected(Array.from(selectedPdfs), concurrency, experimentRounds)
+            setBatchStatus(status)
+            setActiveJobId(status.job_id)
+            setResumeCandidate(null)
+            if (status.job_id) {
+                establishWebSocket(status.job_id)
+            }
+        } catch (error) {
+            alert(error instanceof Error ? error.message : '启动失败')
+        }
+    }, [selectedPdfs, concurrency, experimentRounds, establishWebSocket])
+
+    const handleResumeLatest = useCallback(async () => {
+        setIsResuming(true)
+        try {
+            const status = await batchApi.resumeLatest(resumeConcurrency)
+            setBatchStatus(status)
+            setActiveJobId(status.job_id)
+            setResumeCandidate(null)
+            if (status.job_id) {
+                establishWebSocket(status.job_id)
+            }
+            showToast(t('batch.resume.success'), 'success')
+        } catch (error) {
+            showToast(error instanceof Error ? error.message : t('batch.resume.failed'), 'error')
+        } finally {
+            setIsResuming(false)
+            await loadResumeCandidate(false)
+        }
+    }, [establishWebSocket, loadResumeCandidate, resumeConcurrency, showToast, t])
+
+    const handleStop = useCallback(async () => {
+        if (!batchStatus?.job_id || !isJobActive(batchStatus.status)) {
+            showToast('当前没有正在运行的批量任务', 'warning')
+            return
+        }
+        try {
+            const status = await batchApi.stop(batchStatus.job_id)
+            setBatchStatus(status)
+            showToast('批量任务已停止，正在等待当前步骤完成...', 'success')
+        } catch (error) {
+            showToast(error instanceof Error ? error.message : '停止失败', 'error')
+        }
+    }, [batchStatus, showToast])
+
     const toggleFolder = useCallback((folderPath: string) => {
-        setExpandedFolders(prev => {
+        setExpandedFolders((prev) => {
             const next = new Set(prev)
             if (next.has(folderPath)) {
                 next.delete(folderPath)
@@ -116,9 +332,8 @@ export function Batch() {
         })
     }, [])
 
-    // 勾选/取消单个 PDF
     const togglePdfSelection = useCallback((pdfPath: string) => {
-        setSelectedPdfs(prev => {
+        setSelectedPdfs((prev) => {
             const next = new Set(prev)
             if (next.has(pdfPath)) {
                 next.delete(pdfPath)
@@ -129,387 +344,150 @@ export function Batch() {
         })
     }, [])
 
-    // 全选/取消某文件夹
     const toggleFolderSelection = useCallback((node: BatchDirectoryNode) => {
         const pdfs = collectDescendantPdfs(node)
-        const allSelected = pdfs.every(p => selectedPdfs.has(p.path))
-
-        setSelectedPdfs(prev => {
+        const allSelected = pdfs.every((pdf) => selectedPdfs.has(pdf.path))
+        setSelectedPdfs((prev) => {
             const next = new Set(prev)
-            pdfs.forEach(p => {
+            pdfs.forEach((pdf) => {
                 if (allSelected) {
-                    next.delete(p.path)
+                    next.delete(pdf.path)
                 } else {
-                    next.add(p.path)
+                    next.add(pdf.path)
                 }
             })
             return next
         })
     }, [selectedPdfs])
 
-    // 显示 Toast 提示
-    const showToast = useCallback((
-        message: string,
-        type: ToastType = 'info'
-    ) => {
-        const id = toastIdRef.current++
-        setToasts(prev => [...prev, { id, type, message }])
-    }, [])
+    const getFolderCheckState = useCallback((node: BatchDirectoryNode): 'none' | 'some' | 'all' => {
+        const pdfs = collectDescendantPdfs(node)
+        if (pdfs.length === 0) return 'none'
+        const selectedCount = pdfs.filter((pdf) => selectedPdfs.has(pdf.path)).length
+        if (selectedCount === 0) return 'none'
+        if (selectedCount === pdfs.length) return 'all'
+        return 'some'
+    }, [selectedPdfs])
 
-    // 处理文件夹上传
-    const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files
-        if (!files || files.length === 0) return
-
-        setIsUploadingFolder(true)
-        try {
-            const fileList = Array.from(files)
-            const result = await api.uploadFolder(fileList)
-
-            // 显示上传结果
-            if (result.failed_count > 0) {
-                alert(`上传完成: 成功 ${result.success_count} 个，失败 ${result.failed_count} 个`)
-            } else {
-                alert(`成功上传 ${result.success_count} 个 PDF 文件`)
-            }
-
-            // 刷新文件夹列表
-            await loadFolders()
-        } catch (error) {
-            console.error('文件夹上传失败:', error)
-            alert(error instanceof Error ? error.message : '文件夹上传失败')
-        } finally {
-            setIsUploadingFolder(false)
-            // 重置 input
-            if (folderInputRef.current) {
-                folderInputRef.current.value = ''
-            }
-        }
-    }, [loadFolders])
-
-    const loadResumeCandidate = useCallback(async (hasRunningTask?: boolean) => {
-        if (hasRunningTask) {
-            setResumeCandidate(null)
-            return
-        }
-
-        try {
-            const candidate = await batchApi.getLatestResumable()
-            setResumeCandidate(candidate.available ? candidate : null)
-            if (candidate.available && candidate.status?.concurrency) {
-                setResumeConcurrency(candidate.status.concurrency)
-            }
-        } catch (e) {
-            console.error('加载可继续任务失败:', e)
-            setResumeCandidate(null)
-        }
-    }, [])
-
-    // 建立/恢复 WebSocket 连接
-    const establishWebSocket = useCallback(() => {
-        if (wsHandleRef.current) {
-            // 如果已有连接且 sessionId 相同，则无需重新建立
-            // 这里简单处理：先断开旧的，确保状态一致
-            wsHandleRef.current.disconnect()
-        }
-
-        const handle = createBatchWebSocket({
-            sessionId: sessionId,
-            onTaskUpdate: (task: BatchTask) => {
-                console.log('收到任务更新:', task)
-                setBatchStatus(prev => {
-                    if (!prev) {
-                        // 如果收到更新但本地还没有状态（可能刚刷新），尝试通过 getStatus 同步
-                        // 但这里我们只更新 tasks
-                        return prev
-                    }
-                    // 如果任务列表里没有这个任务（新任务），或者已有任务更新
-                    const existingTaskIndex = prev.tasks.findIndex(t => t.id === task.id)
-                    const newTasks = [...prev.tasks]
-
-                    if (existingTaskIndex >= 0) {
-                        newTasks[existingTaskIndex] = task
-                    } else {
-                        // 新任务（理论上 startSelected 会返回初始列表，但也可能由其他端触发）
-                        newTasks.push(task)
-                    }
-
-                    const counts = { pending: 0, running: 0, done: 0, error: 0, cancelled: 0 }
-                    newTasks.forEach(t => {
-                        const status = t.status
-                        if (status in counts) {
-                            counts[status as keyof typeof counts]++
-                        }
-                    })
-                    return { ...prev, tasks: newTasks, ...counts }
-                })
-            },
-            onComplete: (status: BatchStatus) => {
-                console.log('收到批量状态更新:', status)
-                setBatchStatus(status)
-                if (!status.is_running) {
-                    void loadResumeCandidate(false)
-                } else {
-                    setResumeCandidate(null)
-                }
-            },
-            onError: (error: string) => {
-                console.error('WebSocket 错误:', error)
-                // 出错时轮询一次状态
-                batchApi.getStatus().then(setBatchStatus).catch(console.error)
-            },
-            onConnectionChange: (isConnected: boolean, reconnectAttempts: number) => {
-                setWsConnected(isConnected)
-                setWsReconnectAttempts(reconnectAttempts)
-            }
-        })
-        wsHandleRef.current = handle
-        reconnectRef.current = handle.reconnect
-
-        console.log('WebSocket 已建立，sessionId:', sessionId)
-    }, [loadResumeCandidate, sessionId])
-
-    // 加载当前状态
-    const loadStatus = useCallback(async () => {
-        try {
-            const status = await batchApi.getStatus()
-            setBatchStatus(status)
-
-            // 如果正在运行且没有连接 WS，则建立连接
-            if (status.is_running && !wsHandleRef.current) {
-                console.log('检测到正在运行的任务，恢复 WebSocket 连接')
-                establishWebSocket()
-            }
-            await loadResumeCandidate(status.is_running)
-        } catch (e) {
-            console.error('加载状态失败:', e)
-        }
-    }, [establishWebSocket, loadResumeCandidate])
-
-    // 启动批量任务（使用勾选列表）
-    const handleStart = useCallback(async () => {
-        if (selectedPdfs.size === 0) return
-
-        try {
-            const status = await batchApi.startSelected(Array.from(selectedPdfs), concurrency, experimentRounds)
-            setBatchStatus(status)
-            setResumeCandidate(null)
-
-            // 建立 WebSocket 连接
-            establishWebSocket()
-            console.log('WebSocket 已创建，sessionId:', sessionId)
-        } catch (e) {
-            alert(e instanceof Error ? e.message : '启动失败')
-        }
-    }, [selectedPdfs, concurrency, experimentRounds, sessionId, establishWebSocket])
-
-    const handleResumeLatest = useCallback(async () => {
-        setIsResuming(true)
-        try {
-            const status = await batchApi.resumeLatest(resumeConcurrency)
-            setBatchStatus(status)
-            setResumeCandidate(null)
-            establishWebSocket()
-            showToast(t('batch.resume.success'), 'success')
-        } catch (e) {
-            showToast(
-                e instanceof Error ? e.message : t('batch.resume.failed'),
-                'error'
-            )
-        } finally {
-            setIsResuming(false)
-            await loadResumeCandidate(false)
-        }
-    }, [establishWebSocket, loadResumeCandidate, resumeConcurrency, showToast, t])
-
-    // 停止批量任务
-    const handleStop = useCallback(async () => {
-        if (!batchStatus?.is_running) {
-            showToast('当前没有正在运行的批量任务', 'warning')
-            return
-        }
-
-        try {
-            await batchApi.stop()
-            await loadStatus()
-
-            showToast(
-                '批量任务已停止，正在等待当前步骤完成...',
-                'success'
-            )
-        } catch (e) {
-            showToast(
-                e instanceof Error ? e.message : '停止失败',
-                'error'
-            )
-        }
-    }, [batchStatus, loadStatus, showToast])
-
-    // 初始化
     useEffect(() => {
         loadFolders()
         loadStatus()
-
         return () => {
             wsHandleRef.current?.disconnect()
         }
     }, [loadFolders, loadStatus])
 
-    // 页面可见性监听 - 返回页面时自动重连 WebSocket
+    useEffect(() => {
+        if (!activeJobId || !batchStatus || !isJobActive(batchStatus.status)) {
+            return
+        }
+        const timer = window.setInterval(() => {
+            batchApi.getJobStatus(activeJobId)
+                .then((status) => {
+                    setBatchStatus(status)
+                    setActiveJobId(status.job_id)
+                    if (!isJobActive(status.status)) {
+                        void loadResumeCandidate(false)
+                    }
+                })
+                .catch((error) => {
+                    console.error('轮询批量任务状态失败:', error)
+                })
+        }, 3000)
+        return () => {
+            window.clearInterval(timer)
+        }
+    }, [activeJobId, batchStatus, loadResumeCandidate])
+
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' &&
+            if (
+                document.visibilityState === 'visible' &&
+                activeJobId &&
+                batchStatus &&
+                isJobActive(batchStatus.status) &&
                 !wsConnected &&
-                batchStatus?.is_running &&
-                wsHandleRef.current &&
-                reconnectRef.current) {
-                console.log('页面重新可见，尝试重连 WebSocket')
+                reconnectRef.current
+            ) {
                 reconnectRef.current()
             }
         }
-
         document.addEventListener('visibilitychange', handleVisibilityChange)
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
-    }, [wsConnected, batchStatus?.is_running])
+    }, [activeJobId, batchStatus, wsConnected])
 
-    const isRunning = batchStatus?.is_running ?? false
-    const resumableStatus = resumeCandidate?.status ?? null
-    const resumableRound = resumeCandidate?.resume_round ?? resumableStatus?.current_round ?? 0
-    const resumableIncompleteCount = resumeCandidate?.remaining_tasks ?? 0
-    const directoryInputProps: Record<string, string> = { webkitdirectory: '', directory: '' }
-
-    // 格式化文件大小
-    const formatSize = (bytes: number) => {
-        if (bytes < 1024) return `${bytes} B`
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-    }
-
-    // 解析后端通过 i18n: 前缀发送的状态消息
-    const getStatusMessage = (step: string | null) => {
-        if (!step) return null
-
-        // 如果不是 i18n 消息，直接返回
-        if (!step.startsWith('i18n:')) return step
-
-        try {
-            const parts = step.split(':')
-            const key = parts[1] // e.g. batch.initializing
-            const args = parts.slice(2)
-
-            // Map backend keys to frontend translation keys (under batch.statusMsg)
-            const fieldName = key.split('.')[1]
-            const transKey = `batch.statusMsg.${fieldName}`
-
-            if (key === 'batch.retrying') {
-                return t(transKey, { current: args[0], max: args[1] })
-            }
-            if (key === 'batch.failed') {
-                return t(transKey, { error: args.join(':') })
-            }
-
-            return t(transKey)
-        } catch {
-            console.warn('Failed to parse i18n message:', step)
-            return step
-        }
-    }
-
-    // 计算文件夹选中状态
-    const getFolderCheckState = (node: BatchDirectoryNode): 'none' | 'some' | 'all' => {
-        const pdfs = collectDescendantPdfs(node)
-        if (pdfs.length === 0) return 'none'
-        const selectedCount = pdfs.filter(p => selectedPdfs.has(p.path)).length
-        if (selectedCount === 0) return 'none'
-        if (selectedCount === pdfs.length) return 'all'
-        return 'some'
-    }
+    const statusSummary = useMemo(() => getJobSummary(batchStatus, t), [batchStatus, t])
 
     const renderPdfRow = (pdf: PdfInfo, depth: number) => {
         const isSelected = selectedPdfs.has(pdf.path)
-        const attachmentCount = pdf.attachment_count || 0
-
         return (
             <div
                 key={pdf.path}
-                onClick={() => !isRunning && togglePdfSelection(pdf.path)}
+                onClick={() => !isBusy && togglePdfSelection(pdf.path)}
                 style={{ marginLeft: `${depth * 14}px` }}
                 className={cn(
-                    'flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer',
+                    'flex items-center gap-2 rounded-lg p-2 transition-all cursor-pointer',
                     isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50',
-                    isRunning && 'opacity-50 cursor-not-allowed'
+                    isBusy && 'opacity-50 cursor-not-allowed',
                 )}
             >
                 {isSelected ? (
-                    <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
+                    <CheckSquare className="h-4 w-4 shrink-0 text-blue-600" />
                 ) : (
-                    <SquareIcon className="h-4 w-4 text-gray-300 shrink-0" />
+                    <SquareIcon className="h-4 w-4 shrink-0 text-gray-300" />
                 )}
-                <FileText className="h-4 w-4 text-red-400 shrink-0" />
-                <span className="text-sm text-gray-700 truncate flex-1">{pdf.name}</span>
-                {attachmentCount > 0 && (
-                    <span
-                        className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700 shrink-0"
-                        title={`${attachmentCount} 个附件`}
-                    >
-                        +{attachmentCount}
+                <FileText className="h-4 w-4 shrink-0 text-red-400" />
+                <span className="flex-1 truncate text-sm text-gray-700">{pdf.name}</span>
+                {(pdf.attachment_count || 0) > 0 && (
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                        +{pdf.attachment_count}
                     </span>
                 )}
-                <span className="text-xs text-gray-400 shrink-0">{formatSize(pdf.size)}</span>
+                <span className="shrink-0 text-xs text-gray-400">{formatSize(pdf.size)}</span>
             </div>
         )
     }
 
-    const renderDirectoryNode = (node: BatchDirectoryNode, depth: number = 0) => {
+    const renderDirectoryNode = (node: BatchDirectoryNode, depth = 0): ReactNode => {
         const isExpanded = expandedFolders.has(node.path)
         const checkState = getFolderCheckState(node)
-        const hasChildren = node.children.length > 0 || node.pdfs.length > 0
-
         return (
             <div key={node.path} className="space-y-1">
                 <div
                     style={{ marginLeft: `${depth * 14}px` }}
                     className={cn(
-                        'flex items-center gap-2 p-2 rounded-lg transition-all',
-                        'hover:bg-gray-100 cursor-pointer',
-                        isRunning && 'opacity-50 cursor-not-allowed'
+                        'flex items-center gap-2 rounded-lg p-2 transition-all hover:bg-gray-100 cursor-pointer',
+                        isBusy && 'opacity-50 cursor-not-allowed',
                     )}
                 >
-                    <div
-                        onClick={() => !isRunning && toggleFolder(node.path)}
-                        className="p-1"
-                    >
+                    <div onClick={() => !isBusy && toggleFolder(node.path)} className="p-1">
                         {isExpanded ? (
                             <ChevronDown className="h-4 w-4 text-gray-400" />
                         ) : (
                             <ChevronRight className="h-4 w-4 text-gray-400" />
                         )}
                     </div>
-                    <div
-                        onClick={() => !isRunning && toggleFolderSelection(node)}
-                        className="p-1"
-                    >
+                    <div onClick={() => !isBusy && toggleFolderSelection(node)} className="p-1">
                         {checkState === 'all' ? (
                             <CheckSquare className="h-4 w-4 text-blue-600" />
                         ) : checkState === 'some' ? (
-                            <div className="h-4 w-4 border-2 border-blue-600 rounded flex items-center justify-center">
-                                <div className="w-2 h-0.5 bg-blue-600" />
+                            <div className="flex h-4 w-4 items-center justify-center rounded border-2 border-blue-600">
+                                <div className="h-0.5 w-2 bg-blue-600" />
                             </div>
                         ) : (
                             <SquareIcon className="h-4 w-4 text-gray-300" />
                         )}
                     </div>
                     <Folder className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm font-medium flex-1 text-gray-700 truncate">{node.name}</span>
+                    <span className="flex-1 truncate text-sm font-medium text-gray-700">{node.name}</span>
                     <span className="text-xs text-gray-400">{node.pdf_count}</span>
                 </div>
-
                 {isExpanded && (
                     <div className="space-y-1">
                         {node.children.map((child) => renderDirectoryNode(child, depth + 1))}
-                        {node.pdfs.length === 0 && node.children.length === 0 && hasChildren === false ? (
+                        {node.pdfs.length === 0 && node.children.length === 0 ? (
                             <div
                                 style={{ marginLeft: `${(depth + 1) * 14}px` }}
                                 className="p-2 text-xs text-gray-400"
@@ -527,16 +505,13 @@ export function Batch() {
 
     return (
         <div className="flex h-full bg-[#f5f5f7]">
-            {/* 左侧：文件夹 + PDF 层级 */}
             <div className="flex w-96 flex-col border-r border-black/6 bg-white/92 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)]">
                 <div className="border-b border-black/6 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">Batch library</div>
                             <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('batch.select.title')}</h2>
-                            <p className="mt-1 text-xs text-black/48">
-                                {t('batch.select.count', { count: selectedPdfs.size })}
-                            </p>
+                            <p className="mt-1 text-xs text-black/48">{t('batch.select.count', { count: selectedPdfs.size })}</p>
                         </div>
                         <div className="flex items-center gap-2">
                             <input
@@ -551,12 +526,12 @@ export function Batch() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => folderInputRef.current?.click()}
-                                disabled={isRunning || isUploadingFolder}
+                                disabled={isBusy || isUploadingFolder}
                                 className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                                 title={t('batch.uploadFolder')}
                             >
                                 {isUploadingFolder ? (
-                                    <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
                                 ) : (
                                     <FolderOpen className="h-4 w-4 text-gray-600 transition-colors" />
                                 )}
@@ -568,7 +543,7 @@ export function Batch() {
                                 disabled={loadingFolders || isUploadingFolder}
                                 className="h-9 w-9 rounded-full transition-all duration-200 hover:bg-[#0071e3]/8 hover:text-[#0071e3]"
                             >
-                                <RefreshCw className={cn("h-4 w-4 text-gray-600 transition-colors", loadingFolders && "animate-spin")} />
+                                <RefreshCw className={cn('h-4 w-4 text-gray-600 transition-colors', loadingFolders && 'animate-spin')} />
                             </Button>
                         </div>
                     </div>
@@ -577,19 +552,19 @@ export function Batch() {
                 <div className="flex-1 overflow-y-auto p-3 space-y-1">
                     {loadingFolders ? (
                         <div className="flex items-center justify-center py-10 text-gray-500">
-                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                             <span className="text-sm">{t('common.loading')}</span>
                         </div>
                     ) : !directoryTree || (directoryTree.children.length === 0 && directoryTree.pdfs.length === 0) ? (
-                        <div className="text-center py-10 text-gray-400">
-                            <Folder className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                        <div className="py-10 text-center text-gray-400">
+                            <Folder className="mx-auto mb-2 h-10 w-10 opacity-40" />
                             <p className="text-sm">{t('batch.empty.folder')}</p>
                         </div>
                     ) : (
                         <>
                             {directoryTree.children.map((folder) => renderDirectoryNode(folder))}
                             {directoryTree.pdfs.length > 0 && (
-                                <div className="pt-2 mt-2 border-t border-gray-100 space-y-1">
+                                <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
                                     <p className="px-2 text-xs text-gray-400">input</p>
                                     {directoryTree.pdfs.map((pdf) => renderPdfRow(pdf, 0))}
                                 </div>
@@ -598,8 +573,7 @@ export function Batch() {
                     )}
                 </div>
 
-                {/* 控制区 */}
-                <div className="p-4 border-t border-gray-100 space-y-4">
+                <div className="space-y-4 border-t border-gray-100 p-4">
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-3">
                             <label className="text-sm text-gray-600">{t('batch.concurrency.label')}</label>
@@ -608,9 +582,9 @@ export function Batch() {
                                 min={1}
                                 max={10}
                                 value={concurrency}
-                                onChange={(e) => setConcurrency(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                                disabled={isRunning}
-                                className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                                onChange={(event) => setConcurrency(Math.max(1, Math.min(10, parseInt(event.target.value, 10) || 1)))}
+                                disabled={isBusy}
+                                className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
                             />
                         </div>
                         <div className="flex items-center gap-3">
@@ -620,9 +594,9 @@ export function Batch() {
                                 min={1}
                                 max={4}
                                 value={experimentRounds}
-                                onChange={(e) => setExperimentRounds(Math.max(1, Math.min(4, parseInt(e.target.value) || 1)))}
-                                disabled={isRunning}
-                                className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                                onChange={(event) => setExperimentRounds(Math.max(1, Math.min(4, parseInt(event.target.value, 10) || 1)))}
+                                disabled={isBusy}
+                                className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
                             />
                         </div>
                     </div>
@@ -630,82 +604,75 @@ export function Batch() {
                     <div className="flex gap-2">
                         <Button
                             onClick={handleStart}
-                            disabled={selectedPdfs.size === 0 || isRunning}
+                            disabled={selectedPdfs.size === 0 || isBusy}
                             className="flex-1 rounded-full bg-[#0071e3] hover:bg-[#0066cc]"
                         >
-                            <Play className="h-4 w-4 mr-2" />
+                            <Play className="mr-2 h-4 w-4" />
                             {t('batch.button.start')} ({selectedPdfs.size})
                         </Button>
                         <Button
                             variant="outline"
                             onClick={handleStop}
-                            disabled={!isRunning}
+                            disabled={!isBusy || isStopping}
                             className="border-red-200 text-red-600 hover:bg-red-50"
                         >
-                            <Square className="h-4 w-4 mr-2" />
+                            <Square className="mr-2 h-4 w-4" />
                             {t('batch.button.stop')}
                         </Button>
                     </div>
                 </div>
             </div>
 
-            {/* 右侧：任务状态 */}
-            <div className="flex-1 flex flex-col">
-                {/* 统计头部 */}
+            <div className="flex flex-1 flex-col">
                 <div className="border-b border-black/6 bg-white/92 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">Execution status</div>
                             <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('batch.status.title')}</h2>
-                            <p className="mt-1 text-xs text-black/48">
-                                {isRunning ? (
-                                    batchStatus && batchStatus.experiment_rounds > 1
-                                        ? `${t('batch.status.running')} - ${t('batch.status.round', { current: batchStatus.current_round, total: batchStatus.experiment_rounds })}`
-                                        : t('batch.status.running')
-                                ) : batchStatus?.total ? t('batch.status.completed') : t('batch.status.waiting')}
-                            </p>
+                            <p className="mt-1 text-xs text-black/48">{statusSummary}</p>
                         </div>
                         <div className="flex items-center gap-4">
                             {batchStatus && batchStatus.total > 0 && (
                                 <div className="flex items-center gap-4 text-sm">
                                     <div className="flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                                        <span className="h-2 w-2 rounded-full bg-green-500" />
                                         <span className="text-gray-600">{batchStatus.done}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                        <span className="h-2 w-2 rounded-full bg-blue-500" />
                                         <span className="text-gray-600">{batchStatus.running}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-gray-300" />
+                                        <span className="h-2 w-2 rounded-full bg-gray-300" />
                                         <span className="text-gray-600">{batchStatus.pending}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                                        <span className="h-2 w-2 rounded-full bg-red-500" />
                                         <span className="text-gray-600">{batchStatus.error}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                                        <span className="text-gray-600">{batchStatus.stopped || batchStatus.cancelled}</span>
                                     </div>
                                 </div>
                             )}
                             {wsReconnectAttempts > 0 ? (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 rounded-lg border border-yellow-200">
-                                    <Loader2 className="h-3 w-3 text-yellow-600 animate-spin" />
-                                    <span className="text-xs text-yellow-700 font-medium">
-                                        重连中 ({wsReconnectAttempts}/5)
-                                    </span>
+                                <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-1.5">
+                                    <Loader2 className="h-3 w-3 animate-spin text-yellow-600" />
+                                    <span className="text-xs font-medium text-yellow-700">重连中 ({wsReconnectAttempts}/5)</span>
                                 </div>
-                            ) : !wsConnected && batchStatus?.is_running ? (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-200">
-                                    <span className="w-2 h-2 rounded-full bg-red-500" />
-                                    <span className="text-xs text-red-600 font-medium">连接断开</span>
+                            ) : !wsConnected && isBusy ? (
+                                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                                    <span className="text-xs font-medium text-red-600">连接断开</span>
                                 </div>
                             ) : null}
                         </div>
                     </div>
                 </div>
 
-                {/* 任务卡片列表 */}
                 <div className="flex-1 overflow-y-auto p-6">
-                    {!isRunning && resumableStatus && (
+                    {!isBusy && resumableStatus && (
                         <div className="mb-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
@@ -728,17 +695,15 @@ export function Batch() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="shrink-0 flex items-end gap-2">
+                                <div className="flex shrink-0 items-end gap-2">
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-amber-800">
-                                            {t('batch.resume.concurrency')}
-                                        </label>
+                                        <label className="text-xs font-medium text-amber-800">{t('batch.resume.concurrency')}</label>
                                         <input
                                             type="number"
                                             min={1}
                                             max={10}
                                             value={resumeConcurrency}
-                                            onChange={(e) => setResumeConcurrency(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                            onChange={(event) => setResumeConcurrency(Math.max(1, Math.min(10, parseInt(event.target.value, 10) || 1)))}
                                             disabled={isResuming}
                                             className="w-16 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:opacity-50"
                                         />
@@ -764,43 +729,36 @@ export function Batch() {
                     )}
 
                     {!batchStatus || batchStatus.tasks.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                            <Clock className="h-12 w-12 mb-3 opacity-30" />
+                        <div className="flex h-full flex-col items-center justify-center text-gray-400">
+                            <Clock className="mb-3 h-12 w-12 opacity-30" />
                             <p className="text-sm">{t('batch.status.hint')}</p>
                         </div>
                     ) : (
                         <div className="grid gap-3">
                             {batchStatus.tasks.map((task) => {
-                                const config = statusConfig[task.status]
+                                const config = statusConfig[task.status] || statusConfig.stopped
                                 const StatusIcon = config.icon
-
                                 return (
                                     <div
                                         key={task.id}
                                         className={cn(
-                                            "flex items-center gap-4 p-4 rounded-xl border transition-all",
+                                            'flex items-center gap-4 rounded-xl border p-4 transition-all',
                                             config.bg,
-                                            task.status === 'running' ? "border-blue-200 shadow-sm" : "border-transparent"
+                                            task.status === 'running' ? 'border-blue-200 shadow-sm' : 'border-transparent',
                                         )}
                                     >
-                                        <div className={cn("p-2 rounded-lg", config.bg)}>
-                                            <StatusIcon className={cn(
-                                                "h-5 w-5",
-                                                config.color,
-                                                task.status === 'running' && "animate-spin"
-                                            )} />
+                                        <div className={cn('rounded-lg p-2', config.bg)}>
+                                            <StatusIcon className={cn('h-5 w-5', config.color, task.status === 'running' && 'animate-spin')} />
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-medium text-gray-800 truncate">
-                                                {task.id}
-                                            </h4>
-                                            <p className={cn("text-xs mt-0.5 truncate", config.color)}>
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="truncate text-sm font-medium text-gray-800">{task.id}</h4>
+                                            <p className={cn('mt-0.5 truncate text-xs', config.color)}>
                                                 {getStatusMessage(task.current_step) || config.label}
                                                 {task.retry_count > 0 && ` (重试 ${task.retry_count} 次)`}
                                             </p>
                                         </div>
                                         {task.status === 'error' && task.error && (
-                                            <div className="text-xs text-red-500 max-w-48 truncate" title={task.error}>
+                                            <div className="max-w-48 truncate text-xs text-red-500" title={task.error}>
                                                 {getStatusMessage(task.error)}
                                             </div>
                                         )}
@@ -812,14 +770,13 @@ export function Batch() {
                 </div>
             </div>
 
-            {/* Toast 提示列表 */}
-            {toasts.map(toast => (
+            {toasts.map((toast) => (
                 <Toast
                     key={toast.id}
                     type={toast.type}
                     message={toast.message}
                     onClose={() => {
-                        setToasts(prev => prev.filter(t => t.id !== toast.id))
+                        setToasts((prev) => prev.filter((entry) => entry.id !== toast.id))
                     }}
                 />
             ))}
