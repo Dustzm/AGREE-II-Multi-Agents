@@ -107,6 +107,9 @@ cp .env.example .env
 # 启动后端 API 服务 (端口: 8011)
 uvicorn web.backend.app.main:app --host 0.0.0.0 --port 8011 --reload
 
+# 启动批量任务 Worker
+python -m web.backend.app.batch_worker
+
 # 启动前端开发服务器 (端口: 8012)
 cd web/frontend && npm run dev
 ```

@@ -32,6 +32,18 @@ data/ama.db-wal
 logs/
 benchmark/uploads/
 benchmark/output/
+bench_annotation/
 latest_suffix_analysis/
 agree_ii_multi_agents.egg-info/
 kg_weaver.egg-info/
+
+# Local research/data artifacts; not required at runtime.
+docs/
+*.docx
+*.xlsx
+bench_sample_seed_*.csv
+bench_sample_seed_*.json
+bench_sampling_frame_seed_*.csv
+compute_stratified_allocation.py
+organize_bench_detail.py
+sample_bench5_guides.py

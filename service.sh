@@ -13,6 +13,9 @@ BACKEND_PORT=8011
 FRONTEND_PORT=8012
 CONDA_ENV="ama"
 PID_DIR="$SCRIPT_DIR/logs"
+BACKEND_PID_FILE="$PID_DIR/backend.pid"
+BATCH_WORKER_PID_FILE="$PID_DIR/batch-worker.pid"
+FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -94,7 +97,7 @@ start_backend() {
     conda activate $CONDA_ENV
     
     nohup uvicorn web.backend.app.main:app --host 0.0.0.0 --port $BACKEND_PORT > "$PID_DIR/backend.log" 2>&1 &
-    echo $! > "$PID_DIR/backend.pid"
+    echo $! > "$BACKEND_PID_FILE"
     
     # 使用健康检查等待服务启动 (最多等待30秒)
     if wait_for_service $BACKEND_PORT "后端服务" "/health" 30; then
@@ -104,6 +107,37 @@ start_backend() {
         # 显示最后几行日志帮助诊断
         echo "  最近日志:"
         tail -5 "$PID_DIR/backend.log" 2>/dev/null | sed 's/^/    /'
+        return 1
+    fi
+}
+
+# 启动批量任务 Worker
+start_batch_worker() {
+    info "启动批量任务 Worker..."
+
+    if [ -f "$BATCH_WORKER_PID_FILE" ]; then
+        local existing_pid=$(cat "$BATCH_WORKER_PID_FILE" 2>/dev/null)
+        if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
+            warn "批量任务 Worker 已在运行 (PID: $existing_pid)"
+            return 0
+        fi
+        rm -f "$BATCH_WORKER_PID_FILE"
+    fi
+
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate $CONDA_ENV
+
+    nohup python -m web.backend.app.batch_worker > "$PID_DIR/batch-worker.log" 2>&1 &
+    echo $! > "$BATCH_WORKER_PID_FILE"
+    sleep 1
+
+    local worker_pid=$(cat "$BATCH_WORKER_PID_FILE" 2>/dev/null)
+    if [ -n "$worker_pid" ] && kill -0 "$worker_pid" 2>/dev/null; then
+        success "批量任务 Worker 已启动 (PID: $worker_pid)"
+    else
+        error "批量任务 Worker 启动失败，请查看日志: $PID_DIR/batch-worker.log"
+        echo "  最近日志:"
+        tail -5 "$PID_DIR/batch-worker.log" 2>/dev/null | sed 's/^/    /'
         return 1
     fi
 }
@@ -120,7 +154,7 @@ start_frontend() {
     
     cd "$SCRIPT_DIR/web/frontend"
     nohup npm run dev > "$PID_DIR/frontend.log" 2>&1 &
-    echo $! > "$PID_DIR/frontend.pid"
+    echo $! > "$FRONTEND_PID_FILE"
     cd "$SCRIPT_DIR"
     
     # 使用健康检查等待服务启动 (最多等待30秒)
@@ -138,22 +172,41 @@ start_frontend() {
 stop_backend() {
     info "停止后端服务..."
     
-    if [ -f "$PID_DIR/backend.pid" ]; then
-        kill -9 $(cat "$PID_DIR/backend.pid") 2>/dev/null
-        rm -f "$PID_DIR/backend.pid"
+    if [ -f "$BACKEND_PID_FILE" ]; then
+        kill -9 $(cat "$BACKEND_PID_FILE") 2>/dev/null
+        rm -f "$BACKEND_PID_FILE"
     fi
     
     kill_port $BACKEND_PORT
     success "后端服务已停止"
 }
 
+# 停止批量任务 Worker
+stop_batch_worker() {
+    info "停止批量任务 Worker..."
+
+    if [ -f "$BATCH_WORKER_PID_FILE" ]; then
+        local worker_pid=$(cat "$BATCH_WORKER_PID_FILE" 2>/dev/null)
+        if [ -n "$worker_pid" ]; then
+            kill "$worker_pid" 2>/dev/null
+            sleep 1
+            if kill -0 "$worker_pid" 2>/dev/null; then
+                kill -9 "$worker_pid" 2>/dev/null
+            fi
+        fi
+        rm -f "$BATCH_WORKER_PID_FILE"
+    fi
+
+    success "批量任务 Worker 已停止"
+}
+
 # 停止前端服务
 stop_frontend() {
     info "停止前端服务..."
     
-    if [ -f "$PID_DIR/frontend.pid" ]; then
-        kill -9 $(cat "$PID_DIR/frontend.pid") 2>/dev/null
-        rm -f "$PID_DIR/frontend.pid"
+    if [ -f "$FRONTEND_PID_FILE" ]; then
+        kill -9 $(cat "$FRONTEND_PID_FILE") 2>/dev/null
+        rm -f "$FRONTEND_PID_FILE"
     fi
     
     kill_port $FRONTEND_PORT
@@ -171,6 +224,16 @@ show_status() {
         echo -e "║  后端服务: ${GREEN}运行中${NC} → http://localhost:$BACKEND_PORT  ║"
     else
         echo -e "║  后端服务: ${RED}已停止${NC}                         ║"
+    fi
+
+    local worker_pid=""
+    if [ -f "$BATCH_WORKER_PID_FILE" ]; then
+        worker_pid=$(cat "$BATCH_WORKER_PID_FILE" 2>/dev/null)
+    fi
+    if [ -n "$worker_pid" ] && kill -0 "$worker_pid" 2>/dev/null; then
+        echo -e "║  批量 Worker: ${GREEN}运行中${NC}                       ║"
+    else
+        echo -e "║  批量 Worker: ${RED}已停止${NC}                       ║"
     fi
     
     if check_port $FRONTEND_PORT; then
@@ -235,8 +298,9 @@ start_all() {
     echo "╚════════════════════════════════════════════╝"
     echo ""
     
-    start_backend
-    start_frontend
+    start_backend || return 1
+    start_batch_worker || return 1
+    start_frontend || return 1
     
     echo ""
     show_status
@@ -251,6 +315,7 @@ stop_all() {
     echo ""
     
     stop_frontend
+    stop_batch_worker
     stop_backend
     
     success "所有服务已停止"
