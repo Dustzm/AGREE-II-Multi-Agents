@@ -3,9 +3,11 @@
 # Web框架
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
+python-multipart>=0.0.20
 
 # Google ADK (支持 OpenAI 兼容模型)
-google-adk>=0.5.0
+google-adk==1.21.0
+google-genai==1.56.0
 litellm>=1.50.0
 
 # HTTP客户端 (用于远程调用 MinerU API)
@@ -14,7 +16,7 @@ aiofiles>=24.1.0
 
 # 工具库
 python-dotenv>=1.0.0
-pydantic>=2.0.0
+pydantic==2.12.5
 pydantic-settings>=2.0.0
 bcrypt>=4.0.0
 
@@ -59,7 +61,6 @@ qwen-vl-utils>=0.0.14,<1
 python-docx>=1.2.0
 openpyxl>=3.1.0
 python-pptx>=1.0.0
-playwright>=1.40.0
 trafilatura>=1.6.0
 markdownify>=0.11.6
 lxml>=4.9.0

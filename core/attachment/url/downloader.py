@@ -1,7 +1,7 @@
 """
 附件下载器
 
-使用分层策略下载 URL 内容：httpx -> Playwright
+使用 httpx 下载 URL 内容
 """
 
 import asyncio
@@ -9,8 +9,6 @@ import httpx
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-
-from playwright.async_api import async_playwright, Browser, Page
 
 from .cache import URLCacheManager
 
@@ -40,16 +38,13 @@ class AttachmentDownloader:
     """
     附件下载管理器
     
-    分层下载策略：
-    1. httpx（轻量快速）
-    2. Playwright（处理 JavaScript 渲染）
+    使用 httpx 轻量下载 URL 内容。
     """
     
     def __init__(
         self,
         cache_manager: URLCacheManager,
         httpx_timeout: int = 5,
-        playwright_timeout: int = 20,
         retry_attempts: int = 2,
         retry_delay: int = 1,
         max_concurrency: int = 3
@@ -60,25 +55,21 @@ class AttachmentDownloader:
         Args:
             cache_manager: 缓存管理器
             httpx_timeout: httpx 超时（秒）
-            playwright_timeout: Playwright 超时（秒）
             retry_attempts: 重试次数
             retry_delay: 重试间隔（秒）
             max_concurrency: 最大并发数
         """
         self.cache_manager = cache_manager
         self.httpx_timeout = httpx_timeout
-        self.playwright_timeout = playwright_timeout
         self.retry_attempts = retry_attempts
         self.retry_delay = retry_delay
         self.max_concurrency = max_concurrency
         
         self.semaphore = asyncio.Semaphore(max_concurrency)
-        self._browser: Optional[Browser] = None
         
         logger.info(
             f"AttachmentDownloader 初始化: "
-            f"httpx_timeout={httpx_timeout}s, playwright_timeout={playwright_timeout}s, "
-            f"max_concurrency={max_concurrency}"
+            f"httpx_timeout={httpx_timeout}s, max_concurrency={max_concurrency}"
         )
     
     def _get_file_type(self, url: str, content_type: Optional[str] = None) -> str:
@@ -150,51 +141,6 @@ class AttachmentDownloader:
                 method='httpx'
             )
     
-    async def _download_with_playwright(self, url: str) -> DownloadResult:
-        """
-        使用 Playwright 下载
-        
-        Args:
-            url: URL 地址
-            
-        Returns:
-            DownloadResult
-        """
-        logger.info(f"Playwright 尝试下载: {url}")
-        try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page()
-                
-                logger.debug(f"Playwright 导航到: {url}")
-                await page.goto(
-                    url,
-                    wait_until='networkidle',
-                    timeout=self.playwright_timeout * 1000
-                )
-                
-                html = await page.content()
-                await browser.close()
-                
-                content_type = 'text/html'
-                file_type = 'html'
-                
-                logger.info(f"Playwright 下载成功: {url} ({len(html)} bytes)")
-                return DownloadResult(
-                    success=True,
-                    content=html.encode('utf-8'),
-                    file_type=file_type,
-                    content_type=content_type,
-                    method='playwright'
-                )
-        except Exception as e:
-            logger.warning(f"Playwright 下载失败: {url}, {e}")
-            return DownloadResult(
-                success=False,
-                error=str(e),
-                method='playwright'
-            )
-    
     async def _download_with_retry(self, url: str) -> DownloadResult:
         """
         带重试的下载
@@ -213,20 +159,19 @@ class AttachmentDownloader:
                 
                 result = await self._download_with_httpx(url)
                 if result.success:
-                    logger.debug(f"httpx 下载成功，无需使用 Playwright")
+                    logger.debug("httpx 下载成功")
                     return result
                 
                 if attempt < self.retry_attempts:
                     logger.debug(f"httpx 第 {attempt + 1} 次失败: {result.error}")
                     continue
             
-            logger.info(f"httpx 全部失败，切换到 Playwright")
-            result = await self._download_with_playwright(url)
+            logger.warning(f"httpx 全部下载失败: {url}, 错误: {result.error}")
             return result
     
     async def download(self, url: str, use_cache: bool = True) -> DownloadResult:
         """
-        下载 URL（分层策略）
+        下载 URL
         
         Args:
             url: URL 地址
@@ -301,10 +246,9 @@ class AttachmentDownloader:
         success_count = sum(1 for r in results.values() if r.success)
         cache_count = sum(1 for r in results.values() if r.method == 'cache')
         httpx_count = sum(1 for r in results.values() if r.method == 'httpx')
-        playwright_count = sum(1 for r in results.values() if r.method == 'playwright')
         
         logger.info(
             f"批量下载完成: 总计={total}, 成功={success_count}, "
-            f"缓存={cache_count}, httpx={httpx_count}, Playwright={playwright_count}"
+            f"缓存={cache_count}, httpx={httpx_count}"
         )
         return results

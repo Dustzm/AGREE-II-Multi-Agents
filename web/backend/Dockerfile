@@ -10,25 +10,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-ARG INSTALL_PLAYWRIGHT=true
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         libgl1 \
         libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt pyproject.toml ./
 
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install -r requirements.txt
-
-RUN if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then python -m playwright install --with-deps chromium; fi
+RUN sed '/^# 开发依赖/,$d' requirements.txt > /tmp/requirements-runtime.txt \
+    && pip install --upgrade --no-cache-dir --no-compile pip setuptools wheel \
+    && pip install --no-cache-dir --no-compile -r /tmp/requirements-runtime.txt \
+    && rm -f /tmp/requirements-runtime.txt \
+    && find /usr/local/lib/python3.11/site-packages -depth \
+        \( -type d \( -name tests -o -name test \) -o -type d -name __pycache__ \) \
+        -exec rm -rf '{}' +
 
 COPY . .
 

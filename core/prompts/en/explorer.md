@@ -46,5 +46,5 @@ Returns: Parsed content
 - Extract URL links from guideline text in content_list.json
 - Use rule-based filtering to quickly exclude non-attachments (references, search engines, etc.)
 - Use LLM to intelligently classify whether a URL is an attachment link
-- Layered download strategy: httpx (lightweight) → Playwright (dynamic rendering)
+- Lightweight URL download via httpx
 - Local caching mechanism to avoid duplicate downloads
