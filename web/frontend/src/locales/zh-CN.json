@@ -99,8 +99,14 @@
     },
     "batch": {
         "select": {
+            "eyebrow": "批量库",
+            "inputRoot": "根目录",
             "title": "选择 PDF",
             "count": "已选择 {{count}} 个文件"
+        },
+        "upload": {
+            "result": "上传完成：成功 {{success}} 个，失败 {{failed}} 个",
+            "success": "成功上传 {{count}} 个 PDF 文件"
         },
         "uploadFolder": "上传文件夹",
         "empty": {
@@ -131,8 +137,13 @@
             "failed": "继续批量任务失败"
         },
         "status": {
+            "eyebrow": "执行状态",
             "title": "任务状态",
             "running": "正在运行...",
+            "stopping": "停止中...",
+            "stopped": "已停止",
+            "interrupted": "已中断，可继续",
+            "failed": "执行失败",
             "completed": "已完成",
             "waiting": "等待启动",
             "hint": "勾选 PDF 并点击开始",
@@ -144,21 +155,38 @@
             "running": "运行中",
             "done": "已完成",
             "error": "失败",
-            "cancelled": "已取消"
+            "cancelled": "已取消",
+            "stopped": "已停止"
         },
         "statusMsg": {
             "service_restart": "服务重启，任务中断",
             "service_restart_step": "服务重启，任务已中断",
             "initializing": "正在初始化...",
+            "parsingPdf": "正在解析 PDF",
+            "buildingEvidence": "正在构建证据池",
+            "appraisingItems": "正在评价条目",
+            "itemProgress": "条目进度 {{completed}}/{{total}}",
+            "generatingReport": "正在生成报告",
+            "retryingStep": "重试中",
+            "failedGeneric": "失败",
+            "waitingContinue": "等待继续",
+            "serviceStopWaiting": "服务停止，等待继续",
+            "workerInterrupted": "Worker 中断，等待继续",
+            "stopped": "已停止",
             "cancelled": "已取消",
             "retrying": "正在重试 ({{current}}/{{max}})...",
             "failed": "失败: {{error}}",
             "completed": "已完成"
         },
+        "connection": {
+            "reconnecting": "重连中 ({{current}}/{{max}})",
+            "disconnected": "连接断开"
+        },
         "error": {
             "noTask": "当前没有正在运行的批量任务",
             "startFailed": "启动失败",
-            "stopFailed": "停止失败"
+            "stopFailed": "停止失败",
+            "folderUploadFailed": "文件夹上传失败"
         },
         "success": {
             "stopped": "批量任务已停止，正在等待当前步骤完成..."

@@ -313,16 +313,6 @@ async def get_batch_status():
     return _latest_status()
 
 
-@router.get("/batch/jobs/{job_id}", response_model=BatchStatusResponse)
-async def get_batch_job_status(job_id: str):
-    """返回指定 job 的完整状态。"""
-    recover_stale_batch_jobs()
-    job = get_batch_job(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail=f"批量任务不存在: {job_id}")
-    return _status_response(get_batch_job_status_payload(job_id))
-
-
 @router.get("/batch/jobs/latest-resumable", response_model=ResumeLatestResponse)
 async def get_latest_resumable_batch():
     """获取最新一条可继续的批量会话。"""
@@ -341,6 +331,16 @@ async def get_latest_resumable_batch():
         remaining_tasks=max(remaining_tasks, 0),
         status=_status_response(payload),
     )
+
+
+@router.get("/batch/jobs/{job_id}", response_model=BatchStatusResponse)
+async def get_batch_job_status(job_id: str):
+    """返回指定 job 的完整状态。"""
+    recover_stale_batch_jobs()
+    job = get_batch_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"批量任务不存在: {job_id}")
+    return _status_response(get_batch_job_status_payload(job_id))
 
 
 @router.get("/batch/resume/latest", response_model=ResumeLatestResponse)

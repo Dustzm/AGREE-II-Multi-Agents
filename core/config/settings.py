@@ -319,7 +319,7 @@ class AppSettings(BaseSettings):
     )
 
     batch_item_llm_timeout: int = Field(
-        default=300,
+        default=360,
         alias="BATCH_ITEM_LLM_TIMEOUT",
         description="批量任务单个条目评价硬超时时间（秒）",
         ge=30,

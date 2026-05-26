@@ -8,6 +8,7 @@ import pytest
 from web.backend.app import database as auth_db
 from web.backend.app.api.routes import batch as batch_route
 from web.backend.app.services import batch_jobs
+from web.backend.app.services.batch_worker_runner import BatchJobRunner, _format_batch_item_progress_step
 
 
 @pytest.fixture
@@ -183,6 +184,67 @@ def test_resume_batch_job_resets_stopped_items(isolated_batch_db):
     assert payload["stopped"] == 0
 
 
+def test_latest_resumable_job_prefers_latest_created_failed_job(isolated_batch_db):
+    older_pdf = _create_pdf(isolated_batch_db, "older-stopped.pdf")
+    newer_pdf = _create_pdf(isolated_batch_db, "newer-failed.pdf")
+    older = batch_jobs.create_batch_job([older_pdf], concurrency=2, experiment_rounds=1)
+    batch_jobs.request_stop(older["job_id"])
+    newer = batch_jobs.create_batch_job([newer_pdf], concurrency=2, experiment_rounds=1)
+    batch_jobs.update_job_status(
+        newer["job_id"],
+        batch_jobs.JOB_STATUS_FAILED,
+        status_reason=batch_jobs.STATUS_REASON_WORKER_ERROR,
+        last_error="worker failed",
+    )
+    batch_jobs.update_batch_item(
+        newer["job_id"],
+        "newer-failed",
+        status=batch_jobs.ITEM_STATUS_ERROR,
+        retry_count=2,
+        last_error="item failed",
+    )
+
+    latest = batch_jobs.get_latest_resumable_job()
+
+    assert latest is not None
+    assert latest["job_id"] == newer["job_id"]
+
+
+def test_resume_batch_job_resets_error_items(isolated_batch_db):
+    pdf1 = _create_pdf(isolated_batch_db, "resume-error.pdf")
+    created = batch_jobs.create_batch_job([pdf1], concurrency=2, experiment_rounds=1)
+    batch_jobs.update_job_status(
+        created["job_id"],
+        batch_jobs.JOB_STATUS_FAILED,
+        status_reason=batch_jobs.STATUS_REASON_WORKER_ERROR,
+        last_error="worker failed",
+    )
+    batch_jobs.update_batch_item(
+        created["job_id"],
+        "resume-error",
+        status=batch_jobs.ITEM_STATUS_ERROR,
+        current_step="处理失败",
+        retry_count=3,
+        result_task_id="task-old",
+        started_at=datetime.now(timezone.utc).isoformat(),
+        finished_at=datetime.now(timezone.utc).isoformat(),
+        last_error="item failed",
+    )
+
+    payload = batch_jobs.resume_batch_job(created["job_id"])
+    item = payload["tasks"][0]
+
+    assert payload["status"] == batch_jobs.JOB_STATUS_QUEUED
+    assert payload["pending"] == 1
+    assert payload["error"] == 0
+    assert payload["last_error"] is None
+    assert item["status"] == batch_jobs.ITEM_STATUS_PENDING
+    assert item["retry_count"] == 0
+    assert item["error"] is None
+    assert item["current_step"] is None
+    assert item["result_task_id"] is None
+
+
 def test_batch_status_route_recovers_stale_jobs(isolated_batch_db):
     pdf1 = _create_pdf(isolated_batch_db, "route-recover.pdf")
     created = batch_jobs.create_batch_job([pdf1], concurrency=2, experiment_rounds=1)
@@ -210,3 +272,15 @@ def test_batch_status_route_recovers_stale_jobs(isolated_batch_db):
 
     assert payload.job_id == created["job_id"]
     assert payload.status == batch_jobs.JOB_STATUS_INTERRUPTED
+
+
+def test_batch_runner_formats_item_progress_as_i18n_status():
+    assert _format_batch_item_progress_step(7, 23) == "i18n:batch.itemProgress:7:23"
+
+
+def test_batch_runner_normalizes_appraiser_status_as_i18n_key():
+    runner = BatchJobRunner("job-1", "worker-1", "run-1", None, None)
+
+    normalized = runner._normalize_step("正在评价条目", agent="Appraiser")
+
+    assert normalized == "i18n:batch.appraisingItems"

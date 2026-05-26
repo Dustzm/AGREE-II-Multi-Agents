@@ -99,8 +99,14 @@
     },
     "batch": {
         "select": {
+            "eyebrow": "Batch library",
+            "inputRoot": "Root",
             "title": "Select PDFs",
             "count": "{{count}} files selected"
+        },
+        "upload": {
+            "result": "Upload complete: {{success}} succeeded, {{failed}} failed",
+            "success": "Successfully uploaded {{count}} PDF files"
         },
         "uploadFolder": "Upload Folder",
         "empty": {
@@ -131,8 +137,13 @@
             "failed": "Failed to resume batch task"
         },
         "status": {
+            "eyebrow": "Execution status",
             "title": "Task Status",
             "running": "Running...",
+            "stopping": "Stopping...",
+            "stopped": "Stopped",
+            "interrupted": "Interrupted, resumable",
+            "failed": "Failed",
             "completed": "Completed",
             "waiting": "Waiting to start",
             "hint": "Select PDFs and click Start",
@@ -144,21 +155,38 @@
             "running": "Running",
             "done": "Done",
             "error": "Error",
-            "cancelled": "Cancelled"
+            "cancelled": "Cancelled",
+            "stopped": "Stopped"
         },
         "statusMsg": {
             "service_restart": "Service restart, task interrupted",
             "service_restart_step": "Service restart, task interrupted",
             "initializing": "Initializing...",
+            "parsingPdf": "Parsing PDF",
+            "buildingEvidence": "Building evidence pool",
+            "appraisingItems": "Appraising items",
+            "itemProgress": "Item progress {{completed}}/{{total}}",
+            "generatingReport": "Generating report",
+            "retryingStep": "Retrying",
+            "failedGeneric": "Failed",
+            "waitingContinue": "Waiting to continue",
+            "serviceStopWaiting": "Service stopped, waiting to continue",
+            "workerInterrupted": "Worker interrupted, waiting to continue",
+            "stopped": "Stopped",
             "cancelled": "Cancelled",
             "retrying": "Retrying ({{current}}/{{max}})...",
             "failed": "Failed: {{error}}",
             "completed": "Completed"
         },
+        "connection": {
+            "reconnecting": "Reconnecting ({{current}}/{{max}})",
+            "disconnected": "Disconnected"
+        },
         "error": {
             "noTask": "No batch task is currently running",
             "startFailed": "Start failed",
-            "stopFailed": "Stop failed"
+            "stopFailed": "Stop failed",
+            "folderUploadFailed": "Folder upload failed"
         },
         "success": {
             "stopped": "Batch task stopped, waiting for current step to complete..."

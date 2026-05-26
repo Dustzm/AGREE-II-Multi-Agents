@@ -9,7 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from core.agents.tools import appraiser_batch
+from core.agents import appraiser
 from core.config import refresh_settings
+from core.parsers import mineru_parser
+from core.utils.cancellation import CancellationToken
 
 
 def _success_result() -> dict:
@@ -157,3 +160,154 @@ def test_appraise_all_limits_global_pool_concurrency(monkeypatch: pytest.MonkeyP
 
     assert result["status"] == "success"
     assert max_active == 2
+
+
+def test_appraise_all_retries_item_timeout_without_cancelling_batch(monkeypatch: pytest.MonkeyPatch):
+    """单条目 LLM 超时应重试，且不应取消整个批量任务。"""
+    monkeypatch.setenv("APPRAISAL_MAX_CONCURRENCY", "1")
+    monkeypatch.setenv("APPRAISAL_POOL_MAX_CONCURRENCY", "4")
+    refresh_settings()
+
+    attempts = 0
+    retry_events: list[str] = []
+    token = CancellationToken()
+
+    original_wait_for = appraiser_batch.asyncio.wait_for
+
+    async def fast_wait_for(awaitable, timeout):
+        return await original_wait_for(awaitable, timeout=0.01)
+
+    def fake_run(task_id: str, skill_id: str, lang: str, cancellation_token=None) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts < appraiser_batch.ITEM_LLM_MAX_ATTEMPTS:
+            time.sleep(0.05)
+        return _success_result()
+
+    async def on_item_progress(skill_id: str, title: str, status: str, duration: float | None = None):
+        retry_events.append(status)
+
+    monkeypatch.setattr(appraiser_batch.asyncio, "wait_for", fast_wait_for)
+    monkeypatch.setattr(appraiser_batch, "get_skill_summary", lambda skill_id, lang="en": skill_id)
+    monkeypatch.setattr(appraiser_batch, "save_item_evaluation", lambda **kwargs: None)
+    monkeypatch.setattr(appraiser_batch, "run_iterative_evaluation", fake_run)
+
+    result = asyncio.run(
+        appraiser_batch.appraise_all(
+            task_id="task-timeout",
+            skill_ids=["item_1"],
+            on_item_progress=on_item_progress,
+            cancellation_token=token,
+        )
+    )
+
+    assert attempts == appraiser_batch.ITEM_LLM_MAX_ATTEMPTS
+    assert retry_events == ["started", "retrying", "retrying", "retrying", "completed"]
+    assert result["status"] == "success"
+    assert token.cancelled() is False
+
+
+def test_appraise_all_item_cancelled_does_not_cancel_batch(monkeypatch: pytest.MonkeyPatch):
+    """单条目返回 cancelled 不应主动取消整个批量任务。"""
+    monkeypatch.setenv("APPRAISAL_MAX_CONCURRENCY", "1")
+    monkeypatch.setenv("APPRAISAL_POOL_MAX_CONCURRENCY", "2")
+    refresh_settings()
+
+    token = CancellationToken()
+
+    def fake_run(task_id: str, skill_id: str, lang: str, cancellation_token=None) -> dict:
+        if skill_id == "item_1":
+            return {"status": "cancelled", "error": "模拟单条目取消"}
+        return _success_result()
+
+    monkeypatch.setattr(appraiser_batch, "get_skill_summary", lambda skill_id, lang="en": skill_id)
+    monkeypatch.setattr(appraiser_batch, "save_item_evaluation", lambda **kwargs: None)
+    monkeypatch.setattr(appraiser_batch, "run_iterative_evaluation", fake_run)
+
+    result = asyncio.run(
+        appraiser_batch.appraise_all(
+            task_id="task-item-cancelled",
+            skill_ids=["item_1", "item_2"],
+            cancellation_token=token,
+        )
+    )
+
+    assert result["status"] == "partial"
+    assert result["completed"] == ["item_2"]
+    assert result["failed"] == {"item_1": "模拟单条目取消"}
+    assert token.cancelled() is False
+
+
+def test_final_report_failure_returns_error_without_simple_report(monkeypatch: pytest.MonkeyPatch):
+    """最终报告失败应返回 error，不应回退成简化成功报告。"""
+    evaluator = appraiser.IterativeEvaluator("task-report-error", "item_1")
+    evaluator.evidence_cache = ["evidence"]
+    evaluator.evidence_chunk_map = ["chunk_1"]
+    evaluator.evidence_sources = ["chunk_1"]
+    evaluator.current_score = 3
+
+    monkeypatch.setattr(appraiser, "litellm", type("FakeLiteLLM", (), {
+        "completion": staticmethod(lambda **kwargs: (_ for _ in ()).throw(RuntimeError("LLM broken")))
+    }))
+
+    result = evaluator._synthesize_report()
+
+    assert result["status"] == "error"
+    assert "LLM broken" in result["error"]
+
+
+def test_extract_json_object_text_strips_markdown_fence():
+    """模型返回 fenced JSON 时应提取内部 JSON 对象。"""
+    evaluator = appraiser.IterativeEvaluator("task-json-fence", "item_1")
+
+    content = """```json
+{
+  "analysis": "ok",
+  "score": 2
+}
+```"""
+
+    assert evaluator._extract_json_object_text(content) == '{\n  "analysis": "ok",\n  "score": 2\n}'
+
+
+def test_mineru_health_check_retries_transient_error(monkeypatch: pytest.MonkeyPatch):
+    """MinerU 健康检查遇到瞬时异常后应重试。"""
+    attempts = 0
+    requested_urls: list[str] = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"data":[]}'
+
+    class FakeClient:
+        def __init__(self, timeout: int):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url: str, headers=None):
+            nonlocal attempts
+            attempts += 1
+            requested_urls.append(url)
+            if attempts == 1:
+                raise RuntimeError("temporary connect error")
+            return FakeResponse()
+
+    async def fake_sleep(delay: float):
+        return None
+
+    monkeypatch.setattr(mineru_parser.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(mineru_parser.asyncio, "sleep", fake_sleep)
+
+    parser = mineru_parser.MinerUParser(server_url="https://example.test/mineru/")
+
+    assert asyncio.run(parser.health_check()) is True
+    assert attempts == 2
+    assert requested_urls == [
+        "https://example.test/mineru/v1/models",
+        "https://example.test/mineru/v1/models",
+    ]

@@ -43,6 +43,11 @@ from .batch_jobs import (
 logger = logging.getLogger(__name__)
 
 
+def _format_batch_item_progress_step(completed: int, total: int) -> str:
+    """构造前端可本地化的条目评价进度状态。"""
+    return f"i18n:batch.itemProgress:{completed}:{total}"
+
+
 class BatchJobRunner:
     """执行单个 job 的业务逻辑。"""
 
@@ -77,21 +82,21 @@ class BatchJobRunner:
             return None
         lowered = text.lower()
         if "重试" in text or "retry" in lowered:
-            return "重试中"
+            return "i18n:batch.retryingStep"
         if "report" in lowered or "报告" in text:
-            return "生成报告中"
+            return "i18n:batch.generatingReport"
         if "evidence" in lowered or "证据池" in text or "docindex" in lowered or "语义" in text:
-            return "构建证据池中"
+            return "i18n:batch.buildingEvidence"
         if "parse" in lowered or "parsed" in lowered or "解析" in text:
-            return "解析 PDF 中"
+            return "i18n:batch.parsingPdf"
         if "init" in lowered or "初始化" in text:
-            return "初始化中"
+            return "i18n:batch.initializing"
         if agent == "Appraiser":
-            return "条目评价中"
+            return "i18n:batch.appraisingItems"
         if agent == "Reporter":
-            return "生成报告中"
+            return "i18n:batch.generatingReport"
         if "failed" in lowered or "error" in lowered or "异常" in text or "失败" in text:
-            return "失败"
+            return "i18n:batch.failedGeneric"
         return None
 
     def _update_item_step(self, item_id: str, content: str, *, agent: str | None = None) -> None:
@@ -171,7 +176,7 @@ class BatchJobRunner:
             """,
             (
                 ITEM_STATUS_PENDING,
-                None if all_items else "等待继续",
+                None if all_items else "i18n:batch.waitingContinue",
                 now,
                 self.job_id,
                 self.worker_id,
@@ -217,11 +222,21 @@ class BatchJobRunner:
             if round_num > current_round:
                 self._reset_items_for_next_round(all_items=True)
 
-            await asyncio.gather(*[
+            item_results = await asyncio.gather(*[
                 self._run_item(item, round_num, output_subdir)
                 for item in self._current_items()
                 if item["status"] != ITEM_STATUS_DONE
-            ])
+            ], return_exceptions=True)
+            for item_result in item_results:
+                if isinstance(item_result, BaseException):
+                    logger.exception(
+                        "批量任务条目协程异常: job=%s round=%s",
+                        self.job_id,
+                        round_num,
+                        exc_info=(type(item_result), item_result, item_result.__traceback__),
+                    )
+                    if self._job_failure_reason == STATUS_REASON_NORMAL:
+                        self._job_failure_reason = STATUS_REASON_WORKER_ERROR
 
             items = self._current_items()
             if self._should_stop():
@@ -268,7 +283,7 @@ class BatchJobRunner:
             self.job_id,
             item_id,
             status=ITEM_STATUS_RUNNING,
-            current_step="正在初始化...",
+            current_step="i18n:batch.initializing",
             started_at=utcnow_iso(),
             finished_at=None,
             last_error=None,
@@ -311,6 +326,14 @@ class BatchJobRunner:
             error_occurred = True
             error_message = err
 
+        async def send_batch_summary(total: int, completed: int, _elapsed: float):
+            update_batch_item(
+                self.job_id,
+                item_id,
+                current_step=_format_batch_item_progress_step(completed, total),
+                **self._guard(),
+            )
+
         runner = AppraisalRunner(
             on_status=on_status,
             on_agent=on_agent,
@@ -320,6 +343,7 @@ class BatchJobRunner:
             cancellation_token=self.cancellation_token,
             executor=self.executor,
         )
+        runner._send_batch_summary = send_batch_summary
         self._active_runners.append(runner)
 
         try:
@@ -345,7 +369,7 @@ class BatchJobRunner:
                 self.job_id,
                 item_id,
                 status=ITEM_STATUS_STOPPED,
-                current_step="已停止",
+                current_step="i18n:batch.stopped",
                 finished_at=finished_at,
                 last_error=None,
                 **self._guard(),
@@ -358,7 +382,7 @@ class BatchJobRunner:
                 update_batch_item(
                     self.job_id,
                     item_id,
-                    current_step=f"正在重试 ({retry_count + 1}/{self.MAX_RETRY})...",
+                    current_step=f"i18n:batch.retrying:{retry_count + 1}:{self.MAX_RETRY}",
                     retry_count=retry_count + 1,
                     last_error=error_message,
                     **self._guard(),
@@ -380,7 +404,7 @@ class BatchJobRunner:
                     self.job_id,
                     item_id,
                     status=ITEM_STATUS_STOPPED,
-                    current_step="已停止",
+                    current_step="i18n:batch.stopped",
                     finished_at=finished_at,
                     last_error=None,
                     result_task_id=result_task_id,
@@ -393,7 +417,7 @@ class BatchJobRunner:
                 self.job_id,
                 item_id,
                 status=ITEM_STATUS_ERROR,
-                current_step=f"失败: {error_message[:80]}",
+                current_step=f"i18n:batch.failed:{error_message[:80]}",
                 finished_at=finished_at,
                 last_error=error_message,
                 result_task_id=result_task_id,
@@ -411,7 +435,7 @@ class BatchJobRunner:
             self.job_id,
             item_id,
             status=ITEM_STATUS_DONE,
-            current_step="已完成",
+            current_step="i18n:batch.completed",
             finished_at=finished_at,
             result_task_id=result_task_id,
             first_round_task_id=first_round_task_id,

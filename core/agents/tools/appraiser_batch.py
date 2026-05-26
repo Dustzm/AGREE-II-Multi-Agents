@@ -20,6 +20,9 @@ from core.utils.cancellation import CancellationRequested, CancellationToken
 
 logger = logging.getLogger(__name__)
 
+ITEM_LLM_MAX_RETRIES = 3
+ITEM_LLM_MAX_ATTEMPTS = ITEM_LLM_MAX_RETRIES + 1
+
 def create_llm_executor(pool_concurrency: int) -> ThreadPoolExecutor:
     """创建批量条目评价线程池。"""
     logger.info("创建 LLM 评价线程池: pool_concurrency=%s", pool_concurrency)
@@ -156,23 +159,54 @@ async def appraise_all(
             try:
                 # 使用全局线程池执行同步评价，统一限制所有指南任务的总并发。
                 loop = asyncio.get_running_loop()
-                result = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        executor,
-                        run_iterative_evaluation,
-                        task_id,
-                        skill_id,
-                        lang,
-                        cancellation_token,
-                    ),
-                    timeout=llm_timeout,
-                )
+                last_timeout_error = None
+                for attempt in range(1, ITEM_LLM_MAX_ATTEMPTS + 1):
+                    if cancellation_token:
+                        cancellation_token.raise_if_cancelled()
+                    try:
+                        result = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                executor,
+                                run_iterative_evaluation,
+                                task_id,
+                                skill_id,
+                                lang,
+                                cancellation_token,
+                            ),
+                            timeout=llm_timeout,
+                        )
+                        break
+                    except asyncio.TimeoutError as exc:
+                        last_timeout_error = exc
+                        logger.warning(
+                            "条目评价超时: %s - 尝试 %s/%s (%ss)",
+                            skill_id,
+                            attempt,
+                            ITEM_LLM_MAX_ATTEMPTS,
+                            llm_timeout,
+                        )
+                        if attempt < ITEM_LLM_MAX_ATTEMPTS and progress_callback:
+                            try:
+                                await progress_callback(skill_id, title, "retrying", None)
+                            except Exception as ex:
+                                logger.warning(f"进度回调失败: {ex}")
+                else:
+                    raise last_timeout_error or asyncio.TimeoutError()
                 duration = time.time() - item_start
 
                 # 保存结果
                 status = result.get("status")
                 if status == "cancelled":
-                    raise CancellationRequested(result.get("error", "任务已取消"))
+                    if cancellation_token and cancellation_token.cancelled():
+                        raise CancellationRequested(result.get("error", "任务已取消"))
+                    error_msg = result.get("error", "条目评价被取消")
+                    if progress_callback:
+                        try:
+                            await progress_callback(skill_id, title, "failed", None)
+                        except Exception as e:
+                            logger.warning(f"进度回调失败: {e}")
+                    logger.error("条目评价返回 cancelled 但批量任务未取消: %s - %s", skill_id, error_msg)
+                    return skill_id, {"status": "failed", "error": error_msg, "reason": "item_cancelled"}
                 if status in ("success", "no_evidence"):
                     cot = result.get("chain_of_thought", {})
                     save_item_evaluation(
@@ -217,18 +251,30 @@ async def appraise_all(
                     logger.warning(f"评价失败: {skill_id} - {error_msg}")
                     return skill_id, {"status": "failed", "error": error_msg}
 
-            except CancellationRequested:
-                raise
-            except asyncio.TimeoutError:
-                error_msg = f"条目评价超时 ({llm_timeout}s)"
-                if cancellation_token:
-                    cancellation_token.cancel()
+            except CancellationRequested as exc:
+                if cancellation_token and cancellation_token.cancelled():
+                    raise
+                error_msg = str(exc)
                 if progress_callback:
                     try:
                         await progress_callback(skill_id, title, "failed", None)
                     except Exception as ex:
                         logger.warning(f"进度回调失败: {ex}")
-                logger.error(f"评价超时: {skill_id} - {error_msg}")
+                logger.exception("条目评价收到取消异常但批量任务未取消: %s - %s", skill_id, error_msg)
+                return skill_id, {"status": "failed", "error": error_msg, "reason": "item_cancelled"}
+            except asyncio.TimeoutError:
+                error_msg = f"条目评价超时 ({llm_timeout}s)"
+                if progress_callback:
+                    try:
+                        await progress_callback(skill_id, title, "failed", None)
+                    except Exception as ex:
+                        logger.warning(f"进度回调失败: {ex}")
+                logger.error(
+                    "评价超时: %s - %s，已尝试 %s 次",
+                    skill_id,
+                    error_msg,
+                    ITEM_LLM_MAX_ATTEMPTS,
+                )
                 return skill_id, {"status": "failed", "error": error_msg, "reason": "llm_timeout"}
             except Exception as e:
                 error_msg = str(e)
@@ -240,7 +286,7 @@ async def appraise_all(
                     except Exception as ex:
                         logger.warning(f"进度回调失败: {ex}")
 
-                logger.error(f"评价异常: {skill_id} - {error_msg}")
+                logger.exception("评价异常: %s - %s", skill_id, error_msg)
                 return skill_id, {"status": "failed", "error": error_msg}
 
     # 并发执行所有评价任务
@@ -251,8 +297,8 @@ async def appraise_all(
         try:
             results = await asyncio.gather(*tasks, return_exceptions=True)
         except CancellationRequested:
-            if cancellation_token:
-                cancellation_token.cancel()
+            if not (cancellation_token and cancellation_token.cancelled()):
+                raise
             logger.info("批量条目评价收到取消请求，停止等待新条目")
             return {
                 "status": "cancelled",
@@ -266,22 +312,45 @@ async def appraise_all(
 
         # 汇总结果
         for item in results:
-            if isinstance(item, Exception):
+            if isinstance(item, BaseException):
                 # gather 返回的异常
                 if isinstance(item, CancellationRequested):
-                    if cancellation_token:
-                        cancellation_token.cancel()
-                    logger.info("批量条目评价汇总阶段检测到取消")
-                    return {
-                        "status": "cancelled",
-                        "completed": completed,
-                        "failed": failed,
-                        "total": total,
-                        "duration": time.time() - start_time,
-                        "item_concurrency": item_concurrency,
-                        "pool_concurrency": pool_concurrency,
-                    }
-                logger.error(f"任务异常: {item}")
+                    if cancellation_token and cancellation_token.cancelled():
+                        logger.info("批量条目评价汇总阶段检测到取消")
+                        return {
+                            "status": "cancelled",
+                            "completed": completed,
+                            "failed": failed,
+                            "total": total,
+                            "duration": time.time() - start_time,
+                            "item_concurrency": item_concurrency,
+                            "pool_concurrency": pool_concurrency,
+                        }
+                    logger.error(
+                        "条目评价取消异常未伴随批量取消",
+                        exc_info=(type(item), item, item.__traceback__),
+                    )
+                elif isinstance(item, asyncio.CancelledError):
+                    if cancellation_token and cancellation_token.cancelled():
+                        logger.info("批量条目评价汇总阶段检测到 asyncio 取消")
+                        return {
+                            "status": "cancelled",
+                            "completed": completed,
+                            "failed": failed,
+                            "total": total,
+                            "duration": time.time() - start_time,
+                            "item_concurrency": item_concurrency,
+                            "pool_concurrency": pool_concurrency,
+                        }
+                    logger.error(
+                        "条目评价 asyncio 取消未伴随批量取消",
+                        exc_info=(type(item), item, item.__traceback__),
+                    )
+                else:
+                    logger.error(
+                        "任务异常",
+                        exc_info=(type(item), item, item.__traceback__),
+                    )
                 continue
 
             skill_id, result = item

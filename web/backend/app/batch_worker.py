@@ -41,9 +41,16 @@ async def _heartbeat_loop(job_id: str, worker_id: str, run_token: str, token: Ca
     while not token.cancelled():
         await asyncio.sleep(HEARTBEAT_SECONDS)
         if not renew_batch_job_lease(job_id, worker_id, run_token, LEASE_SECONDS):
+            logger.error(
+                "批量任务租约续期失败，主动取消当前 job: job=%s worker=%s run_token=%s",
+                job_id,
+                worker_id,
+                run_token,
+            )
             token.cancel()
             return
         if get_stop_requested(job_id):
+            logger.info("批量任务收到停止请求: job=%s worker=%s", job_id, worker_id)
             token.cancel()
 
 

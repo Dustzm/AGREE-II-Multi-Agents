@@ -23,6 +23,7 @@ from web.backend.app.api.routes import config as config_route
 from web.backend.app import database as auth_db
 from web.backend.app.auth import AUTH_COOKIE_NAME
 from web.backend.app.main import app
+from web.backend.app.services import batch_jobs
 
 
 @pytest.fixture
@@ -499,6 +500,27 @@ def test_llm_health_check_uses_unsaved_draft_values(client: TestClient, monkeypa
     assert captured["base_url"] == "https://draft.example.com/v1"
     assert captured["api_key"] == "draft-key"
     assert captured["timeout"] == 17
+
+
+def test_latest_resumable_batch_route_uses_static_path(client: TestClient):
+    """latest-resumable 静态路由不应被 job_id 动态路由截获。"""
+    login_response = client.post(
+        "/ama/api/auth/login",
+        json={"username": "admin", "password": "secret123"},
+    )
+    assert login_response.status_code == 200
+
+    pdf_path = auth_db.PROJECT_ROOT / "resume-route.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%test\n")
+    created = batch_jobs.create_batch_job([str(pdf_path)], concurrency=2, experiment_rounds=1)
+    batch_jobs.request_stop(created["job_id"])
+
+    response = client.get("/ama/api/batch/jobs/latest-resumable")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["available"] is True
+    assert payload["session_id"] == created["job_id"]
 
 
 class _DummyWebSocket:

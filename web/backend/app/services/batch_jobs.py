@@ -40,6 +40,7 @@ NON_TERMINAL_JOB_STATUSES = {
 }
 RESUMABLE_JOB_STATUSES = {
     JOB_STATUS_STOPPED,
+    JOB_STATUS_FAILED,
     JOB_STATUS_INTERRUPTED,
 }
 
@@ -466,8 +467,8 @@ def get_latest_resumable_job(*, conn: sqlite3.Connection | None = None) -> dict[
     row = conn.execute(
         """
         SELECT * FROM batch_jobs
-        WHERE status IN ('stopped', 'interrupted')
-        ORDER BY updated_at DESC
+        WHERE status IN ('stopped', 'failed', 'interrupted')
+        ORDER BY created_at DESC
         LIMIT 1
         """
     ).fetchone()
@@ -502,7 +503,7 @@ def request_stop(job_id: str) -> dict[str, Any]:
             SET status = ?, current_step = ?, updated_at = ?, finished_at = ?
             WHERE job_id = ? AND status = ?
             """,
-            (ITEM_STATUS_STOPPED, "已停止", now, now, job_id, ITEM_STATUS_PENDING),
+            (ITEM_STATUS_STOPPED, "i18n:batch.stopped", now, now, job_id, ITEM_STATUS_PENDING),
         )
     payload = get_batch_job_status_payload(job_id, conn=conn)
     append_batch_job_event(job_id, "status", payload, conn=conn)
@@ -552,25 +553,17 @@ def resume_batch_job(job_id: str, concurrency_override: int | None = None) -> di
         conn.execute(
             """
             UPDATE batch_job_items
-            SET status = CASE WHEN status = ? THEN ? ELSE status END,
-                current_step = CASE WHEN status = ? THEN NULL ELSE current_step END,
-                started_at = CASE WHEN status = ? THEN NULL ELSE started_at END,
-                finished_at = CASE WHEN status = ? THEN NULL ELSE finished_at END,
-                updated_at = CASE WHEN status = ? THEN ? ELSE updated_at END,
-                last_error = CASE WHEN status IN (?, ?) THEN NULL ELSE last_error END
-            WHERE job_id = ?
+            SET status = ?, current_step = NULL, retry_count = 0, started_at = NULL,
+                finished_at = NULL, updated_at = ?, last_error = NULL, result_task_id = NULL
+            WHERE job_id = ? AND status IN (?, ?, ?)
             """,
             (
-                ITEM_STATUS_STOPPED,
                 ITEM_STATUS_PENDING,
-                ITEM_STATUS_STOPPED,
-                ITEM_STATUS_STOPPED,
-                ITEM_STATUS_STOPPED,
-                ITEM_STATUS_STOPPED,
                 now,
+                job_id,
                 ITEM_STATUS_STOPPED,
                 ITEM_STATUS_ERROR,
-                job_id,
+                ITEM_STATUS_RUNNING,
             ),
         )
 
@@ -969,7 +962,7 @@ def recover_stale_batch_jobs() -> list[str]:
         stop_requested = bool(row["stop_requested"])
         final_status = JOB_STATUS_STOPPED if stop_requested else JOB_STATUS_INTERRUPTED
         replacement_item_status = ITEM_STATUS_STOPPED if stop_requested else ITEM_STATUS_PENDING
-        step = "服务停止，等待继续" if stop_requested else "Worker 中断，等待继续"
+        step = "i18n:batch.serviceStopWaiting" if stop_requested else "i18n:batch.workerInterrupted"
         now = utcnow_iso()
         conn.execute(
             """

@@ -583,6 +583,29 @@ class IterativeEvaluator:
         content = self._clean_thinking_content(content)
         
         return content, reasoning_content
+
+    def _extract_json_object_text(self, content: str) -> str:
+        """
+        从模型输出中提取 JSON 对象文本。
+
+        Args:
+            content: 模型原始输出
+
+        Returns:
+            可传入 json.loads 的 JSON 对象字符串
+        """
+        import re
+
+        text = content.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+            text = re.sub(r"\s*```$", "", text)
+            text = text.strip()
+
+        json_match = re.search(r"\{[\s\S]*\}", text)
+        if json_match:
+            return json_match.group(0)
+        return text
     
     def evaluate(self) -> Dict[str, Any]:
         """
@@ -799,9 +822,11 @@ class IterativeEvaluator:
             
             return evidence_texts, chunk_ids
             
+        except CancellationRequested:
+            raise
         except Exception as e:
-            logger.warning(f"Batch 证据提取失败: {e}")
-            return [], []
+            logger.exception("Batch 证据提取失败: %s", e)
+            raise
 
     
     def _score_current(self) -> int:
@@ -884,8 +909,8 @@ class IterativeEvaluator:
                 reasoning_content=reasoning_content,
             )
             
-            # 解析 JSON
-            data = json.loads(content)
+            # 解析 JSON。部分兼容 OpenAI 的服务会在 json_object 模式下仍返回 markdown fence。
+            data = json.loads(self._extract_json_object_text(content))
             score = data.get("score", self.current_score)
             
             # 处理可能的范围格式如 "3-4"
@@ -904,20 +929,15 @@ class IterativeEvaluator:
                 logger.warning(f"评分 {score} 超出范围，使用当前值: {self.current_score}")
                 return self.current_score
             
+        except CancellationRequested:
+            raise
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON 解析失败: {e}, 尝试正则回退")
-            # 回退到正则匹配
-            import re
-            match = re.search(r'"score"\s*:\s*(\d)', content)
-            if match:
-                score = int(match.group(1))
-                if 1 <= score <= 7:
-                    return score
-            return self.current_score
+            logger.exception("评分 JSON 解析失败: %s", e)
+            raise
             
         except Exception as e:
-            logger.warning(f"评分失败: {e}")
-            return self.current_score
+            logger.exception("评分失败: %s", e)
+            raise
     
     def _synthesize_report(self) -> Dict[str, Any]:
         """
@@ -1009,20 +1029,7 @@ class IterativeEvaluator:
                 )
                 
                 # 解析 JSON 并验证结构
-                import re
-                # 移除可能的 markdown 代码块
-                if "```json" in content:
-                    content = content.split("```json")[1]
-                    if "```" in content:
-                        content = content.split("```")[0]
-                content = content.strip()
-                
-                # 尝试提取 JSON 对象
-                json_match = re.search(r'\{[\s\S]*\}', content)
-                if json_match:
-                    content = json_match.group(0)
-                
-                cot = sanitize_unicode(json.loads(content))
+                cot = sanitize_unicode(json.loads(self._extract_json_object_text(content)))
                 
                 # 使用 Pydantic 验证结构，确保字段完整
                 try:
@@ -1054,21 +1061,21 @@ class IterativeEvaluator:
                     },
                 })
                 
+            except CancellationRequested:
+                raise
             except json.JSONDecodeError as e:
                 last_error = e
-                logger.warning(f"最终报告 JSON 解析失败 (第 {attempt}/{max_retries} 次): {e}")
+                logger.exception("最终报告 JSON 解析失败 (第 %s/%s 次): %s", attempt, max_retries, e)
                 
             except Exception as e:
                 last_error = e
-                logger.warning(f"最终报告生成失败 (第 {attempt}/{max_retries} 次): {e}")
+                logger.exception("最终报告生成失败 (第 %s/%s 次): %s", attempt, max_retries, e)
         
-        # 所有重试均失败，使用简化报告
-        logger.error(f"最终报告生成在 {max_retries} 次尝试后均失败，回退到简化报告。最后错误: {last_error}")
-        if self._is_item17:
-            if isinstance(last_error, json.JSONDecodeError):
-                return self._error_result(f"最终报告 JSON 解析失败: {last_error}")
-            return self._error_result(f"最终报告生成失败: {last_error}")
-        return self._simple_report()
+        # 所有重试均失败，返回错误结果，避免用简化报告掩盖真实异常。
+        logger.error("最终报告生成在 %s 次尝试后均失败。最后错误: %s", max_retries, last_error)
+        if isinstance(last_error, json.JSONDecodeError):
+            return self._error_result(f"最终报告 JSON 解析失败: {last_error}")
+        return self._error_result(f"最终报告生成失败: {last_error}")
     
     def _simple_report(self) -> Dict[str, Any]:
         """生成简化报告（LLM 调用失败时的回退）"""

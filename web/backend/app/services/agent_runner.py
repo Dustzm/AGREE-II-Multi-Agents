@@ -546,6 +546,11 @@ class AppraisalRunner:
                     )
                 except asyncio.TimeoutError as exc:
                     self._status_reason = "mineru_timeout"
+                    logger.exception(
+                        "MinerU 健康检查超时: url=%s timeout=%ss",
+                        parser.server_url,
+                        self._mineru_health_timeout,
+                    )
                     raise TaskStageTimeout(
                         f"MinerU 健康检查超时 ({self._mineru_health_timeout}s)",
                         "mineru_timeout",
@@ -555,6 +560,11 @@ class AppraisalRunner:
                         self._notify_cancelled(actual_task_id)
                         return
 
+                    logger.error(
+                        "MinerU 服务不可用: url=%s timeout=%ss",
+                        parser.server_url,
+                        self._mineru_health_timeout,
+                    )
                     self.on_error(t("error.mineru_unavailable", self.lang))
                     return
 

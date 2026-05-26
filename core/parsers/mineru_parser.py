@@ -5,8 +5,11 @@ MinerU VLM 解析器
 """
 import json
 import logging
+import asyncio
 from pathlib import Path
 from typing import Optional
+
+import httpx
 
 from core.config import get_settings
 
@@ -266,26 +269,41 @@ class MinerUParser:
         Returns:
             bool: 服务是否可用
         """
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=10) as client:
-                # 尝试访问服务根路径或健康检查端点
-                response = await client.get(
-                    f"{self.server_url.rstrip('/')}/health",
-                    headers=self.server_headers
-                )
-                return response.status_code == 200
-        except Exception:
-            # 如果没有 /health 端点，尝试其他方式
+        health_url = f"{self.server_url.rstrip('/')}/v1/models"
+        max_attempts = 3
+        retry_delay_seconds = 1.0
+
+        for attempt in range(1, max_attempts + 1):
             try:
                 async with httpx.AsyncClient(timeout=10) as client:
                     response = await client.get(
-                        f"{self.server_url.rstrip('/')}/v1/models",
-                        headers=self.server_headers
+                        health_url,
+                        headers=self.server_headers,
                     )
-                    return response.status_code == 200
-            except Exception:
-                return False
+                    if response.status_code == 200:
+                        return True
+                    logger.error(
+                        "MinerU 健康检查失败: url=%s attempt=%s/%s status=%s response=%s",
+                        health_url,
+                        attempt,
+                        max_attempts,
+                        response.status_code,
+                        response.text[:1000],
+                    )
+            except Exception as e:
+                logger.exception(
+                    "MinerU 健康检查异常: url=%s attempt=%s/%s error=%s",
+                    health_url,
+                    attempt,
+                    max_attempts,
+                    e,
+                )
+
+            if attempt < max_attempts:
+                await asyncio.sleep(retry_delay_seconds * attempt)
+
+        logger.error("MinerU 健康检查最终失败: url=%s attempts=%s", health_url, max_attempts)
+        return False
     
     async def parse_pdf_to_file(
         self,

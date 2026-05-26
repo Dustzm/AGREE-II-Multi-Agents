@@ -29,13 +29,29 @@ interface ToastMessage {
     message: string
 }
 
-const statusConfig: Record<TaskStatusType, { icon: typeof Clock; color: string; bg: string; label: string }> = {
-    pending: { icon: Clock, color: 'text-gray-500', bg: 'bg-gray-100', label: '等待中' },
-    running: { icon: Loader2, color: 'text-blue-600', bg: 'bg-blue-50', label: '运行中' },
-    done: { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', label: '已完成' },
-    error: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', label: '失败' },
-    cancelled: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', label: '已取消' },
-    stopped: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', label: '已停止' },
+const statusConfig: Record<TaskStatusType, { icon: typeof Clock; color: string; bg: string; labelKey: string }> = {
+    pending: { icon: Clock, color: 'text-gray-500', bg: 'bg-gray-100', labelKey: 'batch.taskStatus.pending' },
+    running: { icon: Loader2, color: 'text-blue-600', bg: 'bg-blue-50', labelKey: 'batch.taskStatus.running' },
+    done: { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', labelKey: 'batch.taskStatus.done' },
+    error: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', labelKey: 'batch.taskStatus.error' },
+    cancelled: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', labelKey: 'batch.taskStatus.cancelled' },
+    stopped: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', labelKey: 'batch.taskStatus.stopped' },
+}
+
+const legacyStatusMessageKeys: Record<string, string> = {
+    '正在初始化...': 'batch.statusMsg.initializing',
+    初始化中: 'batch.statusMsg.initializing',
+    '解析 PDF 中': 'batch.statusMsg.parsingPdf',
+    构建证据池中: 'batch.statusMsg.buildingEvidence',
+    条目评价中: 'batch.statusMsg.appraisingItems',
+    生成报告中: 'batch.statusMsg.generatingReport',
+    重试中: 'batch.statusMsg.retryingStep',
+    失败: 'batch.statusMsg.failedGeneric',
+    等待继续: 'batch.statusMsg.waitingContinue',
+    '服务停止，等待继续': 'batch.statusMsg.serviceStopWaiting',
+    'Worker 中断，等待继续': 'batch.statusMsg.workerInterrupted',
+    已停止: 'batch.statusMsg.stopped',
+    已完成: 'batch.statusMsg.completed',
 }
 
 function isJobActive(status: JobStatusType | null | undefined): boolean {
@@ -55,7 +71,7 @@ function getJobSummary(status: BatchStatus | null, t: ReturnType<typeof useTrans
         return t('batch.status.waiting')
     }
     if (status.status === 'stopping') {
-        return '停止中...'
+        return t('batch.status.stopping')
     }
     if (status.status === 'queued' || status.status === 'running') {
         if (status.experiment_rounds > 1) {
@@ -67,13 +83,13 @@ function getJobSummary(status: BatchStatus | null, t: ReturnType<typeof useTrans
         return t('batch.status.running')
     }
     if (status.status === 'interrupted') {
-        return '已中断，可继续'
+        return t('batch.status.interrupted')
     }
     if (status.status === 'stopped') {
-        return '已停止'
+        return t('batch.status.stopped')
     }
     if (status.status === 'failed') {
-        return '执行失败'
+        return t('batch.status.failed')
     }
     if (status.total > 0) {
         return t('batch.status.completed')
@@ -124,7 +140,18 @@ export function Batch() {
 
     const getStatusMessage = useCallback((step: string | null) => {
         if (!step) return null
-        if (!step.startsWith('i18n:')) return step
+        if (!step.startsWith('i18n:')) {
+            const legacyKey = legacyStatusMessageKeys[step]
+            if (legacyKey) return t(legacyKey)
+            const progressMatch = step.match(/(?:评价进度|Progress):\s*(\d+)\/(\d+)/)
+            if (progressMatch) {
+                return t('batch.statusMsg.itemProgress', {
+                    completed: progressMatch[1],
+                    total: progressMatch[2],
+                })
+            }
+            return step
+        }
         try {
             const parts = step.split(':')
             const key = parts[1]
@@ -133,6 +160,9 @@ export function Batch() {
             const transKey = `batch.statusMsg.${fieldName}`
             if (key === 'batch.retrying') {
                 return t(transKey, { current: args[0], max: args[1] })
+            }
+            if (key === 'batch.itemProgress') {
+                return t(transKey, { completed: args[0], total: args[1] })
             }
             if (key === 'batch.failed') {
                 return t(transKey, { error: args.join(':') })
@@ -256,14 +286,14 @@ export function Batch() {
         try {
             const result = await api.uploadFolder(Array.from(files))
             if (result.failed_count > 0) {
-                alert(`上传完成: 成功 ${result.success_count} 个，失败 ${result.failed_count} 个`)
+                alert(t('batch.upload.result', { success: result.success_count, failed: result.failed_count }))
             } else {
-                alert(`成功上传 ${result.success_count} 个 PDF 文件`)
+                alert(t('batch.upload.success', { count: result.success_count }))
             }
             await loadFolders()
         } catch (error) {
             console.error('文件夹上传失败:', error)
-            alert(error instanceof Error ? error.message : '文件夹上传失败')
+            alert(error instanceof Error ? error.message : t('batch.error.folderUploadFailed'))
         } finally {
             setIsUploadingFolder(false)
             if (folderInputRef.current) {
@@ -283,9 +313,9 @@ export function Batch() {
                 establishWebSocket(status.job_id)
             }
         } catch (error) {
-            alert(error instanceof Error ? error.message : '启动失败')
+            alert(error instanceof Error ? error.message : t('batch.error.startFailed'))
         }
-    }, [selectedPdfs, concurrency, experimentRounds, establishWebSocket])
+    }, [selectedPdfs, concurrency, experimentRounds, establishWebSocket, t])
 
     const handleResumeLatest = useCallback(async () => {
         setIsResuming(true)
@@ -308,17 +338,17 @@ export function Batch() {
 
     const handleStop = useCallback(async () => {
         if (!batchStatus?.job_id || !isJobActive(batchStatus.status)) {
-            showToast('当前没有正在运行的批量任务', 'warning')
+            showToast(t('batch.error.noTask'), 'warning')
             return
         }
         try {
             const status = await batchApi.stop(batchStatus.job_id)
             setBatchStatus(status)
-            showToast('批量任务已停止，正在等待当前步骤完成...', 'success')
+            showToast(t('batch.success.stopped'), 'success')
         } catch (error) {
-            showToast(error instanceof Error ? error.message : '停止失败', 'error')
+            showToast(error instanceof Error ? error.message : t('batch.error.stopFailed'), 'error')
         }
-    }, [batchStatus, showToast])
+    }, [batchStatus, showToast, t])
 
     const toggleFolder = useCallback((folderPath: string) => {
         setExpandedFolders((prev) => {
@@ -509,7 +539,7 @@ export function Batch() {
                 <div className="border-b border-black/6 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">Batch library</div>
+                            <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">{t('batch.select.eyebrow')}</div>
                             <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('batch.select.title')}</h2>
                             <p className="mt-1 text-xs text-black/48">{t('batch.select.count', { count: selectedPdfs.size })}</p>
                         </div>
@@ -565,7 +595,7 @@ export function Batch() {
                             {directoryTree.children.map((folder) => renderDirectoryNode(folder))}
                             {directoryTree.pdfs.length > 0 && (
                                 <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
-                                    <p className="px-2 text-xs text-gray-400">input</p>
+                                    <p className="px-2 text-xs text-gray-400">{t('batch.select.inputRoot')}</p>
                                     {directoryTree.pdfs.map((pdf) => renderPdfRow(pdf, 0))}
                                 </div>
                             )}
@@ -627,7 +657,7 @@ export function Batch() {
                 <div className="border-b border-black/6 bg-white/92 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">Execution status</div>
+                            <div className="text-[0.68rem] uppercase tracking-[0.22em] text-black/34">{t('batch.status.eyebrow')}</div>
                             <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">{t('batch.status.title')}</h2>
                             <p className="mt-1 text-xs text-black/48">{statusSummary}</p>
                         </div>
@@ -659,12 +689,12 @@ export function Batch() {
                             {wsReconnectAttempts > 0 ? (
                                 <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-1.5">
                                     <Loader2 className="h-3 w-3 animate-spin text-yellow-600" />
-                                    <span className="text-xs font-medium text-yellow-700">重连中 ({wsReconnectAttempts}/5)</span>
+                                    <span className="text-xs font-medium text-yellow-700">{t('batch.connection.reconnecting', { current: wsReconnectAttempts, max: 5 })}</span>
                                 </div>
                             ) : !wsConnected && isBusy ? (
                                 <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
                                     <span className="h-2 w-2 rounded-full bg-red-500" />
-                                    <span className="text-xs font-medium text-red-600">连接断开</span>
+                                    <span className="text-xs font-medium text-red-600">{t('batch.connection.disconnected')}</span>
                                 </div>
                             ) : null}
                         </div>
@@ -753,8 +783,8 @@ export function Batch() {
                                         <div className="min-w-0 flex-1">
                                             <h4 className="truncate text-sm font-medium text-gray-800">{task.id}</h4>
                                             <p className={cn('mt-0.5 truncate text-xs', config.color)}>
-                                                {getStatusMessage(task.current_step) || config.label}
-                                                {task.retry_count > 0 && ` (重试 ${task.retry_count} 次)`}
+                                                {getStatusMessage(task.current_step) || t(config.labelKey)}
+                                                {task.retry_count > 0 && ` (${t('batch.status.retry', { count: task.retry_count })})`}
                                             </p>
                                         </div>
                                         {task.status === 'error' && task.error && (
