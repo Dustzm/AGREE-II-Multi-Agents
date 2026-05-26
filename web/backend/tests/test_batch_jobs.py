@@ -7,6 +7,7 @@ import pytest
 
 from web.backend.app import database as auth_db
 from web.backend.app.api.routes import batch as batch_route
+from core.config import refresh_settings
 from web.backend.app.services import batch_jobs
 from web.backend.app.services.batch_worker_runner import BatchJobRunner, _format_batch_item_progress_step
 
@@ -76,7 +77,7 @@ def test_run_token_blocks_late_writes_after_resume(isolated_batch_db):
 
     stale_token = claimed["run_token"]
     batch_jobs.request_stop(created["job_id"])
-    expired = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
     batch_jobs.update_job_status(
         created["job_id"],
         batch_jobs.JOB_STATUS_STOPPING,
@@ -122,7 +123,7 @@ def test_recover_stale_running_job_to_interrupted(isolated_batch_db):
     pdf1 = _create_pdf(isolated_batch_db, "recover.pdf")
     created = batch_jobs.create_batch_job([pdf1], concurrency=2, experiment_rounds=1)
     batch_jobs.claim_next_batch_job("worker-1", lease_seconds=20)
-    expired = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
     batch_jobs.update_job_status(
         created["job_id"],
         batch_jobs.JOB_STATUS_RUNNING,
@@ -144,11 +145,40 @@ def test_recover_stale_running_job_to_interrupted(isolated_batch_db):
     assert payload["pending"] == 1
 
 
+def test_recover_stale_running_job_respects_grace_period(isolated_batch_db, monkeypatch):
+    monkeypatch.setenv("BATCH_WORKER_RECOVERY_GRACE_SECONDS", "60")
+    refresh_settings()
+    pdf1 = _create_pdf(isolated_batch_db, "recover-grace.pdf")
+    created = batch_jobs.create_batch_job([pdf1], concurrency=2, experiment_rounds=1)
+    batch_jobs.claim_next_batch_job("worker-1", lease_seconds=20)
+    recently_expired = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    batch_jobs.update_job_status(
+        created["job_id"],
+        batch_jobs.JOB_STATUS_RUNNING,
+        owner_worker_id="worker-1",
+        lease_expires_at=recently_expired,
+    )
+    batch_jobs.update_batch_item(
+        created["job_id"],
+        "recover-grace",
+        status=batch_jobs.ITEM_STATUS_RUNNING,
+        current_step="处理中",
+    )
+
+    recovered = batch_jobs.recover_stale_batch_jobs()
+    payload = batch_jobs.get_batch_job_status_payload(created["job_id"])
+
+    assert recovered == []
+    assert payload["status"] == batch_jobs.JOB_STATUS_RUNNING
+    assert payload["running"] == 1
+    refresh_settings()
+
+
 def test_recover_stale_stopping_job_to_stopped(isolated_batch_db):
     pdf1 = _create_pdf(isolated_batch_db, "recover-stop.pdf")
     created = batch_jobs.create_batch_job([pdf1], concurrency=2, experiment_rounds=1)
     batch_jobs.claim_next_batch_job("worker-1", lease_seconds=20)
-    expired = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
     batch_jobs.update_job_status(
         created["job_id"],
         batch_jobs.JOB_STATUS_STOPPING,
@@ -251,7 +281,7 @@ def test_batch_status_route_recovers_stale_jobs(isolated_batch_db):
     claimed = batch_jobs.claim_next_batch_job("worker-1", lease_seconds=20)
     assert claimed is not None
 
-    expired = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
     batch_jobs.update_job_status(
         created["job_id"],
         batch_jobs.JOB_STATUS_RUNNING,

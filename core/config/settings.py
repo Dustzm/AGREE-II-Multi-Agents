@@ -325,6 +325,30 @@ class AppSettings(BaseSettings):
         ge=30,
         le=3600,
     )
+
+    batch_worker_lease_seconds: int = Field(
+        default=120,
+        alias="BATCH_WORKER_LEASE_SECONDS",
+        description="批量 Worker 租约有效期（秒）",
+        ge=30,
+        le=3600,
+    )
+
+    batch_worker_heartbeat_seconds: int = Field(
+        default=10,
+        alias="BATCH_WORKER_HEARTBEAT_SECONDS",
+        description="批量 Worker 租约续期间隔（秒）",
+        ge=1,
+        le=300,
+    )
+
+    batch_worker_recovery_grace_seconds: int = Field(
+        default=60,
+        alias="BATCH_WORKER_RECOVERY_GRACE_SECONDS",
+        description="批量 Worker 租约过期后的回收宽限期（秒）",
+        ge=0,
+        le=3600,
+    )
     
     # 标签分类并发配置
     labeler_max_concurrency: int = Field(

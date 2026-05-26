@@ -32,15 +32,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-LEASE_SECONDS = 20
-HEARTBEAT_SECONDS = 5
 POLL_INTERVAL_SECONDS = 2
 
 
-async def _heartbeat_loop(job_id: str, worker_id: str, run_token: str, token: CancellationToken) -> None:
+async def _heartbeat_loop(
+    job_id: str,
+    worker_id: str,
+    run_token: str,
+    token: CancellationToken,
+    *,
+    lease_seconds: int,
+    heartbeat_seconds: int,
+) -> None:
     while not token.cancelled():
-        await asyncio.sleep(HEARTBEAT_SECONDS)
-        if not renew_batch_job_lease(job_id, worker_id, run_token, LEASE_SECONDS):
+        await asyncio.sleep(heartbeat_seconds)
+        if not renew_batch_job_lease(job_id, worker_id, run_token, lease_seconds):
             logger.error(
                 "批量任务租约续期失败，主动取消当前 job: job=%s worker=%s run_token=%s",
                 job_id,
@@ -54,9 +60,26 @@ async def _heartbeat_loop(job_id: str, worker_id: str, run_token: str, token: Ca
             token.cancel()
 
 
-async def _run_claimed_job(job_id: str, worker_id: str, run_token: str, executor) -> None:
+async def _run_claimed_job(
+    job_id: str,
+    worker_id: str,
+    run_token: str,
+    executor,
+    *,
+    lease_seconds: int,
+    heartbeat_seconds: int,
+) -> None:
     token = CancellationToken(lambda: get_stop_requested(job_id))
-    heartbeat = asyncio.create_task(_heartbeat_loop(job_id, worker_id, run_token, token))
+    heartbeat = asyncio.create_task(
+        _heartbeat_loop(
+            job_id,
+            worker_id,
+            run_token,
+            token,
+            lease_seconds=lease_seconds,
+            heartbeat_seconds=heartbeat_seconds,
+        )
+    )
     runner = BatchJobRunner(job_id, worker_id, run_token, token, executor)
     try:
         await runner.run()
@@ -93,6 +116,13 @@ async def run_worker() -> None:
     if recovered:
         logger.info("已恢复过期批量任务: %s", recovered)
     settings = get_settings()
+    lease_seconds = settings.app.batch_worker_lease_seconds
+    heartbeat_seconds = min(settings.app.batch_worker_heartbeat_seconds, max(1, lease_seconds // 2))
+    logger.info(
+        "批量 Worker 租约配置: lease_seconds=%s heartbeat_seconds=%s",
+        lease_seconds,
+        heartbeat_seconds,
+    )
     executor = create_llm_executor(settings.app.appraisal_pool_max_concurrency)
 
     stop_event = asyncio.Event()
@@ -106,7 +136,7 @@ async def run_worker() -> None:
     try:
         while not stop_event.is_set():
             recover_stale_batch_jobs()
-            claimed = claim_next_batch_job(worker_id, LEASE_SECONDS)
+            claimed = claim_next_batch_job(worker_id, lease_seconds)
             if claimed is None:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
                 continue
@@ -114,7 +144,14 @@ async def run_worker() -> None:
             if job is None:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
                 continue
-            await _run_claimed_job(job["job_id"], worker_id, job["run_token"], executor)
+            await _run_claimed_job(
+                job["job_id"],
+                worker_id,
+                job["run_token"],
+                executor,
+                lease_seconds=lease_seconds,
+                heartbeat_seconds=heartbeat_seconds,
+            )
     finally:
         shutdown_llm_executor(executor)
         close_db()

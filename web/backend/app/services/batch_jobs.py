@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from uuid import uuid4
 
+from core.config import get_settings
 from web.backend.app.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -945,7 +946,9 @@ def recover_stale_batch_jobs() -> list[str]:
     """恢复租约过期的 job。"""
     conn = get_db()
     init_batch_job_tables(conn)
-    now_iso = utcnow_iso()
+    recovery_grace_seconds = get_settings().app.batch_worker_recovery_grace_seconds
+    stale_before = datetime.now(timezone.utc) - timedelta(seconds=recovery_grace_seconds)
+    stale_before_iso = stale_before.isoformat()
     rows = conn.execute(
         """
         SELECT job_id, stop_requested
@@ -954,7 +957,7 @@ def recover_stale_batch_jobs() -> list[str]:
           AND lease_expires_at IS NOT NULL
           AND lease_expires_at < ?
         """,
-        (now_iso,),
+        (stale_before_iso,),
     ).fetchall()
     recovered: list[str] = []
     for row in rows:
