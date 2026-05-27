@@ -240,6 +240,24 @@ def test_latest_resumable_job_prefers_latest_created_failed_job(isolated_batch_d
     assert latest["job_id"] == newer["job_id"]
 
 
+def test_latest_resumable_job_ignores_old_resumable_after_completed_job(isolated_batch_db):
+    older_pdf = _create_pdf(isolated_batch_db, "older-stopped.pdf")
+    newer_pdf = _create_pdf(isolated_batch_db, "newer-completed.pdf")
+    older = batch_jobs.create_batch_job([older_pdf], concurrency=2, experiment_rounds=1)
+    batch_jobs.request_stop(older["job_id"])
+    newer = batch_jobs.create_batch_job([newer_pdf], concurrency=2, experiment_rounds=1)
+    batch_jobs.update_batch_item(
+        newer["job_id"],
+        "newer-completed",
+        status=batch_jobs.ITEM_STATUS_DONE,
+    )
+    batch_jobs.update_job_status(newer["job_id"], batch_jobs.JOB_STATUS_COMPLETED)
+
+    latest = batch_jobs.get_latest_resumable_job()
+
+    assert latest is None
+
+
 def test_resume_batch_job_resets_error_items(isolated_batch_db):
     pdf1 = _create_pdf(isolated_batch_db, "resume-error.pdf")
     created = batch_jobs.create_batch_job([pdf1], concurrency=2, experiment_rounds=1)

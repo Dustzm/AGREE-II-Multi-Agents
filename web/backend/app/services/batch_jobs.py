@@ -463,17 +463,19 @@ def get_latest_job(*, conn: sqlite3.Connection | None = None) -> dict[str, Any] 
 
 
 def get_latest_resumable_job(*, conn: sqlite3.Connection | None = None) -> dict[str, Any] | None:
-    """获取最近可续跑 job。"""
+    """获取最新 job 的可续跑状态。"""
     conn = conn or get_db()
     row = conn.execute(
         """
         SELECT * FROM batch_jobs
-        WHERE status IN ('stopped', 'failed', 'interrupted')
         ORDER BY created_at DESC
         LIMIT 1
         """
     ).fetchone()
-    return _normalize_job(row)
+    job = _normalize_job(row)
+    if job is None or not _job_is_resumable(job["status"]):
+        return None
+    return job
 
 
 def request_stop(job_id: str) -> dict[str, Any]:
