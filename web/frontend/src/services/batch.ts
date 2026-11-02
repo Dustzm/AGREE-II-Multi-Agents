@@ -1,46 +1,7 @@
-import { apiFetch, createAuthenticatedWebSocket, isUnauthorizedClose, notifyUnauthorized } from '@/services/http'
+import type { MessageDescriptor } from '@/i18n/messages'
+import { apiFetch, readJson, createAuthenticatedWebSocket, isUnauthorizedClose, notifyUnauthorized } from '@/services/http'
 
 const API_BASE = '/ama/api'
-
-async function parseJsonSafely<T>(res: Response): Promise<T | null> {
-    const text = await res.text()
-    if (!text) {
-        return null
-    }
-
-    try {
-        return JSON.parse(text) as T
-    } catch (error) {
-        console.error('批量接口返回了无法解析的 JSON:', {
-            url: res.url,
-            status: res.status,
-            statusText: res.statusText,
-            text,
-            error,
-        })
-        throw new Error(`服务返回了无效响应（HTTP ${res.status}）`)
-    }
-}
-
-async function getErrorMessage(res: Response, fallback: string): Promise<string> {
-    try {
-        const data = await parseJsonSafely<{ detail?: string; message?: string }>(res)
-        return data?.detail || data?.message || fallback
-    } catch (error) {
-        if (error instanceof Error) {
-            return error.message
-        }
-        return fallback
-    }
-}
-
-async function getJsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
-    const data = await parseJsonSafely<T>(res)
-    if (data === null) {
-        throw new Error(fallback)
-    }
-    return data
-}
 
 export interface FolderInfo {
     name: string
@@ -66,7 +27,6 @@ export interface PdfInfo {
     attachment_count?: number
 }
 
-
 export interface BatchTask {
     id: string
     pdf_path: string
@@ -76,7 +36,11 @@ export interface BatchTask {
     start_time: string | null
     end_time: string | null
     current_step: string | null
+    step_i18n?: MessageDescriptor
+    error_i18n?: MessageDescriptor
+    diagnostic?: string
     result_task_id: string | null
+    report_status?: 'none' | 'partial' | 'complete'
 }
 
 export interface BatchStatus {
@@ -85,6 +49,8 @@ export interface BatchStatus {
     status: 'queued' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed' | 'interrupted'
     status_reason: 'normal' | 'stop_requested' | 'lease_expired' | 'reporter_timeout' | 'mineru_timeout' | 'llm_timeout' | 'worker_error'
     last_error: string | null
+    error_i18n?: MessageDescriptor
+    diagnostic?: string
     is_running: boolean
     total: number
     concurrency: number
@@ -130,18 +96,14 @@ export interface FolderTreeResponse {
 export const batchApi = {
     async listFolders(): Promise<FolderTreeResponse> {
         const res = await apiFetch(`${API_BASE}/batch/folders`)
-        if (!res.ok) {
-            throw new Error('获取文件夹列表失败')
-        }
-        return getJsonOrThrow<FolderTreeResponse>(res, '获取文件夹列表失败')
+
+        return readJson<FolderTreeResponse>(res)
     },
 
     async listPdfs(folderName: string): Promise<PdfInfo[]> {
         const res = await apiFetch(`${API_BASE}/batch/folders/${encodeURIComponent(folderName)}/pdfs`)
-        if (!res.ok) {
-            throw new Error('获取 PDF 列表失败')
-        }
-        const data = await getJsonOrThrow<{ pdfs: PdfInfo[] }>(res, '获取 PDF 列表失败')
+
+        const data = await readJson<{ pdfs: PdfInfo[] }>(res)
         return data.pdfs
     },
 
@@ -151,10 +113,8 @@ export const batchApi = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folder, concurrency }),
         })
-        if (!res.ok) {
-            throw new Error(await getErrorMessage(res, '启动批量任务失败'))
-        }
-        return getJsonOrThrow<BatchStatus>(res, '启动批量任务失败')
+
+        return readJson<BatchStatus>(res)
     },
 
     async stop(jobId?: string | null): Promise<BatchStatus> {
@@ -162,35 +122,27 @@ export const batchApi = {
         const res = await apiFetch(targetUrl, {
             method: 'POST',
         })
-        if (!res.ok) {
-            throw new Error(await getErrorMessage(res, '停止批量任务失败'))
-        }
-        const data = await getJsonOrThrow<BatchStatus | { status: BatchStatus }>(res, '停止批量任务失败')
+
+        const data = await readJson<BatchStatus | { status: BatchStatus }>(res)
         return 'tasks' in data ? data : data.status
     },
 
     async getStatus(): Promise<BatchStatus> {
         const res = await apiFetch(`${API_BASE}/batch/status`)
-        if (!res.ok) {
-            throw new Error('获取批量任务状态失败')
-        }
-        return getJsonOrThrow<BatchStatus>(res, '获取批量任务状态失败')
+
+        return readJson<BatchStatus>(res)
     },
 
     async getJobStatus(jobId: string): Promise<BatchStatus> {
         const res = await apiFetch(`${API_BASE}/batch/jobs/${encodeURIComponent(jobId)}`)
-        if (!res.ok) {
-            throw new Error('获取批量任务状态失败')
-        }
-        return getJsonOrThrow<BatchStatus>(res, '获取批量任务状态失败')
+
+        return readJson<BatchStatus>(res)
     },
 
     async getLatestResumable(): Promise<ResumeLatestResponse> {
         const res = await apiFetch(`${API_BASE}/batch/jobs/latest-resumable`)
-        if (!res.ok) {
-            throw new Error('获取可继续任务失败')
-        }
-        return getJsonOrThrow<ResumeLatestResponse>(res, '获取可继续任务失败')
+
+        return readJson<ResumeLatestResponse>(res)
     },
 
     async resumeLatest(concurrency?: number): Promise<BatchStatus> {
@@ -199,10 +151,8 @@ export const batchApi = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(concurrency ? { concurrency } : {}),
         })
-        if (!res.ok) {
-            throw new Error(await getErrorMessage(res, '继续批量任务失败'))
-        }
-        return getJsonOrThrow<BatchStatus>(res, '继续批量任务失败')
+
+        return readJson<BatchStatus>(res)
     },
 
     async startSelected(pdfPaths: string[], concurrency: number, experimentRounds: number = 1): Promise<BatchStatus> {
@@ -215,18 +165,14 @@ export const batchApi = {
                 experiment_rounds: experimentRounds
             }),
         })
-        if (!res.ok) {
-            throw new Error(await getErrorMessage(res, '启动批量任务失败'))
-        }
-        return getJsonOrThrow<BatchStatus>(res, '启动批量任务失败')
+
+        return readJson<BatchStatus>(res)
     },
 
     async listSessions(): Promise<SessionInfo[]> {
         const res = await apiFetch(`${API_BASE}/batch/sessions`)
-        if (!res.ok) {
-            throw new Error('获取会话列表失败')
-        }
-        const data = await getJsonOrThrow<{ sessions: SessionInfo[] }>(res, '获取会话列表失败')
+
+        const data = await readJson<{ sessions: SessionInfo[] }>(res)
         return data.sessions
     },
 
@@ -234,20 +180,16 @@ export const batchApi = {
         const res = await apiFetch(`${API_BASE}/batch/restore/${encodeURIComponent(sessionId)}`, {
             method: 'POST',
         })
-        if (!res.ok) {
-            throw new Error(await getErrorMessage(res, '恢复会话失败'))
-        }
-        return getJsonOrThrow<{ message: string; session_id: string; status: BatchStatus }>(res, '恢复会话失败')
+
+        return readJson<{ message: string; session_id: string; status: BatchStatus }>(res)
     },
 
     async deleteSession(sessionId: string): Promise<{ message: string }> {
         const res = await apiFetch(`${API_BASE}/batch/sessions/${encodeURIComponent(sessionId)}`, {
             method: 'DELETE',
         })
-        if (!res.ok) {
-            throw new Error(await getErrorMessage(res, '删除会话失败'))
-        }
-        return getJsonOrThrow<{ message: string }>(res, '删除会话失败')
+
+        return readJson<{ message: string }>(res)
     },
 }
 
@@ -313,7 +255,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
         const delay = Math.min(1000 * Math.pow(2, state.reconnectAttempts), 30000)
         console.log(`批量任务 WebSocket 将在 ${delay}ms 后尝试重连 (尝试 ${state.reconnectAttempts}/${state.maxReconnectAttempts})`)
         onConnectionChange?.(false, state.reconnectAttempts + 1)
-        
+
         state.reconnectTimeout = setTimeout(() => {
             if (state.manuallyClosed) {
                 return
@@ -375,7 +317,7 @@ export function createBatchWebSocket(options: BatchWebSocketOptions): BatchWebSo
                 notifyUnauthorized()
                 return
             }
-            
+
             if (state.reconnectAttempts < state.maxReconnectAttempts) {
                 scheduleReconnect()
             }

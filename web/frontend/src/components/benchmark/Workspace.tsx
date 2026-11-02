@@ -62,7 +62,7 @@ export function Workspace({
   onRefresh
 }: WorkspaceProps) {
   const raterNames = summary?.rater_names || []
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   // 视图模式：一致性分析 或 指南详情
   const [viewMode, setViewMode] = useState<ViewMode>('consistency')
@@ -208,7 +208,7 @@ export function Workspace({
         <div className="flex-1 flex items-center justify-center bg-white">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-sm text-slate-500">加载中...</p>
+            <p className="text-sm text-slate-500">{t('common.loading')}</p>
           </div>
         </div>
       )
@@ -223,7 +223,7 @@ export function Workspace({
         {/* 头部 */}
         <ExperimentHeader
           filename={xlsxFile}
-          createdAt={new Date().toLocaleString('zh-CN')}
+          createdAt={new Date().toLocaleString(i18n.language)}
           consistency={summary.overall_consistency}
           guideCount={summary.total_guides}
           hasChanges={hasChanges}
@@ -271,7 +271,7 @@ export function Workspace({
           <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex items-center justify-center z-10 animate-in fade-in duration-200">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-              <p className="text-sm text-slate-600 font-medium">加载中...</p>
+              <p className="text-sm text-slate-600 font-medium">{t('common.loading')}</p>
             </div>
           </div>
         )}

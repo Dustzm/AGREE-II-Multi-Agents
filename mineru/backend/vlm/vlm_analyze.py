@@ -1,4 +1,5 @@
 # Copyright (c) Opendatalab. All rights reserved.
+import asyncio
 import os
 import time
 
@@ -19,6 +20,16 @@ from mineru_vl_utils import MinerUClient
 from packaging import version
 
 
+def _load_images_and_page_sizes(pdf_bytes, image_type):
+    """在线程内完成 PDF 渲染和页尺寸读取，避免跨线程传递 PDF 句柄。"""
+    images_list, pdf_doc = load_images_from_pdf(pdf_bytes, image_type=image_type)
+    try:
+        page_sizes = [tuple(map(int, pdf_doc[index].get_size())) for index in range(len(images_list))]
+    finally:
+        pdf_doc.close()
+    return images_list, page_sizes
+
+
 class ModelSingleton:
     _instance = None
     _models = {}
@@ -35,7 +46,8 @@ class ModelSingleton:
         server_url: str | None,
         **kwargs,
     ) -> MinerUClient:
-        key = (backend, model_path, server_url)
+        model_name = kwargs.pop("model_name", None)
+        key = (backend, model_path, server_url, model_name)
         if key not in self._models:
             start_time = time.time()
             model = None
@@ -178,6 +190,7 @@ class ModelSingleton:
                 vllm_llm=vllm_llm,
                 vllm_async_llm=vllm_async_llm,
                 server_url=server_url,
+                model_name=model_name,
                 batch_size=batch_size,
                 max_concurrency=max_concurrency,
                 http_timeout=http_timeout,
@@ -234,21 +247,29 @@ async def aio_doc_analyze(
     if predictor is None:
         predictor = ModelSingleton().get_model(backend, model_path, server_url, **kwargs)
 
-    # load_images_start = time.time()
-    images_list, pdf_doc = load_images_from_pdf(pdf_bytes, image_type=ImageType.PIL)
+    load_images_start = time.time()
+    logger.info("MinerU aio_doc_analyze: start rendering PDF pages")
+    images_list, page_sizes = await asyncio.to_thread(
+        _load_images_and_page_sizes,
+        pdf_bytes,
+        ImageType.PIL,
+    )
     images_pil_list = [image_dict["img_pil"] for image_dict in images_list]
-    # load_images_time = round(time.time() - load_images_start, 2)
-    # logger.debug(f"load images cost: {load_images_time}, speed: {round(len(images_pil_list)/load_images_time, 3)} images/s")
+    load_images_time = round(time.time() - load_images_start, 2)
+    logger.info("MinerU aio_doc_analyze: rendered {} PDF pages in {}s", len(images_pil_list), load_images_time)
 
-    # infer_start = time.time()
+    infer_start = time.time()
+    logger.info("MinerU aio_doc_analyze: start VLM two-step extraction")
     results = await predictor.aio_batch_two_step_extract(images=images_pil_list)
-    # infer_time = round(time.time() - infer_start, 2)
-    # logger.info(f"infer finished, cost: {infer_time}, speed: {round(len(results)/infer_time, 3)} page/s")
+    infer_time = round(time.time() - infer_start, 2)
+    logger.info("MinerU aio_doc_analyze: finished VLM two-step extraction in {}s", infer_time)
 
     # 为每个 block 添加唯一 block_id（格式：p{页码}_b{块序号}）
     for page_idx, page_blocks in enumerate(results):
         for block_idx, block in enumerate(page_blocks):
             block['block_id'] = f"p{page_idx}_b{block_idx}"
 
-    middle_json = result_to_middle_json(results, images_list, pdf_doc, image_writer)
+    logger.info("MinerU aio_doc_analyze: start writing middle json assets")
+    middle_json = result_to_middle_json(results, images_list, page_sizes, image_writer)
+    logger.info("MinerU aio_doc_analyze: middle json assets ready")
     return middle_json, results

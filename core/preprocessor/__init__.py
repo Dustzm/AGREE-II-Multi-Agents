@@ -7,9 +7,11 @@ import logging
 from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 
+from core.runtime import ExecutionStage, run_blocking
 from .pojo import ContentItem, TitleContentBlock, SemanticLabel, SemanticChunk
 from .chunker import DocumentChunker
 from .labeler import SemanticLabeler
+from .label_checkpoint import LabelCheckpoint
 from .evidence import EvidencePool, DOMAIN_LABEL_MAPPING
 from .visual_evidence import generate_visual_evidence
 from .iterator import EvidenceIterator
@@ -24,7 +26,6 @@ async def process_content_list(
     content_list_path: str,
     output_path: str,
     pdf_path: str = None,
-    model=None,
     lang: str = "zh",
     include_attachments: bool = True,
     progress_callback: Optional[Callable[[str], None]] = None,
@@ -36,7 +37,6 @@ async def process_content_list(
         content_list_path: content_list.json 文件路径
         output_path: 输出的 evidence_pool.json 文件路径
         pdf_path: 原始 PDF 路径（用于 docindex 字体分析和附件检测）
-        model: LLM 模型实例（可选）
         lang: Prompt 语言（zh/en）
         include_attachments: 是否处理附件（默认 True）
         
@@ -56,7 +56,9 @@ async def process_content_list(
                     progress_callback("正在构建文档索引...")
                 from docindex.pipeline import build_and_save_docindex
                 docindex_path = str(prep_dir / f"{base_name}_docindex.json")
-                build_and_save_docindex(
+                await run_blocking(
+                    ExecutionStage.BLOCKING,
+                    build_and_save_docindex,
                     json_path=content_list_path,
                     pdf_path=pdf_path,
                     output_path=docindex_path
@@ -105,14 +107,17 @@ async def process_content_list(
         # Step 2: LLM 语义标签分类
         if progress_callback:
             progress_callback("正在进行语义标签分类...")
-        labeler = SemanticLabeler(model=model, lang=lang)
-        semantic_chunks = await labeler.label_chunks(title_content_blocks)
+        labeler = SemanticLabeler(lang=lang)
+        checkpoint = LabelCheckpoint(content_list_path, output_path, labeler.prompt_template, lang)
+        semantic_chunks = await labeler.label_chunks(title_content_blocks, checkpoint=checkpoint)
+        if not semantic_chunks:
+            raise ValueError("文档解析后没有可评价的内容块")
         
         # Step 3: 创建并保存证据池
         if progress_callback:
             progress_callback("正在保存语义证据池...")
         pool = EvidencePool(semantic_chunks)
-        pool.save(output_path)
+        pool.save(output_path, source_digest=checkpoint.source_digest)
         
         # Step 4: 生成可视化证据（用于前端渲染）
         try:
@@ -122,7 +127,9 @@ async def process_content_list(
             visual_evidence_path = prep_dir / f"{base_name}_visual_evidence.json"
             
             if model_json_path.exists():
-                generate_visual_evidence(
+                await run_blocking(
+                    ExecutionStage.BLOCKING,
+                    generate_visual_evidence,
                     model_json_path=str(model_json_path),
                     evidence_pool_path=output_path,
                     output_path=str(visual_evidence_path)
@@ -140,14 +147,9 @@ async def process_content_list(
             "error": ""
         }
     
-    except Exception as e:
-        logger.error(f"文档预处理失败: {str(e)}", exc_info=True)
-        return {
-            "status": "error",
-            "chunks_count": 0,
-            "output_path": "",
-            "error": str(e)
-        }
+    except Exception:
+        logger.exception("文档预处理失败: content_list=%s", content_list_path)
+        raise
 
 
 def load_evidence_for_skill(task_id: str, skill_id: str) -> Dict[str, Any]:
@@ -159,7 +161,7 @@ def load_evidence_for_skill(task_id: str, skill_id: str) -> Dict[str, Any]:
         skill_id: 条目 ID（如 "item_1"）
         
     Returns:
-        {"status": "success/error", "content": str, "char_count": int, "domain": int, "error": str}
+        {"status": "success/no_evidence", "content": str, "char_count": int, "domain": int, "error": str}
     """
     try:
         from core.skills import load_skill_config
@@ -170,24 +172,12 @@ def load_evidence_for_skill(task_id: str, skill_id: str) -> Dict[str, Any]:
         domain = config.get("domain", 0)
         
         if domain == 0:
-            return {
-                "status": "error",
-                "content": "",
-                "char_count": 0,
-                "domain": 0,
-                "error": f"条目 {skill_id} 没有有效的领域信息"
-            }
+            raise ValueError(f"条目 {skill_id} 没有有效的领域信息")
         
         # 获取任务路径
         paths = get_task_paths(task_id)
         if not paths:
-            return {
-                "status": "error",
-                "content": "",
-                "char_count": 0,
-                "domain": domain,
-                "error": f"任务不存在: {task_id}"
-            }
+            raise FileNotFoundError(f"任务不存在: {task_id}")
         
         # 加载证据池
         # EvidencePool.load 需要传入 prep_dir
@@ -198,7 +188,7 @@ def load_evidence_for_skill(task_id: str, skill_id: str) -> Dict[str, Any]:
         
         if not content:
             return {
-                "status": "error",
+                "status": "no_evidence",
                 "content": "",
                 "char_count": 0,
                 "domain": domain,
@@ -215,12 +205,6 @@ def load_evidence_for_skill(task_id: str, skill_id: str) -> Dict[str, Any]:
             "error": ""
         }
     
-    except Exception as e:
-        logger.error(f"加载证据失败: {str(e)}", exc_info=True)
-        return {
-            "status": "error",
-            "content": "",
-            "char_count": 0,
-            "domain": 0,
-            "error": str(e)
-        }
+    except Exception:
+        logger.exception("加载证据失败: task=%s item=%s", task_id, skill_id)
+        raise

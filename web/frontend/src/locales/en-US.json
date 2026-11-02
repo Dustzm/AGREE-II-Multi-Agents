@@ -2,9 +2,11 @@
     "common": {
         "loading": "Loading...",
         "loadingData": "Loading data...",
+        "checkingAuth": "Checking sign-in status...",
         "error": {
             "unknown": "Unknown error"
-        }
+        },
+        "diagnosticDetails": "Diagnostic details"
     },
     "nav": {
         "chat": "Appraisal",
@@ -18,6 +20,7 @@
     },
     "sidebar": {
         "subtitle": "Appraisal System",
+        "logout": "Sign out",
         "status": {
             "online": "Online",
             "offline": "Offline"
@@ -60,6 +63,7 @@
             "title": "Appraisal Progress",
             "processing": "Processing",
             "completed": "Completed",
+            "partial": "Partially complete · Resume available",
             "ready": "Ready",
             "idle": "Idle",
             "readyToStart": "Ready to start",
@@ -69,15 +73,17 @@
             "error": "Error"
         },
         "status": {
-            "parsing": "Parsing PDF...",
+            "parsing": "Parsing file...",
             "orchestrating": "Coordinating evaluation...",
             "complete": "Appraisal complete",
+            "partial": "Partial report generated: {{completed}}/23 items complete",
             "cancelled": "Task stopped",
             "processing": "{{agent}} is processing...",
             "done": "{{text}} completed"
         },
         "actions": {
             "start": "Start",
+            "resume": "Resume incomplete appraisal",
             "starting": "Starting...",
             "stop": "Stop",
             "stopping": "Stopping...",
@@ -94,6 +100,11 @@
             "loadFailed": "Failed to load file list",
             "startFailed": "Start failed: {{error}}",
             "occurred": "An error occurred",
+            "disconnected": "Connection lost",
+            "taskLost": "The task ended in the background while the connection was down. Resume or start again."
+        },
+        "connection": {
+            "reconnecting": "Reconnecting ({{current}}/{{max}})",
             "disconnected": "Connection lost"
         }
     },
@@ -144,6 +155,7 @@
             "stopped": "Stopped",
             "interrupted": "Interrupted, resumable",
             "failed": "Failed",
+            "partial": "Partially complete, resume available",
             "completed": "Completed",
             "waiting": "Waiting to start",
             "hint": "Select PDFs and click Start",
@@ -154,6 +166,7 @@
             "pending": "Pending",
             "running": "Running",
             "done": "Done",
+            "partial": "Partial report, resume available",
             "error": "Error",
             "cancelled": "Cancelled",
             "stopped": "Stopped"
@@ -162,6 +175,7 @@
             "service_restart": "Service restart, task interrupted",
             "service_restart_step": "Service restart, task interrupted",
             "initializing": "Initializing...",
+            "reusingMineruCache": "Reusing parsed output",
             "parsingPdf": "Parsing PDF",
             "buildingEvidence": "Building evidence pool",
             "appraisingItems": "Appraising items",
@@ -197,7 +211,11 @@
         "description": "Upload human score files and select batches for comparison analysis",
         "humanFiles": {
             "title": "Human Score Files",
-            "empty": "No files, please upload"
+            "upload": "Upload File",
+            "dragDrop": "Drag or click to upload (.xlsx)",
+            "empty": "No files, please upload",
+            "delete": "Delete",
+            "preview": "Preview"
         },
         "batches": {
             "title": "Select Batches",
@@ -210,7 +228,8 @@
             "start": "Run Experiment",
             "running": "Running...",
             "success": "Comparison complete",
-            "download": "Download Results"
+            "download": "Download Results",
+            "history": "History"
         },
         "summary": {
             "guides": "Guides",
@@ -262,7 +281,8 @@
             "humanRater1": "Rater 1",
             "humanRater2": "Rater 2",
             "batch1": "Batch 1 Model",
-            "batch2": "Batch 2 Model"
+            "batch2": "Batch 2 Model",
+            "loadFailed": "Failed to load experiment details"
         },
         "sidebar": {
             "title": "Experiment Records",
@@ -332,16 +352,46 @@
             "refreshError": "Refresh failed",
             "download": "Download Excel",
             "delete": "Delete",
+            "deleted": "Experiment deleted",
+            "deleteFailed": "Failed to delete experiment",
             "confirmDelete": "Confirm deletion of this experiment record?"
         },
         "tabs": {
             "consistency": "Consistency Analysis",
             "guide": "Guide",
-            "current": "Current Guide"
+            "current": "Current Guide",
+            "selectGuide": "Select a guide...",
+            "searchGuide": "Search by guide name, ID, or number...",
+            "noGuideMatch": "No matching guides",
+            "guideCount": "{{count}} guides",
+            "clearFilter": "Clear filter",
+            "previousGuide": "Previous guide (Alt+←)",
+            "nextGuide": "Next guide (Alt+→)"
+        },
+        "edit": {
+            "originalValue": "Original: {{value}}",
+            "clickToEdit": "Click to edit",
+            "noChanges": "No changes to save",
+            "saveCurrent": "Save changes to this guide",
+            "saveFailed": "Failed to save changes"
+        },
+        "comments": {
+            "title": "Notes",
+            "empty": "No notes",
+            "placeholder": "Add a note...",
+            "cancel": "Cancel",
+            "save": "Save",
+            "added": "Note added",
+            "addFailed": "Failed to add note",
+            "deleted": "Note deleted",
+            "deleteFailed": "Failed to delete note",
+            "updated": "Note updated",
+            "updateFailed": "Failed to update note"
         }
     },
     "reports": {
         "title": "Appraisal Reports",
+        "partial": "Partial report · {{completed}}/23 items · Missing: {{missing}}",
         "description": "View and manage all guideline appraisal results.",
         "refresh": "Refresh",
         "backToList": "Back to list",
@@ -367,12 +417,15 @@
         "detail": {
             "date": "Appraisal Date:",
             "notEvaluated": "Not evaluated",
+            "pendingDomain": "Pending {{completed}}/{{total}}",
             "qualityScore": "Overall Guideline Assessment",
             "totalScore": "Total Score",
             "domainScores": "Domain Scores",
             "items": "items",
             "strengths": "Strengths",
             "weaknesses": "Weaknesses",
+            "partialStrengths": "Strengths in completed items",
+            "partialWeaknesses": "Weaknesses in completed items",
             "itemDetails": "Item Appraisal Details",
             "evidenceLocation": "Location Info",
             "quotedEvidence": "Supporting Text",
@@ -542,6 +595,14 @@
         "loading": "Loading config...",
         "subtitle": "Configure LLM service provider, model and capability settings",
         "llm": {
+            "contextWindow": "Context window (tokens)",
+            "contextHint": "Enter the deployed total context limit. Required before starting a new appraisal.",
+            "contextSuggested": "Filled from models.dev ({{date}}). Adjust to your deployment.",
+            "contextAmbiguous": "Multiple limits found. Enter your deployment limit.",
+            "contextUnknown": "No exact match. Enter the limit manually.",
+            "contextLookupFailed": "Catalog lookup failed. Enter the limit manually.",
+            "contextInvalid": "Enter a positive integer.",
+            "contextLoading": "Looking up model limits…",
             "title": "LLM Service Config",
             "provider": "Service Provider",
             "providers": {
@@ -550,7 +611,9 @@
                 "openai": "OpenAI Official",
                 "anthropic": "Anthropic (Claude)",
                 "deepseek": "DeepSeek",
-                "gemini": "Google Gemini"
+                "gemini": "Google Gemini",
+                "dashscope": "DashScope",
+                "zhipu": "Z.ai"
             },
             "baseUrl": "Base URL",
             "apiKey": "API Key",
@@ -561,7 +624,11 @@
             "visionModelHint": "When enabled, Item 17 uses images for assessment; otherwise text-only",
             "visionModelLocked": "Vision capability is automatically locked for this predefined model",
             "modelNamePlaceholder": "qwen2.5",
-            "timeout": "Timeout (seconds)"
+            "timeout": "Timeout (seconds)",
+            "runtimeSource": "Current config was saved from the console ({{time}}, by {{by}}) and persists across restarts",
+            "envSource": "Current config comes from the server .env file",
+            "resetToEnv": "Restore .env config",
+            "resetConfirm": "Clear the console-saved model config and restore the .env configuration?"
         },
         "button": {
             "save": "Save Config",
@@ -572,7 +639,9 @@
         "toast": {
             "saved": "Config saved",
             "loadFailed": "Failed to load config",
-            "saveFailed": "Save failed"
+            "saveFailed": "Save failed",
+            "resetDone": "Restored the .env configuration",
+            "resetFailed": "Failed to restore the .env configuration"
         },
         "test": {
             "latency": "Latency:",
@@ -652,5 +721,251 @@
             "adminLabel": "Admin",
             "adminSection": "Admin"
         }
+    },
+    "server": {
+        "error": {
+            "pdf_not_found": "PDF file not found: {{path}}",
+            "init_failed": "Initialization failed. See diagnostic details.",
+            "parse_failed": "PDF parsing failed. See diagnostic details.",
+            "mineru_not_configured": "MinerU service not configured (MINERU_SERVER_URL)",
+            "mineru_unavailable": "MinerU service unavailable",
+            "appraise_not_called": "Appraisal flow error: Orchestrator did not execute item appraisal",
+            "missing_task_id": "Missing task_id",
+            "task_already_running": "A task is already running in this session. Stop it or wait for completion first.",
+            "no_active_task": "No active task can be cancelled right now",
+            "unexpected": "The operation failed. See diagnostic details.",
+            "invalid_request": "The request is invalid.",
+            "not_found": "The requested resource was not found.",
+            "unauthorized": "Sign in again to continue.",
+            "forbidden": "You do not have permission to perform this operation.",
+            "admin_required": "Administrator permission is required.",
+            "credentials_required": "Username and password are required.",
+            "invalid_credentials": "Incorrect username or password.",
+            "filename_required": "A filename is required.",
+            "pdf_only": "Only PDF files are supported.",
+            "xlsx_only": "Only .xlsx files are supported.",
+            "file_not_found": "File not found: {{path}}",
+            "invalid_path": "Invalid path: {{path}}",
+            "folder_not_found": "Folder not found: {{path}}",
+            "not_folder": "Not a folder: {{path}}",
+            "no_pdfs": "No PDF files found in {{path}}",
+            "save_failed": "Unable to save the changes.",
+            "upload_failed": "Unable to upload the file.",
+            "delete_failed": "Unable to delete the resource.",
+            "read_failed": "Unable to read the resource.",
+            "comment_failed": "Unable to save the comment.",
+            "config_empty": "No configuration changes were provided.",
+            "config_secret_missing": "LLM_CONFIG_SECRET is required to save API keys securely.",
+            "config_save_failed": "Unable to save the configuration.",
+            "two_batches_required": "Select exactly two batch directories.",
+            "result_not_found": "Result not found: {{filename}}",
+            "guide_not_found": "Guideline not found: {{id}}",
+            "comment_not_found": "Comment not found: {{id}}",
+            "skill_not_found": "Skill not found: {{id}}",
+            "user_not_found": "The user was not found.",
+            "user_exists": "Username already exists: {{username}}",
+            "self_role": "You cannot change your own role.",
+            "self_disable": "You cannot disable your own account.",
+            "self_delete": "You cannot delete your own account.",
+            "old_password": "The current password is incorrect.",
+            "database_unavailable": "The database is not ready.",
+            "batch_not_found": "Batch job not found: {{id}}",
+            "no_resumable_batch": "No batch job is available to resume.",
+            "no_running_batch": "No batch job is running.",
+            "session_not_found": "Session not found: {{id}}",
+            "prompt_not_found": "Prompt not found for {{agent}} ({{lang}}).",
+            "report_not_found": "Report not found: {{id}}",
+            "report_parse_failed": "Unable to parse the report.",
+            "evidence_not_found": "Visual evidence not found: {{id}}",
+            "reporter_timeout": "Report generation timed out after {{seconds}}s.",
+            "mineru_timeout": "PDF parsing timed out after {{seconds}}s.",
+            "llm_timeout": "The model request timed out.",
+            "appraisal_failed": "The appraisal failed. See diagnostic details.",
+            "invalid_response": "The service returned an invalid response.",
+            "network": "Unable to connect to the service.",
+            "validation": "Please check the request fields."
+        },
+        "status": {
+            "init_task_dir": "📁 Initializing task directory...",
+            "task_id": "Task ID: {{task_id}}",
+            "reusing_task": "Reusing existing task: {{task_id}}",
+            "doc_found_skip": "📄 Parsed document found, skipping parsing",
+            "reusing_mineru_cache": "📄 Reusing parsed file result ({{pages}} pages)",
+            "parsing_mineru": "📄 Parsing file...",
+            "parse_done_mineru": "✓ File parsed ({{pages}} pages)",
+            "parsing_pypdf": "📄 Parsing file...",
+            "parse_done_pypdf": "✓ File parsed ({{pages}} pages)",
+            "parse_retry": "⚠️ Parse failed, retrying in {{delay}}s ({{attempt}}/{{max_retries}})...",
+            "building_evidence": "Building semantic source pool...",
+            "evidence_done": "Semantic source pool built",
+            "evidence_failed": "Source pool failed, using default mode",
+            "reusing_evidence": "Reusing existing evidence pool, skipping preprocessing",
+            "preprocess_error": "Preprocessing error, continuing",
+            "starting_agents": "🤖 Starting agent team...",
+            "entering_report_phase": "Batch appraisal complete, entering report phase...",
+            "report_retry": "⚠️ Report generation connection issue, retrying ({{attempt}}/{{max_retries}})...",
+            "retry_appraise": "⚠️ Appraisal flow error detected, retrying ({{attempt}}/{{max_retries}})...",
+            "task_cancelled": "Task cancelled",
+            "task_cancelling": "Stopping task, waiting for the current step to finish...",
+            "starting_appraisal": "Starting appraisal: {{filename}}",
+            "appraisal_complete": "Appraisal complete",
+            "password_changed": "Password changed.",
+            "partial": "Partial report generated: {{completed}}/{{total}} items. You can resume the remaining items.",
+            "saved": "Saved {{count}} changes.",
+            "uploaded": "Uploaded {{filename}}.",
+            "deleted": "Deleted {{filename}}.",
+            "batch_stopped": "The batch job has been stopped.",
+            "session_loaded": "The session state has been loaded.",
+            "comparison_complete": "Comparison complete: {{count}}/{{total}} guidelines succeeded."
+        },
+        "agent": {
+            "orchestrator_start": "Starting coordination",
+            "initiator_working": "Generating appraisal plan...",
+            "appraiser_working": "Appraising items...",
+            "reporter_working": "Generating report...",
+            "appraising_item": "Appraising {{skill_id}}...",
+            "processing": "{{agent}} processing...",
+            "report_done": "Report generated",
+            "initiator_done": "Appraisal plan generated",
+            "batch_appraise_start": "Starting concurrent appraisal of all items...",
+            "batch_appraise_done": "All items appraised",
+            "item_completed": "{{skill_id}} completed ({{duration}}s)",
+            "item_failed": "{{skill_id}} failed",
+            "batch_progress": "Progress: {{completed}}/{{total}}",
+            "reporter_done": "Report generated"
+        },
+        "chat": {
+            "default_response": "I'm AMA evaluation assistant, how can I help you?",
+            "fallback_response": "I'm AMA, an AGREE-II guideline quality evaluation system. You can upload a PDF file to start evaluation, or continue chatting with me."
+        },
+        "batch": {
+            "task_pending": "Pending",
+            "task_running": "Running",
+            "task_done": "Completed",
+            "task_error": "Failed",
+            "task_cancelled": "Cancelled",
+            "mcp_running": "A PDF parsing task is running. Wait for it to finish.",
+            "invalid_concurrency": "Concurrency must be between {{min}} and {{max}}.",
+            "invalid_rounds": "Experiment rounds must be between {{min}} and {{max}}.",
+            "already_running": "A batch job is already running.",
+            "not_resumable": "This batch job cannot be resumed.",
+            "empty": "Select at least one PDF file.",
+            "service_restart": "Service restart, task interrupted",
+            "service_restart_step": "Service restart, task interrupted",
+            "initializing": "Initializing...",
+            "reusingMineruCache": "Reusing parsed output",
+            "parsingPdf": "Parsing PDF",
+            "buildingEvidence": "Building evidence pool",
+            "appraisingItems": "Appraising items",
+            "itemProgress": "Item progress {{completed}}/{{total}}",
+            "generatingReport": "Generating report",
+            "retryingStep": "Retrying",
+            "failedGeneric": "Failed",
+            "waitingContinue": "Waiting to continue",
+            "serviceStopWaiting": "Service stopped, waiting to continue",
+            "workerInterrupted": "Worker interrupted, waiting to continue",
+            "stopped": "Stopped",
+            "cancelled": "Cancelled",
+            "retrying": "Retrying ({{current}}/{{max}})...",
+            "completed": "Completed"
+        },
+        "config": {
+            "connection": {
+                "official_provider": "Official provider selected ({{provider}}); run the health check to verify inference",
+                "base_url_missing": "LLM Base URL is not configured",
+                "success": "Connection successful",
+                "auth_failed": "Authentication failed (401); check the API Key",
+                "forbidden": "Access denied (403)",
+                "models_unsupported": "Service is reachable, but the provider does not support listing models; run the health check to verify inference",
+                "http_error": "Service returned HTTP status {{status}}",
+                "connect_failed": "Unable to connect to {{url}}; check the URL",
+                "timeout": "Connection timed out; the service may be unavailable",
+                "error": "Connection test failed. See diagnostic details."
+            },
+            "health": {
+                "base_url_missing": "Provider '{{provider}}' requires an LLM Base URL",
+                "reasoning": "[Reasoning] {{reasoning}}",
+                "empty_reply": "(The model responded without text content)",
+                "success": "LLM service is healthy and inference is available",
+                "error": "Health check failed. See diagnostic details."
+            }
+        },
+        "validation": {
+            "required": "This field is required.",
+            "invalid": "This field has an invalid value.",
+            "short": "Use at least {{limit}} characters or items.",
+            "long": "Use no more than {{limit}} characters or items.",
+            "greater": "The value must be greater than {{limit}}.",
+            "greater_equal": "The value must be at least {{limit}}.",
+            "less": "The value must be less than {{limit}}.",
+            "less_equal": "The value must not exceed {{limit}}."
+        },
+        "report": {
+            "untitled": "Untitled guideline"
+        },
+        "benchmark": {
+            "item": "Item {{number}}"
+        }
+    },
+    "ui": {
+        "account": "Account",
+        "unknownUser": "Unknown user",
+        "score": "Score",
+        "evaluationSummary": "Evaluation summary",
+        "verify": "Verify",
+        "citations": "{{count}} citations",
+        "rationaleDetail": "Rationale detail",
+        "promptControl": "Prompt control",
+        "modelOperations": "Model operations",
+        "reportingSurface": "Reports",
+        "configurationSurface": "Configuration",
+        "toggleSetting": "Toggle setting",
+        "close": "Close",
+        "conditionPlaceholder": "Enter the condition in English",
+        "domain": "Domain",
+        "guideShort": "Guide {{number}}",
+        "noRecommend": "Not recommended",
+        "modifications": "With modifications",
+        "recommend": "Recommended",
+        "pdfLoading": "Loading PDF…",
+        "pageLoading": "Loading page…",
+        "pdfError": "Unable to load the PDF.",
+        "pageError": "Unable to load the page.",
+        "noPdf": "No PDF file specified.",
+        "noPage": "No page specified.",
+        "noExportData": "No consistency data is available to export.",
+        "canvasError": "Unable to initialize the export canvas.",
+        "docsName": "AMA documentation",
+        "apiDocs": "API documentation",
+        "notAvailable": "Not available",
+        "connectionTestFailed": "Connection test failed.",
+        "healthTestFailed": "Health check failed.",
+        "points": "points",
+        "chunkId": "Chunk ID"
+    },
+    "standardItems": {
+        "item_1": "The overall objective(s) of the guideline is (are) specifically described.",
+        "item_10": "The methods for formulating the recommendations are clearly described.",
+        "item_11": "The health benefits, side effects, and risks have been considered in formulating the recommendations.",
+        "item_12": "There is an explicit link between the recommendations and the supporting evidence.",
+        "item_13": "The guideline has been externally reviewed by experts prior to its publication.",
+        "item_14": "A procedure for updating the guideline is provided.",
+        "item_15": "The recommendations are specific and unambiguous.",
+        "item_16": "The different options for management of the condition or health issue are clearly presented.",
+        "item_17": "Key recommendations are easily identifiable.",
+        "item_18": "The guideline describes facilitators and barriers to its application.",
+        "item_19": "The guideline provides advice or tools on how the recommendations can be put into practice.",
+        "item_2": "The health question(s) covered by the guideline is (are) specifically described.",
+        "item_20": "The potential resource implications of applying the recommendations have been considered.",
+        "item_21": "The guideline presents monitoring and/or auditing criteria.",
+        "item_22": "The views of the funding body have not influenced the content of the guideline.",
+        "item_23": "Competing interests of guideline development group members have been recorded and addressed.",
+        "item_3": "The population (patients, public, etc.) to whom the guideline is meant to apply is specifically described.",
+        "item_4": "The guideline development group includes individuals from all relevant professional groups.",
+        "item_5": "The views and preferences of the target population (patients, public, etc.) have been sought.",
+        "item_6": "The target users of the guideline are clearly defined.",
+        "item_7": "Systematic methods were used to search for evidence.",
+        "item_8": "The criteria for selecting the evidence are clearly described.",
+        "item_9": "The strengths and limitations of the body of evidence are clearly described."
     }
 }

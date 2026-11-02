@@ -35,7 +35,7 @@ If both checks pass, the system is generally ready for use.
 
 If the page shows a connection error, resolve the issue before starting an appraisal task.
 
-![Configuration Page](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315140930495.png)
+![Configuration Page](images/image-20260315140930495.png)
 
 ### 3.2 Step 2: Select a Guideline File
 
@@ -50,7 +50,7 @@ Recommendations:
 - Use clear and consistent names for main guideline files
 - If supporting materials are included, keep them in the same folder as the main file and use related file names. For example, if the main file is named `xxx.pdf`, attachments may be named `xxx_attachment_1.pdf`, `xxx_attachment_2.pdf`, and so on
 
-![Appraisal Page](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/appraisal.png)
+![Appraisal Page](images/appraisal.png)
 
 ### 3.3 Step 3: Start the Appraisal
 
@@ -92,11 +92,11 @@ If you need a deeper review, continue with:
 - Reasoning details
 - Evidence references
 
-![Reports Overview](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315140745289.png)
+![Reports Overview](images/image-20260315140745289.png)
 
-![Report Detail](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315140821390.png)
+![Report Detail](images/image-20260315140821390.png)
 
-![Evidence View](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315141130821.png)
+![Evidence View](images/image-20260315141130821.png)
 
 ## 4. How to Use Each Page
 
@@ -173,7 +173,7 @@ For most users, the main purpose of this page is:
 
 When reviewing a report, it is usually helpful to read it in the following order.
 
-### 5.1 Start with the Overall Summary
+### 5.1 Overall Summary
 
 Focus first on:
 
@@ -184,7 +184,7 @@ Focus first on:
 
 This section is useful for making a quick overall judgment.
 
-### 5.2 Then Review Domain Scores
+### 5.2 Review Domain Scores
 
 The system presents scores by AGREE-II Domain.
 
@@ -193,7 +193,7 @@ This section helps answer two questions:
 - Which areas are stronger
 - Which areas are relatively weaker
 
-### 5.3 Finally Review Item Details
+### 5.3 Review Item Details
 
 If a more detailed analysis is needed, review the individual items.
 

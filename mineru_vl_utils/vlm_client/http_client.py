@@ -24,6 +24,8 @@ from .utils import (
     load_resource,
 )
 
+_HTTP_CLIENT_MAX_CONNECTIONS = 30
+
 
 def _get_env(key: str, default: str | None = None) -> str:
     value = os.getenv(key)
@@ -74,9 +76,11 @@ class HttpVlmClient(VlmClient):
         self.http_timeout = http_timeout
         self.max_retries = max_retries
         self.retry_backoff_factor = retry_backoff_factor
+        self._global_aio_request_limit = max(1, min(max_concurrency, _HTTP_CLIENT_MAX_CONNECTIONS))
 
         self._client = self._new_client()
         self._aio_client_sem = asyncio.Semaphore(1)
+        self._global_aio_request_semaphore = asyncio.Semaphore(self._global_aio_request_limit)
         self._aio_client_cache: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
         if model_name:
@@ -96,7 +100,10 @@ class HttpVlmClient(VlmClient):
             transport=RetryTransport(
                 retry=Retry(total=self.max_retries, backoff_factor=self.retry_backoff_factor),
                 transport=httpx.HTTPTransport(
-                    limits=httpx.Limits(max_connections=30, max_keepalive_connections=30),
+                    limits=httpx.Limits(
+                        max_connections=_HTTP_CLIENT_MAX_CONNECTIONS,
+                        max_keepalive_connections=_HTTP_CLIENT_MAX_CONNECTIONS,
+                    ),
                 ),
             ),
         )
@@ -108,7 +115,10 @@ class HttpVlmClient(VlmClient):
             transport=RetryTransport(
                 retry=Retry(total=self.max_retries, backoff_factor=self.retry_backoff_factor),
                 transport=httpx.AsyncHTTPTransport(
-                    limits=httpx.Limits(max_connections=30, max_keepalive_connections=30),
+                    limits=httpx.Limits(
+                        max_connections=_HTTP_CLIENT_MAX_CONNECTIONS,
+                        max_keepalive_connections=_HTTP_CLIENT_MAX_CONNECTIONS,
+                    ),
                 ),
             ),
         )
@@ -434,7 +444,8 @@ class HttpVlmClient(VlmClient):
             print(f"Request body: {request_text}")
 
         client = await self._aio_client()
-        response = await client.post(self.chat_url, json=request_body)
+        async with self._global_aio_request_semaphore:
+            response = await client.post(self.chat_url, json=request_body)
         response_data = self.get_response_data(response)
 
         if self.debug:

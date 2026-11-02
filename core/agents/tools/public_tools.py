@@ -61,6 +61,8 @@ def init_task_directory(
         # 生成任务ID
         time_suffix = datetime.now().strftime("%m%d%H%M")
         generated_task_id = task_id or f"{base_name}-{time_suffix}"
+        if Path(generated_task_id).name != generated_task_id or generated_task_id in {".", ".."}:
+            raise ValueError("无效任务 ID")
         
         # 创建目录结构
         task_dir = output_root / generated_task_id
@@ -111,6 +113,8 @@ def get_task_paths(task_id: str) -> dict:
     Returns:
         dict: 路径字典，失败时返回空字典
     """
+    if Path(task_id).name != task_id or task_id in {".", ".."}:
+        return {}
     if task_id in _task_contexts:
         return _task_contexts[task_id]
     

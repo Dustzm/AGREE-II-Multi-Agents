@@ -25,6 +25,14 @@ from .loader import (
 )
 
 
+def app_setting(name: str, default):
+    """读取单个 AppSettings 字段；配置不可用（单测）或字段缺失时返回默认值。"""
+    try:
+        return getattr(get_settings().app, name, default)
+    except Exception:  # pragma: no cover - settings are optional for unit tests
+        return default
+
+
 __all__ = [
     # 环境配置 (主要)
     "Settings",
@@ -32,6 +40,7 @@ __all__ = [
     "MinerUSettings",
     "AppSettings",
     "get_settings",
+    "app_setting",
     # AMA 系统配置
     "AMASettings",
     "load_ama_settings",

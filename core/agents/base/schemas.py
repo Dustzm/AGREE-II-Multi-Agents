@@ -5,35 +5,12 @@ Agent 输入输出 Schema 定义
 AgentTool 会自动使用这些 Schema 生成工具参数定义
 """
 from pydantic import BaseModel, Field
-from typing import Optional
-
-
-class InitiatorInput(BaseModel):
-    """Initiator Agent 输入 Schema"""
-    task_id: str = Field(..., description="任务ID，如 'qlx-12181836'")
 
 
 class ExplorerInput(BaseModel):
     """Explorer Agent 输入 Schema"""
     task_id: str = Field(..., description="任务ID")
     section_id: str = Field(..., description="章节ID，如 'basic_info', 'problem_1'")
-
-
-class ExtractorInput(BaseModel):
-    """Extractor Agent 输入 Schema"""
-    task_id: str = Field(..., description="任务ID")
-    buffer_id: str = Field(..., description="Buffer ID，对应 Explorer 生成的 buffer 文件名")
-
-
-class ValidatorInput(BaseModel):
-    """Validator Agent 输入 Schema (保留，暂不使用)"""
-    task_id: str = Field(..., description="任务ID")
-
-
-class AppraiserInput(BaseModel):
-    """Appraiser Agent 输入 Schema"""
-    task_id: str = Field(..., description="任务ID")
-    skill_id: str = Field(..., description="条目 Skill ID，如 'item_1', 'item_2'")
 
 
 class ReporterInput(BaseModel):

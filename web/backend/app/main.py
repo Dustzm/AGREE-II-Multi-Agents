@@ -6,7 +6,7 @@ AGREE-Multi-Agents 评价系统 Web 服务
 import logging
 import os
 import sys
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -19,16 +19,23 @@ STARTUP_TIME = int(time.time() * 1000)
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
+mcp_source_root = project_root / "mcp"
+sys.path.insert(0, str(mcp_source_root))
 
 from .api.routes import auth, health, upload, chat, files, reports, skills, prompts, batch, benchmark, config, manual, users
 from .auth import validate_auth_configuration
 from .auth_middleware import AuthMiddleware
+from .i18n.handlers import install_i18n
+from config import get_mcp_settings
+from mcp_upload import upload_http_app as mcp_upload_http_app
+from server import http_app as mcp_http_app
+from server import initialize_mcp, run_mcp_session
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# 配置日志：FastMCP 在 import 时会把自己的 RichHandler 装到 root logger 上，
+# 输出被重定向到文件时 rich 只按 80 列折行，日志会被切成 ~40 字符的窄条；这里统一换回单行格式。
+from .logging_setup import configure_logging
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +45,14 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 AMA Web API 正在启动...")
 
     validate_auth_configuration()
+    try:
+        from .services.batch_jobs import recover_stale_batch_jobs
+
+        recovered = recover_stale_batch_jobs()
+        if recovered:
+            logger.info("已恢复租约过期的批量任务: %s", recovered)
+    except Exception:
+        logger.exception("恢复遗留运行中的批量任务失败")
     
     # 检查 LLM 服务可达性
     try:
@@ -74,7 +89,17 @@ async def lifespan(app: FastAPI):
     
     logger.info(f"📂 数据目录: {data_root.absolute()}")
     
-    yield
+    mcp_settings = get_mcp_settings()
+    async with AsyncExitStack() as stack:
+        if mcp_settings.enabled:
+            initialize_mcp()
+            await stack.enter_async_context(run_mcp_session())
+            logger.info(
+                "AMA MCP 已启用: endpoint=/ama/mcp/ upload=/ama/mcp/uploads/"
+            )
+        else:
+            logger.info("AMA MCP 未启用")
+        yield
     
     logger.info("👋 AMA Web API 已关闭")
 
@@ -99,6 +124,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(AuthMiddleware)
+
+install_i18n(app)
+# 更具体的上传路径必须先于 MCP 根挂载注册，避免被根挂载截获。
+app.mount("/ama/mcp/uploads", mcp_upload_http_app, name="ama-mcp-uploads")
+app.mount("/ama/mcp", mcp_http_app, name="ama-mcp")
 
 # 注册路由 - 统一使用 /ama 前缀
 app.include_router(health.router, prefix="/ama", tags=["健康检查"])

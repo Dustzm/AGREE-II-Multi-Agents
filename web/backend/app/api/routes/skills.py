@@ -1,11 +1,13 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Header
+from fastapi import APIRouter, Depends, Path as PathParam, Header
 
 from web.backend.app.schemas.skills import SkillBase, SkillUpdate, SkillUpdateDetails
 from web.backend.app.services.skills_service import get_all_skills, update_skill_status, update_skill_details
 from web.backend.app.i18n import get_language
 from web.backend.app.permissions import require_admin
+
+from ...i18n.messages import LocalizedHTTPException, http_error
 
 router = APIRouter()
 
@@ -25,6 +27,7 @@ async def list_skills(
 async def update_skill(
     skill_id: str = PathParam(..., description="The ID of the skill to update"),
     data: SkillUpdate = ...,
+    accept_language: Optional[str] = Header(None, alias="Accept-Language"),
     _user=Depends(require_admin),
 ):
     """
@@ -33,17 +36,18 @@ async def update_skill(
     仅管理员可操作
     """
     try:
-        updated_config = update_skill_status(skill_id, data.enabled)
+        updated_config = update_skill_status(skill_id, data.enabled, get_language(accept_language))
         return updated_config
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Skill {skill_id} not found")
+        raise LocalizedHTTPException(404, "error.skill_not_found", id=skill_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise http_error(500, e)
 
 @router.put("/skills/{skill_id}/details")
 async def update_item_details(
     skill_id: str,
     details: SkillUpdateDetails,
+    accept_language: Optional[str] = Header(None, alias="Accept-Language"),
     _user=Depends(require_admin),
 ):
     """
@@ -52,16 +56,17 @@ async def update_item_details(
     仅管理员可操作
     """
     try:
-        return update_skill_details(skill_id, details)
+        return update_skill_details(skill_id, details, get_language(accept_language))
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Skill not found")
+        raise LocalizedHTTPException(404, "error.skill_not_found", id=skill_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise http_error(500, e)
 
 
 @router.put("/skills/batch/status", response_model=List[dict])
 async def batch_update_skills(
     data: SkillUpdate,
+    accept_language: Optional[str] = Header(None, alias="Accept-Language"),
     _user=Depends(require_admin),
 ):
     """
@@ -72,6 +77,6 @@ async def batch_update_skills(
     """
     from web.backend.app.services.skills_service import update_all_skills_status
     try:
-        return update_all_skills_status(data.enabled)
+        return update_all_skills_status(data.enabled, get_language(accept_language))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise http_error(500, e)

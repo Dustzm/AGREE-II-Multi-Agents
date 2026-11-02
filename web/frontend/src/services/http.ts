@@ -1,8 +1,10 @@
 import { API_URL, WS_URL } from '@/config'
+import i18n from '@/i18n'
+import { LocalizedError, responseMessage, type UiMessage } from '@/i18n/messages'
 
-export class UnauthorizedError extends Error {
-    constructor(message: string = '未登录或登录已失效') {
-        super(message)
+export class UnauthorizedError extends LocalizedError {
+    constructor(data: UiMessage = { i18n: { key: 'error.unauthorized', params: {} } }) {
+        super(data)
         this.name = 'UnauthorizedError'
     }
 }
@@ -23,21 +25,45 @@ export function notifyUnauthorized() {
 }
 
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
-    const response = await fetch(input, {
-        ...init,
-        credentials: 'include',
-    })
+    const response = await languageFetch(input, init)
 
     if (response.status === 401) {
         notifyUnauthorized()
-        throw new UnauthorizedError()
+        throw new UnauthorizedError(responseMessage(await readJson(response), 'error.unauthorized'))
     }
 
+    if (!response.ok) {
+        throw new LocalizedError(responseMessage(await readJson(response)))
+    }
     return response
 }
 
+/** Login uses the same transport without triggering protected-API logout on 401. */
+export async function languageFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined))
+    if (!headers.has('Accept-Language')) headers.set('Accept-Language', i18n.resolvedLanguage || i18n.language || 'en-US')
+    try {
+        return await fetch(input, { ...init, headers, credentials: 'include' })
+    } catch (error) {
+        throw new LocalizedError({ i18n: { key: 'error.network', params: {} }, diagnostic: error instanceof Error ? error.message : undefined })
+    }
+}
+
+export async function readJson<T>(response: Response): Promise<T> {
+    try {
+        const body: unknown = await response.json()
+        if (body === null || typeof body !== 'object') throw new TypeError('Invalid JSON response')
+        return body as T
+    } catch {
+        throw new LocalizedError({ i18n: { key: 'error.invalid_response', params: {} }, diagnostic: `HTTP ${response.status}` })
+    }
+}
+
 export function createAuthenticatedWebSocket(path: string): WebSocket {
-    return new WebSocket(`${WS_URL}${path}`)
+    const url = new URL(`${WS_URL}${path}`)
+    // Browser WebSockets cannot set Accept-Language headers.
+    url.searchParams.set('lang', i18n.resolvedLanguage || i18n.language || 'en-US')
+    return new WebSocket(url.toString())
 }
 
 export function isUnauthorizedClose(event: CloseEvent): boolean {

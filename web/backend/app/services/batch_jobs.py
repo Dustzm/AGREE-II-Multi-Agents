@@ -16,6 +16,10 @@ from uuid import uuid4
 
 from core.config import get_settings
 from web.backend.app.database import get_db
+from .batch_identity import unique_item_id
+from ..i18n.messages import LocalizedRuntimeError, sanitize_diagnostic
+from ..i18n import request_language
+from ..i18n.legacy import adapt_batch_payload, legacy_step, legacy_error
 
 logger = logging.getLogger(__name__)
 _UNSET = object()
@@ -33,6 +37,10 @@ ITEM_STATUS_RUNNING = "running"
 ITEM_STATUS_STOPPED = "stopped"
 ITEM_STATUS_DONE = "done"
 ITEM_STATUS_ERROR = "error"
+
+REPORT_STATUS_NONE = "none"
+REPORT_STATUS_PARTIAL = "partial"
+REPORT_STATUS_COMPLETE = "complete"
 
 NON_TERMINAL_JOB_STATUSES = {
     JOB_STATUS_QUEUED,
@@ -75,6 +83,7 @@ CREATE TABLE IF NOT EXISTS batch_jobs (
     created_at          TEXT NOT NULL,
     updated_at          TEXT NOT NULL,
     last_error          TEXT,
+    ui_messages_json    TEXT,
     round_runtime_json  TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_batch_jobs_status ON batch_jobs(status);
@@ -91,12 +100,15 @@ CREATE TABLE IF NOT EXISTS batch_job_items (
     current_step        TEXT,
     retry_count         INTEGER NOT NULL DEFAULT 0,
     result_task_id      TEXT,
+    report_status       TEXT NOT NULL DEFAULT 'none' CHECK(report_status IN ('none', 'partial', 'complete')),
+    active_task_id      TEXT,
     first_round_task_id TEXT,
     token_usage_json    TEXT NOT NULL DEFAULT '{}',
     started_at          TEXT,
     updated_at          TEXT NOT NULL,
     finished_at         TEXT,
     last_error          TEXT,
+    ui_messages_json    TEXT,
     PRIMARY KEY (job_id, item_id),
     FOREIGN KEY (job_id) REFERENCES batch_jobs(job_id) ON DELETE CASCADE
 );
@@ -131,6 +143,10 @@ def init_batch_job_tables(conn: sqlite3.Connection | None = None) -> None:
 
 def _ensure_batch_job_schema(conn: sqlite3.Connection) -> None:
     """为旧库补齐新增字段。"""
+    for table in ("batch_jobs", "batch_job_items"):
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if "ui_messages_json" not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN ui_messages_json TEXT")
     columns = {
         row["name"]
         for row in conn.execute("PRAGMA table_info(batch_jobs)").fetchall()
@@ -143,6 +159,11 @@ def _ensure_batch_job_schema(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE batch_jobs ADD COLUMN run_token TEXT NOT NULL DEFAULT ''"
         )
+    item_columns = {row["name"] for row in conn.execute("PRAGMA table_info(batch_job_items)").fetchall()}
+    if "active_task_id" not in item_columns:
+        conn.execute("ALTER TABLE batch_job_items ADD COLUMN active_task_id TEXT")
+    if "report_status" not in item_columns:
+        conn.execute("ALTER TABLE batch_job_items ADD COLUMN report_status TEXT NOT NULL DEFAULT 'none'")
 
 
 def utcnow_iso() -> str:
@@ -171,6 +192,7 @@ def _normalize_job(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] |
     if row is None:
         return None
     job = dict(row)
+    job["ui_messages"] = _loads_json(job.pop("ui_messages_json", None), {})
     job["stop_requested"] = bool(job.get("stop_requested", 0))
     job["status_reason"] = job.get("status_reason") or STATUS_REASON_NORMAL
     job["run_token"] = job.get("run_token") or ""
@@ -182,6 +204,8 @@ def _normalize_item(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] 
     if row is None:
         return None
     item = dict(row)
+    item["ui_messages"] = _loads_json(item.pop("ui_messages_json", None), {})
+    item["report_status"] = item.get("report_status") or REPORT_STATUS_NONE
     item["token_usage"] = _loads_json(item.pop("token_usage_json", "{}"), {})
     return item
 
@@ -213,102 +237,121 @@ def _job_is_running_like(status: str) -> bool:
 
 def _validate_concurrency(concurrency: int) -> int:
     if concurrency < MIN_BATCH_CONCURRENCY or concurrency > MAX_BATCH_CONCURRENCY:
-        raise RuntimeError(f"并发数必须在 {MIN_BATCH_CONCURRENCY} 到 {MAX_BATCH_CONCURRENCY} 之间")
+        raise LocalizedRuntimeError("batch.invalid_concurrency", min=MIN_BATCH_CONCURRENCY, max=MAX_BATCH_CONCURRENCY)
     return concurrency
 
 
 def _validate_experiment_rounds(experiment_rounds: int) -> int:
     if experiment_rounds < MIN_EXPERIMENT_ROUNDS or experiment_rounds > MAX_EXPERIMENT_ROUNDS:
-        raise RuntimeError(f"实验轮次必须在 {MIN_EXPERIMENT_ROUNDS} 到 {MAX_EXPERIMENT_ROUNDS} 之间")
+        raise LocalizedRuntimeError("batch.invalid_rounds", min=MIN_EXPERIMENT_ROUNDS, max=MAX_EXPERIMENT_ROUNDS)
     return experiment_rounds
 
 
 def _task_id_from_pdf(pdf_path: str, seen: set[str]) -> str:
-    base = Path(pdf_path).stem
-    candidate = base
-    index = 1
-    while candidate in seen:
-        index += 1
-        candidate = f"{base}-{index}"
-    seen.add(candidate)
-    return candidate
+    return unique_item_id(pdf_path, seen)
 
 
 def create_batch_job(pdf_paths: Iterable[str], concurrency: int, experiment_rounds: int) -> dict[str, Any]:
     """创建新的批量任务。"""
     concurrency = _validate_concurrency(concurrency)
     experiment_rounds = _validate_experiment_rounds(experiment_rounds)
-    conn = get_db()
-    init_batch_job_tables(conn)
-    active = get_active_job(conn=conn)
-    if active is not None:
-        raise RuntimeError("已有批量任务正在运行")
-
     pdf_list = list(pdf_paths)
     if not pdf_list:
-        raise RuntimeError("未选择任何 PDF 文件")
+        raise LocalizedRuntimeError("batch.empty")
 
-    now = utcnow_iso()
-    job_id = f"batch-job-{uuid4().hex[:12]}"
-    conn.execute(
-        """
-        INSERT INTO batch_jobs (
-            job_id, status, current_round, experiment_rounds, concurrency,
-            stop_requested, owner_worker_id, run_token, lease_expires_at, started_at,
-            finished_at, created_at, updated_at, last_error, status_reason, round_runtime_json
-        ) VALUES (?, ?, 0, ?, ?, 0, '', '', NULL, NULL, NULL, ?, ?, NULL, ?, ?)
-        """,
-        (
-            job_id,
-            JOB_STATUS_QUEUED,
-            experiment_rounds,
-            concurrency,
-            now,
-            now,
-            STATUS_REASON_NORMAL,
-            _dumps_json({"round_output_dirs": {}}),
-        ),
-    )
+    conn = get_db()
+    init_batch_job_tables(conn)
+    # 与 MCP 领取使用同一个 SQLite 写事务，避免两类重任务同时越过准入检查。
+    conn.commit()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        now = utcnow_iso()
+        try:
+            mcp_active = conn.execute(
+                """
+                SELECT 1 FROM mcp_jobs
+                WHERE status IN ('running', 'stopping')
+                  AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at >= ?
+                LIMIT 1
+                """,
+                (now,),
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            if "no such table" not in str(exc).lower():
+                raise
+            mcp_active = None
+        if mcp_active is not None:
+            raise LocalizedRuntimeError("batch.mcp_running")
 
-    seen_ids: set[str] = set()
-    item_rows: list[tuple[Any, ...]] = []
-    for pdf_path in pdf_list:
-        item_id = _task_id_from_pdf(pdf_path, seen_ids)
-        item_rows.append(
+        active = get_active_job(conn=conn)
+        if active is not None:
+            raise LocalizedRuntimeError("batch.already_running")
+
+        job_id = f"batch-job-{uuid4().hex[:12]}"
+        conn.execute(
+            """
+            INSERT INTO batch_jobs (
+                job_id, status, current_round, experiment_rounds, concurrency,
+                stop_requested, owner_worker_id, run_token, lease_expires_at, started_at,
+                finished_at, created_at, updated_at, last_error, status_reason, round_runtime_json
+            ) VALUES (?, ?, 0, ?, ?, 0, '', '', NULL, NULL, NULL, ?, ?, NULL, ?, ?)
+            """,
             (
                 job_id,
-                item_id,
-                pdf_path,
-                ITEM_STATUS_PENDING,
-                None,
-                0,
-                None,
-                None,
-                "{}",
-                None,
+                JOB_STATUS_QUEUED,
+                experiment_rounds,
+                concurrency,
                 now,
-                None,
-                None,
-            )
+                now,
+                STATUS_REASON_NORMAL,
+                _dumps_json({"round_output_dirs": {}, "ui_language": request_language.get()}),
+            ),
         )
 
-    conn.executemany(
-        """
-        INSERT INTO batch_job_items (
-            job_id, item_id, pdf_path, status, current_step, retry_count, result_task_id,
-            first_round_task_id, token_usage_json, started_at, updated_at, finished_at, last_error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        item_rows,
-    )
-    append_batch_job_event(
-        job_id,
-        "status",
-        get_batch_job_status_payload(job_id, conn=conn),
-        conn=conn,
-    )
-    conn.commit()
-    return get_batch_job_status_payload(job_id, conn=conn)
+        seen_ids: set[str] = set()
+        item_rows: list[tuple[Any, ...]] = []
+        for pdf_path in pdf_list:
+            item_id = _task_id_from_pdf(pdf_path, seen_ids)
+            item_rows.append(
+                (
+                    job_id,
+                    item_id,
+                    pdf_path,
+                    ITEM_STATUS_PENDING,
+                    None,
+                    0,
+                    None,
+                    None,
+                    "{}",
+                    None,
+                    now,
+                    None,
+                    None,
+                )
+            )
+
+        conn.executemany(
+            """
+            INSERT INTO batch_job_items (
+                job_id, item_id, pdf_path, status, current_step, retry_count, result_task_id,
+                first_round_task_id, token_usage_json, started_at, updated_at, finished_at, last_error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            item_rows,
+        )
+        append_batch_job_event(
+            job_id,
+            "status",
+            get_batch_job_status_payload(job_id, conn=conn),
+            conn=conn,
+        )
+        conn.commit()
+        return get_batch_job_status_payload(job_id, conn=conn)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
 
 
 def get_batch_job(job_id: str, *, conn: sqlite3.Connection | None = None) -> dict[str, Any] | None:
@@ -336,19 +379,26 @@ def list_batch_job_items(job_id: str, *, conn: sqlite3.Connection | None = None)
 
 
 def _item_to_api_payload(item: dict[str, Any]) -> dict[str, Any]:
-    return {
+    messages = item.get("ui_messages") or {}
+    failure = messages if messages.get("error") else legacy_error(item.get("last_error"))
+    return adapt_batch_payload({
+        "step_i18n": messages.get("step") or legacy_step(item.get("current_step")),
+        "error_i18n": failure.get("error"),
+        "diagnostic": failure.get("diagnostic"),
         "id": item["item_id"],
         "pdf_path": item["pdf_path"],
         "status": item["status"],
         "retry_count": item["retry_count"],
-        "error": item.get("last_error"),
+        "error": sanitize_diagnostic(item["last_error"]) if item.get("last_error") else None,
         "start_time": item.get("started_at"),
         "end_time": item.get("finished_at"),
         "current_step": item.get("current_step"),
         "result_task_id": item.get("result_task_id"),
+        "report_status": item["report_status"],
+        "active_task_id": item.get("active_task_id"),
         "first_round_task_id": item.get("first_round_task_id"),
         "token_usage": item.get("token_usage") or {},
-    }
+    })
 
 
 def get_batch_job_status_payload(job_id: str, *, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
@@ -356,16 +406,19 @@ def get_batch_job_status_payload(job_id: str, *, conn: sqlite3.Connection | None
     conn = conn or get_db()
     job = get_batch_job(job_id, conn=conn)
     if job is None:
-        raise RuntimeError(f"批量任务不存在: {job_id}")
+        raise LocalizedRuntimeError("error.batch_not_found", id=job_id)
     items = list_batch_job_items(job_id, conn=conn)
     counts = Counter(item["status"] for item in items)
     status = job["status"]
-    return {
+    failure = job.get("ui_messages") or legacy_error(job.get("last_error"))
+    return adapt_batch_payload({
+        "error_i18n": failure.get("error"),
+        "diagnostic": failure.get("diagnostic"),
         "job_id": job_id,
         "session_id": job_id,
         "status": status,
         "status_reason": job["status_reason"],
-        "last_error": job.get("last_error"),
+        "last_error": sanitize_diagnostic(job["last_error"]) if job.get("last_error") else None,
         "is_running": _job_is_running_like(status),
         "total": len(items),
         "concurrency": job["concurrency"],
@@ -379,7 +432,7 @@ def get_batch_job_status_payload(job_id: str, *, conn: sqlite3.Connection | None
         "stopped": counts.get(ITEM_STATUS_STOPPED, 0),
         "stop_requested": job["stop_requested"],
         "tasks": [_item_to_api_payload(item) for item in items],
-    }
+    })
 
 
 def append_batch_job_event(
@@ -418,7 +471,7 @@ def list_batch_job_events(job_id: str, after_id: int = 0, *, conn: sqlite3.Conne
         {
             "id": row["id"],
             "event_type": row["event_type"],
-            "payload": _loads_json(row["payload_json"], {}),
+            "payload": adapt_batch_payload(_loads_json(row["payload_json"], {})),
             "created_at": row["created_at"],
         }
         for row in rows
@@ -483,9 +536,9 @@ def request_stop(job_id: str) -> dict[str, Any]:
     conn = get_db()
     job = get_batch_job(job_id, conn=conn)
     if job is None:
-        raise RuntimeError(f"批量任务不存在: {job_id}")
+        raise LocalizedRuntimeError("error.batch_not_found", id=job_id)
     if not _job_is_running_like(job["status"]):
-        raise RuntimeError("当前批量任务不在运行中")
+        raise LocalizedRuntimeError("error.no_running_batch")
 
     now = utcnow_iso()
     conn.execute(
@@ -523,13 +576,13 @@ def resume_batch_job(job_id: str, concurrency_override: int | None = None) -> di
     conn = get_db()
     active = get_active_job(conn=conn)
     if active is not None and active["job_id"] != job_id:
-        raise RuntimeError("已有批量任务正在运行")
+        raise LocalizedRuntimeError("batch.already_running")
 
     job = get_batch_job(job_id, conn=conn)
     if job is None:
-        raise RuntimeError(f"批量任务不存在: {job_id}")
+        raise LocalizedRuntimeError("error.batch_not_found", id=job_id)
     if not _job_can_resume(job):
-        raise RuntimeError("该批量任务不可继续")
+        raise LocalizedRuntimeError("batch.not_resumable")
 
     now = utcnow_iso()
     all_done = conn.execute(
@@ -547,7 +600,8 @@ def resume_batch_job(job_id: str, concurrency_override: int | None = None) -> di
             """
             UPDATE batch_job_items
             SET status = ?, current_step = NULL, retry_count = 0, started_at = NULL,
-                finished_at = NULL, updated_at = ?, last_error = NULL, result_task_id = NULL
+                finished_at = NULL, updated_at = ?, last_error = NULL, ui_messages_json = NULL, result_task_id = NULL,
+                report_status = 'none', active_task_id = NULL
             WHERE job_id = ?
             """,
             (ITEM_STATUS_PENDING, now, job_id),
@@ -557,7 +611,7 @@ def resume_batch_job(job_id: str, concurrency_override: int | None = None) -> di
             """
             UPDATE batch_job_items
             SET status = ?, current_step = NULL, retry_count = 0, started_at = NULL,
-                finished_at = NULL, updated_at = ?, last_error = NULL, result_task_id = NULL
+                finished_at = NULL, updated_at = ?, last_error = NULL, ui_messages_json = NULL
             WHERE job_id = ? AND status IN (?, ?, ?)
             """,
             (
@@ -576,7 +630,7 @@ def resume_batch_job(job_id: str, concurrency_override: int | None = None) -> di
         UPDATE batch_jobs
         SET status = ?, stop_requested = 0, owner_worker_id = '', lease_expires_at = NULL,
             run_token = '', finished_at = NULL, updated_at = ?, concurrency = ?, current_round = ?,
-            last_error = NULL, status_reason = ?
+            last_error = NULL, ui_messages_json = NULL, status_reason = ?
         WHERE job_id = ?
         """,
         (JOB_STATUS_QUEUED, now, concurrency, next_round, STATUS_REASON_NORMAL, job_id),
@@ -623,7 +677,7 @@ def delete_batch_job(job_id: str) -> None:
     deleted = conn.execute("DELETE FROM batch_jobs WHERE job_id = ?", (job_id,)).rowcount
     conn.commit()
     if deleted == 0:
-        raise RuntimeError(f"会话 {job_id} 不存在")
+        raise LocalizedRuntimeError("error.session_not_found", id=job_id)
 
 
 def update_job_status(
@@ -639,6 +693,7 @@ def update_job_status(
     finished_at: str | None | object = _UNSET,
     current_round: int | None | object = _UNSET,
     last_error: str | None | object = _UNSET,
+    ui_messages: dict | None | object = _UNSET,
     round_runtime: dict[str, Any] | None | object = _UNSET,
     concurrency: int | None | object = _UNSET,
     append_event: bool = True,
@@ -684,6 +739,18 @@ def update_job_status(
     if concurrency is not _UNSET:
         updates.append("concurrency = ?")
         params.append(concurrency)
+    if ui_messages is not _UNSET or last_error is not _UNSET:
+        saved = get_batch_job(job_id, conn=conn)
+        messages = dict((saved or {}).get("ui_messages") or {})
+        if last_error is not _UNSET:
+            messages.pop("error", None)
+            messages.pop("diagnostic", None)
+        if ui_messages is not _UNSET:
+            messages.update(ui_messages or {})
+        if messages.get("diagnostic"):
+            messages["diagnostic"] = sanitize_diagnostic(messages["diagnostic"])
+        updates.append("ui_messages_json = ?")
+        params.append(_dumps_json(messages))
     where = ["job_id = ?"]
     params.append(job_id)
     if expected_owner_worker_id is not None:
@@ -739,11 +806,14 @@ def update_batch_item(
     current_step: str | None | object = _UNSET,
     retry_count: int | None | object = _UNSET,
     result_task_id: str | None | object = _UNSET,
+    report_status: str | object = _UNSET,
+    active_task_id: str | None | object = _UNSET,
     first_round_task_id: str | None | object = _UNSET,
     token_usage: dict[str, Any] | None | object = _UNSET,
     started_at: str | None | object = _UNSET,
     finished_at: str | None | object = _UNSET,
     last_error: str | None | object = _UNSET,
+    ui_messages: dict | None | object = _UNSET,
     append_event: bool = True,
     throttle_step_window_seconds: float | None = None,
     expected_owner_worker_id: str | None = None,
@@ -759,21 +829,9 @@ def update_batch_item(
         and status is _UNSET
         and current_step is not _UNSET
         and current_step == existing.get("current_step")
+        and (ui_messages is _UNSET or all((existing.get("ui_messages") or {}).get(key) == value for key, value in (ui_messages or {}).items()))
     ):
         return existing
-    if (
-        throttle_step_window_seconds is not None
-        and status is _UNSET
-        and current_step is not _UNSET
-        and existing.get("current_step") is not None
-        and current_step != existing.get("current_step")
-    ):
-        updated_at = existing.get("updated_at")
-        if updated_at:
-            elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(updated_at)
-            if elapsed.total_seconds() < throttle_step_window_seconds:
-                return existing
-
     updates = ["updated_at = ?"]
     params: list[Any] = [utcnow_iso()]
     if status is not _UNSET:
@@ -788,6 +846,14 @@ def update_batch_item(
     if result_task_id is not _UNSET:
         updates.append("result_task_id = ?")
         params.append(result_task_id)
+    if report_status is not _UNSET:
+        if report_status not in {REPORT_STATUS_NONE, REPORT_STATUS_PARTIAL, REPORT_STATUS_COMPLETE}:
+            raise ValueError(f"无效报告状态: {report_status}")
+        updates.append("report_status = ?")
+        params.append(report_status)
+    if active_task_id is not _UNSET:
+        updates.append("active_task_id = ?")
+        params.append(active_task_id)
     if first_round_task_id is not _UNSET:
         updates.append("first_round_task_id = ?")
         params.append(first_round_task_id)
@@ -803,6 +869,20 @@ def update_batch_item(
     if last_error is not _UNSET:
         updates.append("last_error = ?")
         params.append(last_error)
+    if ui_messages is not _UNSET or last_error is not _UNSET or current_step is not _UNSET:
+        saved = get_batch_item(job_id, item_id, conn=conn)
+        messages = dict((saved or {}).get("ui_messages") or {})
+        if last_error is not _UNSET:
+            messages.pop("error", None)
+            messages.pop("diagnostic", None)
+        if current_step is not _UNSET:
+            messages.pop("step", None)
+        if ui_messages is not _UNSET:
+            messages.update(ui_messages or {})
+        if messages.get("diagnostic"):
+            messages["diagnostic"] = sanitize_diagnostic(messages["diagnostic"])
+        updates.append("ui_messages_json = ?")
+        params.append(_dumps_json(messages))
     where = ["job_id = ?", "item_id = ?"]
     params.extend([job_id, item_id])
     if expected_owner_worker_id is not None:
@@ -844,7 +924,7 @@ def get_batch_item(job_id: str, item_id: str, *, conn: sqlite3.Connection | None
     ).fetchone()
     item = _normalize_item(row)
     if item is None:
-        raise RuntimeError(f"批量任务条目不存在: {job_id}/{item_id}")
+        raise LocalizedRuntimeError("error.not_found")
     return item
 
 
@@ -883,6 +963,13 @@ def claim_next_batch_job(worker_id: str, lease_seconds: int) -> dict[str, Any] |
     if updated == 0:
         conn.commit()
         return None
+    logger.info(
+        "批量任务已被 worker 领取: job=%s worker=%s run_token=%s lease_expires_at=%s",
+        job_id,
+        worker_id,
+        run_token,
+        lease_iso,
+    )
     payload = get_batch_job_status_payload(job_id, conn=conn)
     append_batch_job_event(job_id, "status", payload, conn=conn)
     conn.commit()
@@ -953,11 +1040,16 @@ def recover_stale_batch_jobs() -> list[str]:
     stale_before_iso = stale_before.isoformat()
     rows = conn.execute(
         """
-        SELECT job_id, stop_requested
+        SELECT job_id, status, stop_requested,
+               COALESCE(owner_worker_id, '') AS owner_worker_id,
+               COALESCE(run_token, '') AS run_token,
+               COALESCE(lease_expires_at, '') AS lease_expires_at
         FROM batch_jobs
         WHERE status IN ('running', 'stopping')
-          AND lease_expires_at IS NOT NULL
-          AND lease_expires_at < ?
+          AND (
+              (lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+              OR ((owner_worker_id = '' OR owner_worker_id IS NULL) AND lease_expires_at IS NULL)
+          )
         """,
         (stale_before_iso,),
     ).fetchall()
@@ -969,13 +1061,44 @@ def recover_stale_batch_jobs() -> list[str]:
         replacement_item_status = ITEM_STATUS_STOPPED if stop_requested else ITEM_STATUS_PENDING
         step = "i18n:batch.serviceStopWaiting" if stop_requested else "i18n:batch.workerInterrupted"
         now = utcnow_iso()
-        conn.execute(
+        updated = conn.execute(
             """
             UPDATE batch_jobs
             SET status = ?, status_reason = ?, owner_worker_id = '', run_token = '', lease_expires_at = NULL, finished_at = ?, updated_at = ?
             WHERE job_id = ?
+              AND status = ?
+              AND stop_requested = ?
+              AND COALESCE(owner_worker_id, '') = ?
+              AND COALESCE(run_token, '') = ?
+              AND COALESCE(lease_expires_at, '') = ?
+              AND (
+                  (lease_expires_at IS NOT NULL AND lease_expires_at < ?)
+                  OR ((owner_worker_id = '' OR owner_worker_id IS NULL) AND lease_expires_at IS NULL)
+              )
             """,
-            (final_status, STATUS_REASON_LEASE_EXPIRED, now, now, job_id),
+            (
+                final_status,
+                STATUS_REASON_LEASE_EXPIRED,
+                now,
+                now,
+                job_id,
+                row["status"],
+                1 if stop_requested else 0,
+                row["owner_worker_id"],
+                row["run_token"],
+                row["lease_expires_at"],
+                stale_before_iso,
+            ),
+        )
+        if updated.rowcount != 1:
+            logger.info("跳过已重新领取或续租的批量任务恢复: job=%s", job_id)
+            continue
+        logger.warning(
+            "恢复过期批量任务: job=%s stop_requested=%s final_status=%s stale_before=%s",
+            job_id,
+            stop_requested,
+            final_status,
+            stale_before_iso,
         )
         conn.execute(
             """
@@ -990,6 +1113,16 @@ def recover_stale_batch_jobs() -> list[str]:
         recovered.append(job_id)
     conn.commit()
     return recovered
+
+
+def recover_active_batch_jobs_on_startup() -> list[str]:
+    """兼容旧调用：仅恢复租约过期或已无 owner 的 active job。"""
+    return recover_stale_batch_jobs()
+
+
+def recover_stopping_batch_jobs_on_startup() -> list[str]:
+    """兼容旧调用：仅恢复租约过期或已无 owner 的 active job。"""
+    return recover_stale_batch_jobs()
 
 
 def get_stop_requested(job_id: str, *, conn: sqlite3.Connection | None = None) -> bool:

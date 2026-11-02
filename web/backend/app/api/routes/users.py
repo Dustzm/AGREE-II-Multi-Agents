@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from ...auth import (
@@ -19,6 +19,8 @@ from ...auth import (
 from ...database import UserDB
 from ...permissions import require_admin, require_logged_in
 from ...session_registry import close_session_websockets
+
+from ...i18n.messages import ui_message, LocalizedHTTPException, http_error
 
 router = APIRouter(prefix="/users", tags=["用户管理"])
 
@@ -85,7 +87,7 @@ async def create_user(
         )
         return user
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+        raise http_error(409, exc)
 
 
 @router.put("/{username}", response_model=UserResponse)
@@ -98,9 +100,9 @@ async def update_user(
     # 不能修改自己的角色或禁用自己
     if username == _user.username:
         if payload.role is not None and payload.role != _user.role:
-            raise HTTPException(status_code=400, detail="不能修改自己的角色")
+            raise LocalizedHTTPException(400, "error.self_role")
         if payload.enabled is not None and not payload.enabled:
-            raise HTTPException(status_code=400, detail="不能禁用自己的账户")
+            raise LocalizedHTTPException(400, "error.self_disable")
 
     fields = {}
     if payload.password is not None:
@@ -114,7 +116,7 @@ async def update_user(
 
     result = UserDB.update(username, **fields)
     if result is None:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise LocalizedHTTPException(404, "error.user_not_found")
 
     if payload.enabled is False or payload.password is not None:
         revoked_session_ids = revoke_user_sessions(username)
@@ -129,14 +131,14 @@ async def delete_user(
 ):
     """删除用户（仅管理员，不能删自己）。"""
     if username == _user.username:
-        raise HTTPException(status_code=400, detail="不能删除自己的账户")
+        raise LocalizedHTTPException(400, "error.self_delete")
 
     revoked_session_ids = revoke_user_sessions(username)
     await close_session_websockets(revoked_session_ids)
     success = UserDB.delete(username)
     if not success:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    return {"detail": f"用户 {username} 已删除"}
+        raise LocalizedHTTPException(404, "error.user_not_found")
+    return ui_message("status.deleted", field="detail", filename=username)
 
 
 @router.put("/me/password")
@@ -149,14 +151,14 @@ async def change_my_password(
     """修改自己的密码（任何已登录用户）。"""
     record = UserDB.get_by_username_with_password(_user.username)
     if not record:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise LocalizedHTTPException(404, "error.user_not_found")
 
     if not UserDB.verify_password(payload.old_password, record["password"]):
-        raise HTTPException(status_code=400, detail="原密码错误")
+        raise LocalizedHTTPException(400, "error.old_password")
 
     UserDB.update(_user.username, password=payload.new_password)
     session_id, revoked_session_ids = create_replacement_session(_user, request=request)
     token = create_session_token(_user, session_id=session_id)
     set_auth_cookie(response, token, request)
     await close_session_websockets(revoked_session_ids)
-    return {"detail": "密码已修改"}
+    return ui_message("status.password_changed", field="detail")

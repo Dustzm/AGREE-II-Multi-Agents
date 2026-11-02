@@ -1,8 +1,8 @@
+import { notifyError, notifySuccess } from '@/i18n/notify'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, FileSpreadsheet, FolderOpen, Info, Loader2, Play, Upload } from 'lucide-react'
 import { HumanFileInfo, BatchInfo } from '@/services/api'
-import { toast } from 'react-hot-toast'
 
 interface NewExperimentFormProps {
   humanFiles: HumanFileInfo[]
@@ -31,7 +31,7 @@ export function NewExperimentForm({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    toast.success(`文件 ${file.name} 上传成功`)
+    notifySuccess('server.status.uploaded', { filename: file.name })
   }
 
   const handleBatchToggle = (batchName: string) => {
@@ -48,14 +48,14 @@ export function NewExperimentForm({
 
   const handleRun = async () => {
     if (!selectedHumanFile || selectedBatches.length !== 2) {
-      toast.error(t('benchmark.form.error.selection'))
+      notifyError({ key: 'benchmark.form.error.selection' })
       return
     }
 
     try {
       await onRun(selectedHumanFile, selectedBatches, threshold)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('benchmark.form.error.run'))
+      notifyError(error, 'benchmark.form.error.run')
     }
   }
 

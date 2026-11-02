@@ -19,6 +19,8 @@ from uuid import uuid4
 
 import bcrypt
 
+from .i18n.messages import LocalizedValueError
+
 logger = logging.getLogger(__name__)
 
 # 数据库文件路径：项目根目录/data/ama.db
@@ -32,15 +34,28 @@ _local = threading.local()
 
 # ---------- 连接管理 ----------
 
+def configure_sqlite_connection(conn: sqlite3.Connection) -> None:
+    """启用 WAL；并发冷启动遇到数据库锁时进行短暂重试。"""
+    conn.execute("PRAGMA busy_timeout=30000")
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            break
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
+    conn.execute("PRAGMA foreign_keys=ON")
+
 def get_db() -> sqlite3.Connection:
     """获取当前线程的数据库连接（懒初始化）。"""
     conn = getattr(_local, "conn", None)
     if conn is None:
         DB_DIR.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+        conn = sqlite3.connect(str(DB_PATH), timeout=30.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
+        configure_sqlite_connection(conn)
         _local.conn = conn
     return conn
 
@@ -272,7 +287,7 @@ class UserDB:
             )
             conn.commit()
         except sqlite3.IntegrityError as exc:
-            raise ValueError(f"用户名已存在: {username}") from exc
+            raise LocalizedValueError("error.user_exists", username=username) from exc
         return UserDB.get_by_username(username)  # type: ignore[return-value]
 
     @staticmethod

@@ -19,6 +19,8 @@ services:
     image: ama-backend:0.1
     container_name: ama-batch
     restart: unless-stopped
+    healthcheck:
+      disable: true
     depends_on:
       backend:
         condition: service_started
@@ -32,6 +34,26 @@ services:
       - ./output:/app/output
       - ./benchmark/uploads:/app/benchmark/uploads
       - ./benchmark/output:/app/benchmark/output
+
+  mcp-worker:
+    image: ama-backend:0.1
+    container_name: ama-mcp-worker
+    restart: unless-stopped
+    stop_grace_period: 40s
+    profiles: ["mcp"]
+    healthcheck:
+      disable: true
+    depends_on:
+      backend:
+        condition: service_started
+    command: ["python", "mcp/run_worker.py"]
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env
+      - ./data:/app/data
+      - ./input:/app/input
+      - ./output:/app/output
 
   frontend:
     image: ama-frontend:0.1

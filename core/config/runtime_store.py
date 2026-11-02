@@ -11,6 +11,7 @@ from contextlib import closing
 import hashlib
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -31,10 +32,36 @@ CREATE TABLE IF NOT EXISTS llm_runtime_config (
     model_name        TEXT,
     timeout           INTEGER,
     is_vision_model   INTEGER,
+    context_window    INTEGER,
+    context_window_overridden INTEGER NOT NULL DEFAULT 0,
     updated_by        TEXT DEFAULT '',
     updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 """
+
+
+_initialized_paths: set[str] = set()
+_initialized_lock = threading.Lock()
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    """Create/upgrade the runtime table once per database file per process."""
+    path_key = str(DB_PATH)
+    with _initialized_lock:
+        if path_key in _initialized_paths:
+            return
+        conn.executescript(_CREATE_LLM_RUNTIME_CONFIG_TABLE)
+        # Serialize schema upgrades across the API and worker processes.
+        conn.execute("BEGIN IMMEDIATE")
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(llm_runtime_config)")}
+        if "context_window" not in columns:
+            conn.execute("ALTER TABLE llm_runtime_config ADD COLUMN context_window INTEGER")
+        if "context_window_overridden" not in columns:
+            conn.execute("ALTER TABLE llm_runtime_config ADD COLUMN context_window_overridden INTEGER NOT NULL DEFAULT 0")
+            # Existing positive limits are explicit overrides; legacy NULLs inherit the environment.
+            conn.execute("UPDATE llm_runtime_config SET context_window_overridden = 1 WHERE context_window IS NOT NULL")
+        conn.commit()
+        _initialized_paths.add(path_key)
 
 
 def _connect() -> sqlite3.Connection:
@@ -44,8 +71,7 @@ def _connect() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.executescript(_CREATE_LLM_RUNTIME_CONFIG_TABLE)
-    conn.commit()
+    _ensure_schema(conn)
     return conn
 
 
@@ -76,7 +102,7 @@ def get_runtime_llm_config(secret: str) -> dict[str, Any] | None:
         row = conn.execute(
             """
             SELECT provider, base_url, api_key_encrypted, model_name, timeout,
-                   is_vision_model, updated_by, updated_at
+                   is_vision_model, context_window, context_window_overridden, updated_by, updated_at
             FROM llm_runtime_config
             WHERE id = 1
             """
@@ -86,6 +112,8 @@ def get_runtime_llm_config(secret: str) -> dict[str, Any] | None:
         return None
 
     config = dict(row)
+    if not config.pop("context_window_overridden"):
+        config.pop("context_window")
     api_key_encrypted = config.pop("api_key_encrypted", None)
     if api_key_encrypted is not None:
         try:
@@ -108,10 +136,14 @@ def upsert_runtime_llm_config(
     updated_by: str | None = None,
 ) -> None:
     """写入运行时 LLM 配置。"""
+    window = updates.get("context_window")
+    if window is not None and (type(window) is not int or window <= 0):
+        raise ValueError("context_window must be a positive integer or null")
     with closing(_connect()) as conn:
         current = conn.execute(
             """
-            SELECT provider, base_url, api_key_encrypted, model_name, timeout, is_vision_model
+            SELECT provider, base_url, api_key_encrypted, model_name, timeout, is_vision_model,
+                   context_window, context_window_overridden
             FROM llm_runtime_config
             WHERE id = 1
             """
@@ -124,21 +156,26 @@ def upsert_runtime_llm_config(
             "model_name": None,
             "timeout": None,
             "is_vision_model": None,
+            "context_window": None,
+            "context_window_overridden": 0,
         }
 
-        for key in ("provider", "base_url", "model_name", "timeout"):
+        for key in ("provider", "base_url", "model_name", "timeout", "context_window"):
             if key in updates:
                 merged[key] = updates[key]
+
+        if "context_window" in updates:
+            merged["context_window_overridden"] = 1
 
         if "is_vision_model" in updates:
             merged["is_vision_model"] = 1 if updates["is_vision_model"] else 0
 
         if "api_key" in updates:
-            api_key = str(updates["api_key"])
-            if api_key:
-                merged["api_key_encrypted"] = encrypt_api_key(api_key, secret)
-            else:
+            api_key = updates["api_key"]
+            if api_key is None or (isinstance(api_key, str) and not api_key.strip()):
                 merged["api_key_encrypted"] = None
+            else:
+                merged["api_key_encrypted"] = encrypt_api_key(str(api_key).strip(), secret)
 
         merged["updated_by"] = (updated_by or "").strip()
 
@@ -146,9 +183,9 @@ def upsert_runtime_llm_config(
             """
             INSERT INTO llm_runtime_config (
                 id, provider, base_url, api_key_encrypted, model_name,
-                timeout, is_vision_model, updated_by, updated_at
+                timeout, is_vision_model, context_window, context_window_overridden, updated_by, updated_at
             )
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(id) DO UPDATE SET
                 provider = excluded.provider,
                 base_url = excluded.base_url,
@@ -156,6 +193,8 @@ def upsert_runtime_llm_config(
                 model_name = excluded.model_name,
                 timeout = excluded.timeout,
                 is_vision_model = excluded.is_vision_model,
+                context_window = excluded.context_window,
+                context_window_overridden = excluded.context_window_overridden,
                 updated_by = excluded.updated_by,
                 updated_at = datetime('now')
             """,
@@ -166,7 +205,38 @@ def upsert_runtime_llm_config(
                 merged["model_name"],
                 merged["timeout"],
                 merged["is_vision_model"],
+                merged["context_window"],
+                merged["context_window_overridden"],
                 merged["updated_by"],
             ),
+        )
+        conn.commit()
+
+
+def clear_runtime_llm_config() -> None:
+    """删除运行时 LLM 覆盖配置，恢复为 .env 中的配置。"""
+    with closing(_connect()) as conn:
+        conn.execute("DELETE FROM llm_runtime_config WHERE id = 1")
+        conn.commit()
+
+
+def clear_runtime_llm_context_window() -> None:
+    """删除管理台对上下文窗口的覆盖，使其回落到 .env 的 LLM_CONTEXT_WINDOW。"""
+    with closing(_connect()) as conn:
+        conn.execute(
+            """
+            UPDATE llm_runtime_config
+            SET context_window = NULL, context_window_overridden = 0, updated_at = datetime('now')
+            WHERE id = 1
+            """
+        )
+        conn.commit()
+
+
+def clear_runtime_llm_base_url() -> None:
+    """删除管理台对 base_url 的覆盖，使其回落到 .env 的 LLM_BASE_URL。"""
+    with closing(_connect()) as conn:
+        conn.execute(
+            "UPDATE llm_runtime_config SET base_url = NULL, updated_at = datetime('now') WHERE id = 1"
         )
         conn.commit()

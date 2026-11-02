@@ -1,3 +1,5 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
 /**
  * 证据池可视化组件
  * 
@@ -8,7 +10,8 @@ import { useTranslation } from 'react-i18next'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { apiFetch, buildApiUrl } from '@/services/http'
+import { apiFetch, readJson, buildApiUrl } from '@/services/http'
+import { PDF_DOCUMENT_OPTIONS } from '@/utils/pdf'
 
 // 配置 PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
@@ -62,7 +65,8 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
     const { t } = useTranslation()
     const [visualEvidence, setVisualEvidence] = useState<VisualEvidence | null>(null)
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<UiMessage | null>(null)
+    const [pdfError, setPdfError] = useState<UiMessage | null>(null)
     const [currentPage, setCurrentPage] = useState(0)
     const [numPages, setNumPages] = useState(0)
     const [scale, setScale] = useState(1.0)
@@ -71,7 +75,6 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
 
     const pageContainerRef = useRef<HTMLDivElement>(null)
     const pdfFile = useMemo(() => buildApiUrl(`/reports/${taskId}/pdf`), [taskId])
-    const documentOptions = useMemo(() => ({ withCredentials: true }), [])
 
     // 加载可视化证据数据
     useEffect(() => {
@@ -79,13 +82,10 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
             try {
                 setLoading(true)
                 const response = await apiFetch(buildApiUrl(`/reports/${taskId}/visual_evidence`))
-                if (!response.ok) {
-                    throw new Error(t('evidence.error.visualLoadFailed'))
-                }
-                const data = await response.json()
+                const data = await readJson<VisualEvidence>(response)
                 setVisualEvidence(data)
             } catch (e) {
-                setError(e instanceof Error ? e.message : '未知错误')
+                setError(asMessage(e))
             } finally {
                 setLoading(false)
             }
@@ -95,6 +95,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
 
     // PDF 加载完成回调
     const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
+        setPdfError(null)
         setNumPages(numPages)
     }, [])
 
@@ -172,7 +173,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
     if (error) {
         return (
             <div className="flex items-center justify-center h-96 text-red-500">
-                <span>{t('evidence.error.loadFailed', { error })}</span>
+                <MessageView message={error} />
             </div>
         )
     }
@@ -237,8 +238,12 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                 <div className="flex-1 overflow-auto p-4 flex justify-center">
                     <div ref={pageContainerRef} className="relative inline-block">
                         <Document
+                            error={<MessageView message={pdfError || { key: 'ui.pdfError' }} />}
+                            onLoadError={error => setPdfError(asMessage(error, 'ui.pdfError'))}
+                            onSourceError={error => setPdfError(asMessage(error, 'ui.pdfError'))}
+                            noData={t('ui.noPdf')}
                             file={pdfFile}
-                            options={documentOptions}
+                            options={PDF_DOCUMENT_OPTIONS}
                             onLoadSuccess={onDocumentLoadSuccess}
                             loading={
                                 <div className="flex items-center justify-center h-96">
@@ -247,6 +252,10 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                             }
                         >
                             <Page
+                                loading={t('ui.pageLoading')}
+                                error={<MessageView message={pdfError || { key: 'ui.pageError' }} />}
+                                onLoadError={error => setPdfError(asMessage(error, 'ui.pageError'))}
+                                noData={t('ui.noPage')}
                                 pageNumber={currentPage + 1}
                                 scale={scale}
                                 renderTextLayer={false}
@@ -306,7 +315,7 @@ export function EvidenceViewer({ taskId }: EvidenceViewerProps) {
                         {/* Chunk ID */}
                         {selectedRegion.chunk_id && (
                             <div>
-                                <label className="text-xs text-gray-500 block mb-1">Chunk ID</label>
+                                <label className="text-xs text-gray-500 block mb-1">{t('ui.chunkId')}</label>
                                 <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
                                     {selectedRegion.chunk_id}
                                 </code>

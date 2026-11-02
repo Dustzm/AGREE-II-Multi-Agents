@@ -34,8 +34,7 @@ const variableHighlightPlugin = new Plugin({
 
                     decorations.push(
                         Decoration.inline(start, end, {
-                            class: 'inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-full bg-amber-100/80 text-amber-700/90 font-mono text-xs border border-amber-200/60 font-medium select-none shadow-sm translate-y-[-1px]',
-                            title: '变量'
+                            class: 'inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-full bg-amber-100/80 text-amber-700/90 font-mono text-xs border border-amber-200/60 font-medium select-none shadow-sm translate-y-[-1px]'
                         })
                     );
                 }

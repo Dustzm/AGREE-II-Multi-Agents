@@ -1,9 +1,11 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
+import { notifyError, notifySuccess } from '@/i18n/notify'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageSquare, Send, Trash2, Edit2, Save } from 'lucide-react'
 import { GuideDetail, ScoreUpdate } from '@/services/api'
 import { api } from '@/services/api'
-import { toast } from 'react-hot-toast'
 
 // 临时修改的分数记录
 type ModifiedScores = Record<string, number>
@@ -34,6 +36,7 @@ function EditableScore({
   onBlur?: () => void
   isModel?: boolean
 }) {
+  const { t } = useTranslation()
   const [isEditing, setIsEditing] = useState(false)
   const [tempValue, setTempValue] = useState('')
 
@@ -105,7 +108,9 @@ function EditableScore({
           : 'hover:bg-slate-100 hover:ring-1 hover:ring-slate-200'
         }
       `}
-      title={isModified ? `原始值: ${originalValue ?? '-'}` : '点击修改'}
+      title={isModified
+        ? t('benchmark.edit.originalValue', { value: originalValue ?? '-' })
+        : t('benchmark.edit.clickToEdit')}
     >
       {value}
     </span>
@@ -114,6 +119,7 @@ function EditableScore({
 
 // 备注框组件
 function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; xlsxFile: string; initialComments: any[] }) {
+  const { t, i18n } = useTranslation()
   const [comments, setComments] = useState<any[]>(initialComments || [])
   const [newComment, setNewComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -133,9 +139,10 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
       const result = await api.addComment(xlsxFile, guideId, newComment.trim())
       setComments([...comments, result.comment])
       setNewComment('')
-      toast.success('备注已添加')
+      notifySuccess('benchmark.comments.added')
     } catch (error) {
-      toast.error('添加失败: ' + (error as Error).message)
+      console.error(error)
+      notifyError(error, 'benchmark.comments.addFailed')
     } finally {
       setIsSubmitting(false)
     }
@@ -145,9 +152,10 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
     try {
       await api.deleteComment(xlsxFile, guideId, id)
       setComments(comments.filter(c => c.id !== id))
-      toast.success('备注已删除')
+      notifySuccess('benchmark.comments.deleted')
     } catch (error) {
-      toast.error('删除失败: ' + (error as Error).message)
+      console.error(error)
+      notifyError(error, 'benchmark.comments.deleteFailed')
     }
   }
 
@@ -166,9 +174,10 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
         c.id === id ? result.comment : c
       ))
       setEditingId(null)
-      toast.success('备注已更新')
+      notifySuccess('benchmark.comments.updated')
     } catch (error) {
-      toast.error('更新失败: ' + (error as Error).message)
+      console.error(error)
+      notifyError(error, 'benchmark.comments.updateFailed')
     }
   }
 
@@ -176,13 +185,13 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
     <div className="bg-slate-50 rounded-xl p-4">
       <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
         <MessageSquare className="w-4 h-4 text-blue-500" />
-        备注
+        {t('benchmark.comments.title')}
       </h3>
 
       {/* 评论列表 */}
       <div className="space-y-3 mb-3 max-h-60 overflow-y-auto">
         {comments.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">暂无备注</p>
+          <p className="text-sm text-slate-400 text-center py-4">{t('benchmark.comments.empty')}</p>
         ) : (
           comments.map(comment => (
             <div key={comment.id} className="bg-white rounded-lg p-3 border border-slate-200">
@@ -199,13 +208,13 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
                       onClick={() => setEditingId(null)}
                       className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"
                     >
-                      取消
+                      {t('benchmark.comments.cancel')}
                     </button>
                     <button
                       onClick={() => handleSaveEdit(comment.id)}
                       className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
                     >
-                      保存
+                      {t('benchmark.comments.save')}
                     </button>
                   </div>
                 </div>
@@ -232,7 +241,7 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
                   </div>
                   <p className="text-sm text-slate-700">{comment.content}</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {new Date(comment.created_at).toLocaleString('zh-CN')}
+                    {new Date(comment.created_at).toLocaleString(i18n.language)}
                   </p>
                 </>
               )}
@@ -248,7 +257,7 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
-          placeholder="添加备注..."
+          placeholder={t('benchmark.comments.placeholder')}
           className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
@@ -270,7 +279,7 @@ function CommentBox({ guideId, xlsxFile, initialComments }: { guideId: string; x
 export function GuideDetailTab({ guide, batchIds, xlsxFile, modifiedScores, onScoreChange, onClearModifiedScores, onRefresh, raterNames, hasPersistedChanges }: GuideDetailTabProps) {
   const { t } = useTranslation()
   const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<UiMessage | null>(null)
 
   const getScoreKey = (itemId: string, field: string) => `${guide.guide_id}::${itemId}::${field}`
 
@@ -307,7 +316,7 @@ export function GuideDetailTab({ guide, batchIds, xlsxFile, modifiedScores, onSc
       })
 
       if (updates.length === 0) {
-        toast.success('没有需要保存的修改')
+        notifySuccess('benchmark.edit.noChanges')
         return
       }
 
@@ -317,10 +326,11 @@ export function GuideDetailTab({ guide, batchIds, xlsxFile, modifiedScores, onSc
 
       onRefresh?.()
 
-      toast.success(t('benchmark.header.saved'))
+      notifySuccess('benchmark.header.saved')
     } catch (error) {
-      setSaveError((error as Error).message)
-      toast.error('保存失败: ' + (error as Error).message)
+      console.error(error)
+      setSaveError(asMessage(error, 'benchmark.edit.saveFailed'))
+      notifyError(error, 'benchmark.edit.saveFailed')
     } finally {
       setIsSaving(false)
     }
@@ -346,7 +356,7 @@ export function GuideDetailTab({ guide, batchIds, xlsxFile, modifiedScores, onSc
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
               {hasPersistedChanges && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" title="有未保存的更改" />
+                <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" title={t('benchmark.header.unsaved')} />
               )}
               {t('benchmark.tabs.guide')} {guide.seq_no}: {guide.guide_name}
             </h2>
@@ -365,24 +375,24 @@ export function GuideDetailTab({ guide, batchIds, xlsxFile, modifiedScores, onSc
               }
               disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-sm
             `}
-            title={hasModifiedScores ? '保存当前指南的修改' : '没有需要保存的修改'}
+            title={hasModifiedScores ? t('benchmark.edit.saveCurrent') : t('benchmark.edit.noChanges')}
           >
             {isSaving ? (
               <>
                 <div className="w-4 h-4 border-2 border-slate-400/30 border-t-slate-400 rounded-full animate-spin" />
-                保存中...
+                {t('benchmark.header.saving')}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                保存
+                {t('benchmark.header.save')}
               </>
             )}
           </button>
         </div>
         {saveError && (
           <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <span className="text-red-600 text-sm">{saveError}</span>
+            <div className="text-red-600 text-sm"><MessageView message={saveError} /></div>
           </div>
         )}
       </div>
@@ -484,7 +494,7 @@ export function GuideDetailTab({ guide, batchIds, xlsxFile, modifiedScores, onSc
                         {idx + 1}
                       </span>
                       <span className={`text-sm ${hasLargeDiff ? 'text-rose-900 font-medium' : 'text-slate-700'}`}>
-                        {item.item_name}
+                        {t('server:benchmark.item', { number: item.item_id.replace('item_', '') })}
                       </span>
                     </div>
                   </td>

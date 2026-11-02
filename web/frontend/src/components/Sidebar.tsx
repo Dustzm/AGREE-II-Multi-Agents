@@ -1,3 +1,4 @@
+import { notifyError } from '@/i18n/notify'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { BarChart2, BookOpenText, FileText, LogOut, MessageSquare, PlayCircle, Settings, Sliders, Users } from 'lucide-react'
@@ -85,11 +86,11 @@ export function Sidebar() {
 
             <div className="relative px-6 py-6 border-t border-white/4">
                 <div className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-white/30 mb-3">
-                    Account
+                    {t('ui.account')}
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="text-sm font-medium tracking-[-0.01em] text-white">
-                        {user?.display_name || user?.username || 'Unknown'}
+                        {user?.display_name || user?.username || t('ui.unknownUser')}
                     </div>
                     {isAdmin && (
                         <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase tracking-wider">
@@ -112,10 +113,10 @@ export function Sidebar() {
                     <LanguageSwitch />
                     <button
                         type="button"
-                        onClick={() => void logout()}
+                        onClick={() => void logout().catch(notifyError)}
                         className="flex h-9 w-9 items-center justify-center rounded-full bg-white/6 text-white/68 transition-all hover:bg-white/10 hover:text-white"
-                        title="退出登录"
-                        aria-label="退出登录"
+                        title={t('sidebar.logout')}
+                        aria-label={t('sidebar.logout')}
                     >
                         <LogOut className="h-4 w-4" />
                     </button>

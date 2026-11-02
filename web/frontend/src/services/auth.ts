@@ -1,4 +1,6 @@
 import { API_URL } from '@/config'
+import { languageFetch, readJson } from './http'
+import { LocalizedError, responseMessage } from '@/i18n/messages'
 
 export interface AuthUser {
     username: string
@@ -18,23 +20,23 @@ interface LoginPayload {
 
 async function parseAuthResponse(response: Response, fallback: string): Promise<AuthState> {
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: fallback }))
-        throw new Error(error.detail || fallback)
+        const error = await readJson<Record<string, unknown>>(response)
+        throw new LocalizedError(responseMessage(error, fallback))
     }
 
-    return response.json() as Promise<AuthState>
+    return readJson<AuthState>(response)
 }
 
 export const authService = {
     async me(): Promise<AuthState> {
-        const response = await fetch(`${API_URL}/auth/me`, {
+        const response = await languageFetch(`${API_URL}/auth/me`, {
             credentials: 'include',
         })
-        return parseAuthResponse(response, '获取登录状态失败')
+        return parseAuthResponse(response, 'error.unexpected')
     },
 
     async login(payload: LoginPayload): Promise<AuthState> {
-        const response = await fetch(`${API_URL}/auth/login`, {
+        const response = await languageFetch(`${API_URL}/auth/login`, {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -42,14 +44,14 @@ export const authService = {
             },
             body: JSON.stringify(payload),
         })
-        return parseAuthResponse(response, '登录失败')
+        return parseAuthResponse(response, 'error.invalid_credentials')
     },
 
     async logout(): Promise<AuthState> {
-        const response = await fetch(`${API_URL}/auth/logout`, {
+        const response = await languageFetch(`${API_URL}/auth/logout`, {
             method: 'POST',
             credentials: 'include',
         })
-        return parseAuthResponse(response, '退出登录失败')
+        return parseAuthResponse(response, 'error.unexpected')
     },
 }

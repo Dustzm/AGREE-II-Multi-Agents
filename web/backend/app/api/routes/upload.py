@@ -6,8 +6,10 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
+
+from ...i18n.messages import LocalizedHTTPException
 
 router = APIRouter()
 
@@ -29,7 +31,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     """
     # 验证文件类型
     if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="只支持 PDF 文件")
+        raise LocalizedHTTPException(400, "error.pdf_only")
     
     # 生成任务 ID
     timestamp = datetime.now().strftime("%m%d%H%M")

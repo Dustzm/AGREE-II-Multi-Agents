@@ -14,55 +14,39 @@ from concurrent.futures import ThreadPoolExecutor
 
 from core.config import get_settings
 from core.agents.appraiser import run_iterative_evaluation
+from core.llm.failures import reported_kind
 from core.agents.tools.appraiser_tools import save_item_evaluation
 from core.skills import list_available_skills, get_skill_summary
 from core.utils.cancellation import CancellationRequested, CancellationToken
+from core.rule_engine.appraiser_adapter import append_rule_engine_title_suffix
+from core.runtime import (
+    ExecutionRuntime,
+    ExecutionStage,
+    InstrumentedThreadPoolExecutor,
+    bind_execution_runtime,
+    get_execution_runtime,
+    reset_execution_runtime,
+)
 
 logger = logging.getLogger(__name__)
-
-ITEM_LLM_MAX_RETRIES = 3
-ITEM_LLM_MAX_ATTEMPTS = ITEM_LLM_MAX_RETRIES + 1
 
 def create_llm_executor(pool_concurrency: int) -> ThreadPoolExecutor:
     """创建批量条目评价线程池。"""
     logger.info("创建 LLM 评价线程池: pool_concurrency=%s", pool_concurrency)
-    return ThreadPoolExecutor(max_workers=pool_concurrency, thread_name_prefix="llm_eval_")
+    return InstrumentedThreadPoolExecutor(max_workers=pool_concurrency, thread_name_prefix="llm_eval_")
 
 
 def shutdown_llm_executor(executor: ThreadPoolExecutor | None) -> None:
     """关闭批量条目评价线程池。"""
     if executor is not None:
-        executor.shutdown(wait=False, cancel_futures=True)
+        executor.shutdown(wait=True, cancel_futures=True)
 
 
-# ============================================================================
-# 全局进度回调注册（用于外部注入，如 agent_runner）
-# ============================================================================
-_global_progress_callback: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None
-_global_summary_callback: Optional[Callable[[int, int, float], Awaitable[None]]] = None
-
-
-def register_progress_callbacks(
-    on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
-    on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None
-):
-    """
-    注册全局进度回调
-
-    Args:
-        on_item_progress: 单条目进度回调 (skill_id, title, status, duration)
-        on_summary: 汇总进度回调 (total, completed, elapsed)
-    """
-    global _global_progress_callback, _global_summary_callback
-    _global_progress_callback = on_item_progress
-    _global_summary_callback = on_summary
-
-
-def clear_progress_callbacks():
-    """清除全局进度回调"""
-    global _global_progress_callback, _global_summary_callback
-    _global_progress_callback = None
-    _global_summary_callback = None
+def get_llm_executor_stats(executor: ThreadPoolExecutor | None) -> dict[str, int]:
+    """返回评价线程池统计；普通线程池返回空统计。"""
+    if executor is None or not hasattr(executor, "stats"):
+        return {}
+    return executor.stats()
 
 
 async def appraise_all(
@@ -73,6 +57,9 @@ async def appraise_all(
     on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
     cancellation_token: Optional[CancellationToken] = None,
     executor: Optional[ThreadPoolExecutor] = None,
+    runtime: Optional[ExecutionRuntime] = None,
+    analysis_engine: str | None = None,
+    collect_exceptions: bool = False,
 ) -> Dict[str, Any]:
     """
     并发评价所有/指定条目
@@ -87,6 +74,7 @@ async def appraise_all(
             - duration: 完成耗时（秒），仅 completed 时有值
         on_summary: 汇总进度回调函数
             - 参数: (total, completed, elapsed)
+        analysis_engine: 本任务使用的评价引擎；为空时沿用全局配置
 
     Returns:
         {
@@ -103,8 +91,18 @@ async def appraise_all(
     item_concurrency = settings.app.appraisal_max_concurrency
     pool_concurrency = settings.app.appraisal_pool_max_concurrency
     llm_timeout = settings.app.batch_item_llm_timeout
-    owns_executor = executor is None
-    executor = executor or create_llm_executor(pool_concurrency)
+    if cancellation_token:
+        cancellation_token.raise_if_cancelled()
+    runtime = runtime or get_execution_runtime()
+    owns_runtime = runtime is None
+    owns_executor = owns_runtime and executor is None
+    if runtime is None:
+        executor = executor or create_llm_executor(pool_concurrency)
+        runtime = ExecutionRuntime.from_settings(
+            settings,
+            executor=executor,
+            owns_executor=False,
+        )
 
     # 获取待评价的条目列表
     if skill_ids is None:
@@ -117,8 +115,8 @@ async def appraise_all(
     )
 
     # 使用传入的回调或全局回调
-    progress_callback = on_item_progress or _global_progress_callback
-    summary_callback = on_summary or _global_summary_callback
+    progress_callback = on_item_progress
+    summary_callback = on_summary
 
     # 推送初始进度 0/total
     if summary_callback:
@@ -134,7 +132,12 @@ async def appraise_all(
 
     # 结果收集
     completed: List[str] = []
+    degraded_items: Dict[str, str] = {}
+    report_degraded_items: Dict[str, str] = {}
+    durations: Dict[str, float] = {}
     failed: Dict[str, str] = {}
+    failed_details: Dict[str, Dict[str, str]] = {}
+    failures: Dict[str, BaseException] = {}
     completed_count = 0
     start_time = time.time()
 
@@ -148,6 +151,12 @@ async def appraise_all(
                 cancellation_token.raise_if_cancelled()
             item_start = time.time()
             title = get_skill_summary(skill_id, lang=lang) or skill_id
+            title = append_rule_engine_title_suffix(
+                title,
+                skill_id,
+                lang=lang,
+                analysis_engine=analysis_engine,
+            )
 
             # 通知开始
             if progress_callback:
@@ -156,42 +165,35 @@ async def appraise_all(
                 except Exception as e:
                     logger.warning(f"进度回调失败: {e}")
 
+            # 条目级令牌：超时时只取消本条目，让仍在运行的线程在下一次模型调用前退出
+            item_token = CancellationToken.linked_to(cancellation_token)
             try:
-                # 使用全局线程池执行同步评价，统一限制所有指南任务的总并发。
-                loop = asyncio.get_running_loop()
-                last_timeout_error = None
-                for attempt in range(1, ITEM_LLM_MAX_ATTEMPTS + 1):
-                    if cancellation_token:
-                        cancellation_token.raise_if_cancelled()
+                def run_item_evaluation_with_logging() -> Dict[str, Any]:
+                    logger.info("条目评价线程开始: task_id=%s item=%s", task_id, skill_id)
                     try:
-                        result = await asyncio.wait_for(
-                            loop.run_in_executor(
-                                executor,
-                                run_iterative_evaluation,
+                        if analysis_engine is None:
+                            return run_iterative_evaluation(
                                 task_id,
                                 skill_id,
                                 lang,
-                                cancellation_token,
-                            ),
-                            timeout=llm_timeout,
-                        )
-                        break
-                    except asyncio.TimeoutError as exc:
-                        last_timeout_error = exc
-                        logger.warning(
-                            "条目评价超时: %s - 尝试 %s/%s (%ss)",
+                                item_token,
+                            )
+                        return run_iterative_evaluation(
+                            task_id,
                             skill_id,
-                            attempt,
-                            ITEM_LLM_MAX_ATTEMPTS,
-                            llm_timeout,
+                            lang,
+                            item_token,
+                            analysis_engine=analysis_engine,
                         )
-                        if attempt < ITEM_LLM_MAX_ATTEMPTS and progress_callback:
-                            try:
-                                await progress_callback(skill_id, title, "retrying", None)
-                            except Exception as ex:
-                                logger.warning(f"进度回调失败: {ex}")
-                else:
-                    raise last_timeout_error or asyncio.TimeoutError()
+                    finally:
+                        logger.info("条目评价线程返回: task_id=%s item=%s", task_id, skill_id)
+
+                result = await runtime.run_blocking(
+                    ExecutionStage.APPRAISER,
+                    run_item_evaluation_with_logging,
+                    timeout=llm_timeout,
+                    serialization_key=(task_id, skill_id),
+                )
                 duration = time.time() - item_start
 
                 # 保存结果
@@ -209,6 +211,7 @@ async def appraise_all(
                     return skill_id, {"status": "failed", "error": error_msg, "reason": "item_cancelled"}
                 if status in ("success", "no_evidence"):
                     cot = result.get("chain_of_thought", {})
+                    logger.info("条目评价开始保存: task_id=%s item=%s", task_id, skill_id)
                     save_item_evaluation(
                         task_id=task_id,
                         skill_id=skill_id,
@@ -216,8 +219,11 @@ async def appraise_all(
                         step2_evidence=cot.get("step2_evidence", []),
                         step3_reasoning=cot.get("step3_reasoning", ""),
                         score=cot.get("score", 1),
-                        evidence_sources=result.get("evidence_sources", [])
+                        evidence_sources=result.get("evidence_sources", []),
+                        rule_engine=result.get("rule_engine"),
+                        hybrid_router=result.get("hybrid_router"),
                     )
+                    logger.info("条目评价保存完成: task_id=%s item=%s", task_id, skill_id)
 
                     # 更新完成计数并通知
                     completed_count += 1
@@ -237,7 +243,15 @@ async def appraise_all(
                             logger.warning(f"汇总回调失败: {e}")
 
                     logger.info(f"评价完成: {skill_id} ({duration:.1f}s)")
-                    return skill_id, {"status": "success", "duration": duration}
+                    rule_engine_payload = result.get("rule_engine") or {}
+                    outcome: Dict[str, Any] = {"status": "success", "duration": duration}
+                    if rule_engine_payload.get("degraded"):
+                        outcome["degraded"] = True
+                        outcome["fallback_reason"] = rule_engine_payload.get("fallback_reason")
+                    if (result.get("iteration_stats") or {}).get("report_degraded"):
+                        # 条目评分已产出，但最终解释是降级文本，与规则引擎降级分开记账
+                        outcome["report_degraded"] = True
+                    return skill_id, outcome
                 else:
                     error_msg = result.get("error", "评价失败")
 
@@ -249,7 +263,7 @@ async def appraise_all(
                             logger.warning(f"进度回调失败: {e}")
 
                     logger.warning(f"评价失败: {skill_id} - {error_msg}")
-                    return skill_id, {"status": "failed", "error": error_msg}
+                    return skill_id, {"status": "failed", "error": error_msg, "type": "EvaluationError", "stage": "item_evaluation"}
 
             except CancellationRequested as exc:
                 if cancellation_token and cancellation_token.cancelled():
@@ -262,20 +276,16 @@ async def appraise_all(
                         logger.warning(f"进度回调失败: {ex}")
                 logger.exception("条目评价收到取消异常但批量任务未取消: %s - %s", skill_id, error_msg)
                 return skill_id, {"status": "failed", "error": error_msg, "reason": "item_cancelled"}
-            except asyncio.TimeoutError:
-                error_msg = f"条目评价超时 ({llm_timeout}s)"
+            except asyncio.TimeoutError as e:
+                item_token.cancel("item_timeout")
+                error_msg = f"{type(e).__name__}: 条目评价超时 ({llm_timeout}s)"
                 if progress_callback:
                     try:
                         await progress_callback(skill_id, title, "failed", None)
                     except Exception as ex:
                         logger.warning(f"进度回调失败: {ex}")
-                logger.error(
-                    "评价超时: %s - %s，已尝试 %s 次",
-                    skill_id,
-                    error_msg,
-                    ITEM_LLM_MAX_ATTEMPTS,
-                )
-                return skill_id, {"status": "failed", "error": error_msg, "reason": "llm_timeout"}
+                logger.exception("条目评价超时: %s - %s", skill_id, error_msg)
+                return skill_id, {"status": "failed", "error": error_msg, "type": type(e).__name__, "stage": "item_evaluation", "exception": e}
             except Exception as e:
                 error_msg = str(e)
 
@@ -287,11 +297,12 @@ async def appraise_all(
                         logger.warning(f"进度回调失败: {ex}")
 
                 logger.exception("评价异常: %s - %s", skill_id, error_msg)
-                return skill_id, {"status": "failed", "error": error_msg}
+                return skill_id, {"status": "failed", "error": error_msg, "type": type(e).__name__, "stage": getattr(e, "appraisal_stage", "item_evaluation"), "exception": e}
 
     # 并发执行所有评价任务
     if cancellation_token:
         cancellation_token.raise_if_cancelled()
+    runtime_token = bind_execution_runtime(runtime)
     tasks = [evaluate_item(sid) for sid in skill_ids]
     try:
         try:
@@ -311,7 +322,7 @@ async def appraise_all(
             }
 
         # 汇总结果
-        for item in results:
+        for requested_id, item in zip(skill_ids, results):
             if isinstance(item, BaseException):
                 # gather 返回的异常
                 if isinstance(item, CancellationRequested):
@@ -351,13 +362,39 @@ async def appraise_all(
                         "任务异常",
                         exc_info=(type(item), item, item.__traceback__),
                     )
+                failed[requested_id] = str(item)
+                failed_details[requested_id] = {
+                    "type": type(item).__name__,
+                    "stage": "item_evaluation",
+                    "message": str(item),
+                    "failure_kind": reported_kind(item),
+                }
+                failures[requested_id] = item
                 continue
 
             skill_id, result = item
+            if isinstance(result.get("duration"), (int, float)):
+                durations[skill_id] = round(float(result["duration"]), 3)
             if result.get("status") == "success":
                 completed.append(skill_id)
+                if result.get("degraded"):
+                    degraded_items[skill_id] = result.get("fallback_reason") or "unknown"
+                if result.get("report_degraded"):
+                    report_degraded_items[skill_id] = "report_explanation_degraded"
             else:
                 failed[skill_id] = result.get("error", "Unknown error")
+                failed_details[skill_id] = {
+                    "type": result.get("type", "EvaluationError"),
+                    "stage": result.get("stage", "item_evaluation"),
+                    "message": failed[skill_id],
+                    "failure_kind": reported_kind(
+                        result.get("exception"),
+                        result.get("type", "EvaluationError"),
+                        failed[skill_id],
+                    ),
+                }
+                if isinstance(result.get("exception"), BaseException):
+                    failures[skill_id] = result["exception"]
 
         total_duration = time.time() - start_time
 
@@ -369,80 +406,41 @@ async def appraise_all(
         else:
             status = "error"
 
-        logger.info(f"并发评价完成: 成功={len(completed)}, 失败={len(failed)}, 耗时={total_duration:.1f}s")
+        logger.info(
+            "并发评价完成: 成功=%s, 失败=%s, 降级=%s, 耗时=%.1fs",
+            len(completed),
+            len(failed),
+            len(degraded_items),
+            total_duration,
+        )
+        if degraded_items:
+            logger.warning("条目规则引擎降级回退: %s", degraded_items)
 
-        return {
+        summary = {
             "status": status,
             "completed": completed,
+            "degraded": degraded_items,
+            "report_degraded": report_degraded_items,
+            "durations": durations,
             "failed": failed,
+            "failed_details": failed_details,
             "total": total,
             "duration": total_duration,
             "item_concurrency": item_concurrency,
             "pool_concurrency": pool_concurrency,
         }
+        if collect_exceptions:
+            summary["exceptions"] = failures
+        try:
+            from core.observability.appraisal import write_failure_report
+
+            write_failure_report(task_id, summary)
+        except Exception:  # 观测数据不得影响主流程
+            logger.warning("failure_report 写出异常", exc_info=True)
+        return summary
     finally:
-        if owns_executor:
-            shutdown_llm_executor(executor)
-
-
-def create_appraise_all_tool(
-    lang: str = "en",
-    on_item_progress: Optional[Callable[[str, str, str, Optional[float]], Awaitable[None]]] = None,
-    on_summary: Optional[Callable[[int, int, float], Awaitable[None]]] = None,
-    cancellation_token: Optional[CancellationToken] = None,
-):
-    """
-    创建 appraise_all 工具函数（用于 Orchestrator）
-
-    Args:
-        lang: 语言
-        on_item_progress: 单条目进度回调
-        on_summary: 汇总进度回调
-
-    Returns:
-        异步工具函数
-    """
-    async def appraise_all_tool(task_id: str) -> Dict[str, Any]:
-        """
-        并发评价所有启用的 AGREE-II 条目
-
-        使用此工具可以一次性评价所有条目，比逐个调用 Appraiser_item_X 更高效。
-        单指南条目并发由 APPRAISAL_MAX_CONCURRENCY 控制，
-        全局线程池并发由 APPRAISAL_POOL_MAX_CONCURRENCY 控制。
-
-        Args:
-            task_id: 任务 ID
-
-        Returns:
-            评价结果汇总
-        """
-        return await appraise_all(
-            task_id,
-            lang=lang,
-            on_item_progress=on_item_progress,
-            on_summary=on_summary,
-            cancellation_token=cancellation_token,
-        )
-
-    appraise_all_tool.__name__ = "appraise_all"
-    appraise_all_tool.__doc__ = """并发评价所有启用的 AGREE-II 条目
-
-使用此工具可以一次性评价所有条目，比逐个调用 Appraiser_item_X 更高效。
-单指南条目并发由 APPRAISAL_MAX_CONCURRENCY 控制（默认 5）。
-全局线程池并发由 APPRAISAL_POOL_MAX_CONCURRENCY 控制（默认 10）。
-
-Args:
-    task_id: 任务 ID
-
-Returns:
-    评价结果汇总，包含:
-    - status: "success" | "partial" | "error"
-    - completed: 成功的条目列表
-    - failed: 失败的条目及原因
-    - total: 总条目数
-    - duration: 总耗时（秒）
-    - item_concurrency: 单指南条目并发
-    - pool_concurrency: 全局线程池并发
-"""
-
-    return appraise_all_tool
+        reset_execution_runtime(runtime_token)
+        if owns_runtime:
+            await runtime.aclose()
+            if owns_executor:
+                await asyncio.to_thread(shutdown_llm_executor, executor)

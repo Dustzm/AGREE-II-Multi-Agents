@@ -68,11 +68,11 @@
             "env_key": "DEEPSEEK_API_KEY",
             "models": [
                 {
-                    "id": "deepseek-chat",
+                    "id": "deepseek-v4-pro",
                     "vision": false
                 },
                 {
-                    "id": "deepseek-reasoner",
+                    "id": "deepseek-v4-flash",
                     "vision": false
                 }
             ]
@@ -80,9 +80,10 @@
         "gemini": {
             "name": "Google Gemini",
             "prefix": "gemini",
-            "default_base_url": "",
-            "need_base_url": false,
+            "default_base_url": "https://generativelanguage.googleapis.com",
+            "need_base_url": true,
             "env_key": "GEMINI_API_KEY",
+            "env_base": "GEMINI_API_BASE",
             "models": [
                 {
                     "id": "gemini-2.5-flash",
@@ -98,6 +99,24 @@
                 }
             ]
         },
+        "dashscope": {
+            "name": "阿里百炼 (Qwen)",
+            "prefix": "openai",
+            "default_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "need_base_url": true,
+            "env_key": "OPENAI_API_KEY",
+            "env_base": "OPENAI_API_BASE",
+            "models": [
+                {
+                    "id": "qwen3.7-max",
+                    "vision": false
+                },
+                {
+                    "id": "qwen3.7-plus",
+                    "vision": true
+                }
+            ]
+        },
         "zhipu": {
             "name": "智谱 (BigModel)",
             "prefix": "openai",
@@ -106,6 +125,10 @@
             "env_key": "OPENAI_API_KEY",
             "env_base": "OPENAI_API_BASE",
             "models": [
+                {
+                    "id": "glm-5.2",
+                    "vision": false
+                },
                 {
                     "id": "glm-5",
                     "vision": false

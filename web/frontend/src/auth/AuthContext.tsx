@@ -1,16 +1,20 @@
+import { notifyError } from '@/i18n/notify'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { authService, type AuthState } from '@/services/auth'
 import { clearClientSessionState, subscribeUnauthorized } from '@/services/http'
 import { AuthContext, type AuthContextValue } from './context'
 
 function AuthLoadingScreen() {
+    const { t } = useTranslation()
+
     return (
         <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f5f7fa_0%,#e4ecf7_100%)]">
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
-                <span className="text-sm font-medium text-slate-700">正在检查登录状态</span>
+                <span className="text-sm font-medium text-slate-700">{t('common.checkingAuth')}</span>
             </div>
         </div>
     )
@@ -38,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [])
 
     useEffect(() => {
-        void refresh()
+        void refresh().catch(notifyError)
     }, [refresh])
 
     useEffect(() => {
@@ -65,12 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [])
 
     const logout = useCallback(async () => {
+        let nextState: AuthState | null = null
         try {
-            await authService.logout()
+            nextState = await authService.logout()
         } finally {
             clearClientSessionState()
-            setAuthState({ authenticated: false, user: null })
-            navigate('/login', { replace: true })
+            const state = nextState ?? { authenticated: false, user: null }
+            setAuthState(state)
+            if (!state.authenticated) {
+                navigate('/login', { replace: true })
+            }
         }
     }, [navigate])
 

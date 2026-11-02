@@ -1,10 +1,12 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage } from '@/i18n/messages'
+import { notifyError, notifySuccess } from '@/i18n/notify'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Save, Wifi, WifiOff, Heart, Loader2, Eye, EyeOff, CheckCircle, XCircle, Clock, Sliders, AlertCircle, Zap, Server, Globe, Sparkles, BrainCircuit, Telescope, Sparkle, ChevronDown } from 'lucide-react'
+import { Save, Wifi, WifiOff, Heart, Loader2, Eye, EyeOff, CheckCircle, XCircle, Clock, Sliders, AlertCircle, Zap, Server, Globe, Sparkles, BrainCircuit, Telescope, Sparkle, ChevronDown, Info, RotateCcw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ConnectionTestResult, HealthCheckResult, LLMConfigUpdate, ProviderInfo, ProviderModelInfo } from '@/services/api'
 import { Button } from '@/components/ui/button'
-import toast from 'react-hot-toast'
 import { cn } from '@/utils/cn'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
@@ -18,6 +20,7 @@ const PROVIDER_UI: Record<string, { icon: typeof Server; color: string; bg: stri
     anthropic: { icon: BrainCircuit, color: 'text-orange-500', bg: 'bg-orange-50' },
     deepseek: { icon: Telescope, color: 'text-indigo-500', bg: 'bg-indigo-50' },
     gemini: { icon: Sparkle, color: 'text-sky-500', bg: 'bg-sky-50' },
+    dashscope: { icon: Zap, color: 'text-violet-500', bg: 'bg-violet-50' },
     zhipu: { icon: Globe, color: 'text-cyan-500', bg: 'bg-cyan-50' },
 }
 const DEFAULT_UI = { icon: Globe, color: 'text-gray-500', bg: 'bg-gray-50' }
@@ -35,6 +38,13 @@ export function Config() {
     const [apiKey, setApiKey] = useState('')
     const [apiKeyMasked, setApiKeyMasked] = useState('')
     const [modelName, setModelName] = useState('')
+    const [contextWindow, setContextWindow] = useState('')
+    const [contextWindowEdited, setContextWindowEdited] = useState(false)
+    const [contextHint, setContextHint] = useState('')
+    const [limitsLoading, setLimitsLoading] = useState(false)
+    const limitsRevision = useRef(0)
+    const loadedIdentity = useRef('')
+    const loadedContextWindow = useRef('')
     const [timeout, setTimeout_] = useState(120)
     const [showApiKey, setShowApiKey] = useState(false)
     const [apiKeyEdited, setApiKeyEdited] = useState(false)
@@ -42,6 +52,10 @@ export function Config() {
 
     // 提供商预设数据
     const [providersData, setProvidersData] = useState<Record<string, ProviderInfo>>({})
+
+    // 当前配置来源：有值时表示来自管理台保存的运行时配置，否则来自 .env
+    const [runtimeSource, setRuntimeSource] = useState<{ updatedAt: string | null; updatedBy: string | null } | null>(null)
+    const [resetting, setResetting] = useState(false)
 
     const getBaseUrlValue = (
         providerId: string,
@@ -97,6 +111,13 @@ export function Config() {
                         : (providerInfo.default_base_url || ''),
                 ])
             )
+            loadedIdentity.current = config.context_window == null ? '' : JSON.stringify([nextProvider, config.model_name, nextBaseUrlDrafts[nextProvider] || ''])
+            loadedContextWindow.current = config.context_window == null ? '' : String(config.context_window)
+            limitsRevision.current += 1
+            setContextWindow(loadedContextWindow.current)
+            setContextWindowEdited(false)
+            setContextHint('')
+            setLimitsLoading(false)
             setProvider(nextProvider)
             setBaseUrlDrafts(nextBaseUrlDrafts)
             setApiKeyMasked(config.api_key_masked)
@@ -106,19 +127,91 @@ export function Config() {
             setApiKey('')
             setApiKeyEdited(false)
             setProvidersData(providers)
-        } catch {
-            toast.error(t('config.toast.loadFailed'))
+            setRuntimeSource(
+                (config.runtime_source_fields?.length ?? 0) > 0
+                    ? {
+                        updatedAt: config.runtime_updated_at ?? null,
+                        updatedBy: config.runtime_updated_by ?? null,
+                    }
+                    : null
+            )
+        } catch (error) {
+            notifyError(error, 'config.toast.loadFailed')
         } finally {
             setLoading(false)
         }
-    }, [t])
+    }, [])
 
     useEffect(() => {
         loadConfig()
     }, [loadConfig])
 
+    const baseUrl = getBaseUrlValue(provider)
+    useEffect(() => {
+        const identity = JSON.stringify([provider, modelName, baseUrl])
+        if (loading) return
+        const revision = ++limitsRevision.current
+        if (identity === loadedIdentity.current) {
+            setContextWindow(loadedContextWindow.current)
+            setContextWindowEdited(false)
+            setContextHint('')
+            setLimitsLoading(false)
+            return
+        }
+        setContextWindow('')
+        setContextHint('')
+        setLimitsLoading(true)
+        const timer = window.setTimeout(() => {
+            api.getModelLimits(provider, modelName).then(result => {
+                if (limitsRevision.current !== revision) return
+                const suggested = result.context_window == null ? '' : String(result.context_window)
+                setContextWindow(suggested)
+                // 页面展示的推荐窗口就是保存值；为空时不提交，让后端回落到 .env
+                setContextWindowEdited(suggested !== '')
+                setContextHint(result.status === 'matched'
+                    ? t('config.llm.contextSuggested', { date: result.snapshot_at.slice(0, 10) })
+                    : t(`config.llm.context${result.status === 'ambiguous' ? 'Ambiguous' : 'Unknown'}`))
+            }).catch(() => {
+                if (limitsRevision.current === revision) setContextHint(t('config.llm.contextLookupFailed'))
+            }).finally(() => {
+                if (limitsRevision.current === revision) setLimitsLoading(false)
+            })
+        }, 300)
+        return () => { window.clearTimeout(timer); limitsRevision.current += 1 }
+    }, [provider, modelName, baseUrl, loading, t])
+
+    const validContext = contextWindow === '' || (/^[1-9]\d*$/.test(contextWindow) && Number.isSafeInteger(Number(contextWindow)))
+
+    // SQLite datetime('now') 使用 UTC；转成浏览器本地时间展示
+    const formatRuntimeTime = (value: string | null) => {
+        if (!value) return ''
+        const parsed = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`)
+        return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString()
+    }
+
+    // 恢复 .env 配置：清除管理台保存的运行时配置
+    const handleReset = async () => {
+        if (resetting) return
+        if (!window.confirm(t('config.llm.resetConfirm'))) return
+        setResetting(true)
+        try {
+            await api.resetLLMConfig()
+            notifySuccess('config.toast.resetDone')
+            await loadConfig()
+            setTestStatus('idle')
+            setTestResult(null)
+            setHealthStatus('idle')
+            setHealthResult(null)
+        } catch (e: unknown) {
+            notifyError(e, 'config.toast.resetFailed')
+        } finally {
+            setResetting(false)
+        }
+    }
+
     // 保存配置
     const handleSave = async () => {
+        if (saving || !validContext || limitsLoading) return
         setSaving(true)
         try {
             const update: LLMConfigUpdate = {
@@ -126,6 +219,9 @@ export function Config() {
                 model_name: modelName,
                 timeout: timeout,
                 is_vision_model: isVisionModel,
+            }
+            if (contextWindowEdited) {
+                update.context_window = contextWindow === '' ? null : Number(contextWindow)
             }
             const providerCfg = providersData[provider]
             if (providerCfg?.need_base_url) {
@@ -135,14 +231,14 @@ export function Config() {
                 update.api_key = apiKey
             }
             await api.updateLLMConfig(update)
-            toast.success(t('config.toast.saved'))
+            notifySuccess('config.toast.saved')
             await loadConfig()
             setTestStatus('idle')
             setTestResult(null)
             setHealthStatus('idle')
             setHealthResult(null)
         } catch (e: unknown) {
-            toast.error(e instanceof Error ? e.message : t('config.toast.saveFailed'))
+            notifyError(e, 'config.toast.saveFailed')
         } finally {
             setSaving(false)
         }
@@ -169,9 +265,9 @@ export function Config() {
             const result = await api.testLLMConnection(draftUpdate)
             setTestResult(result)
             setTestStatus(result.success ? 'success' : 'error')
-        } catch {
+        } catch (e) {
             setTestStatus('error')
-            setTestResult({ success: false, message: t('config.toast.saveFailed') })
+            setTestResult({ success: false, message: '', ...asMessage(e, 'config.toast.saveFailed') })
         }
     }
 
@@ -196,9 +292,9 @@ export function Config() {
             const result = await api.checkLLMHealth(draftUpdate)
             setHealthResult(result)
             setHealthStatus(result.success ? 'healthy' : 'unhealthy')
-        } catch {
+        } catch (e) {
             setHealthStatus('unhealthy')
-            setHealthResult({ success: false, message: t('config.toast.saveFailed') })
+            setHealthResult({ success: false, message: '', ...asMessage(e, 'config.toast.saveFailed') })
         }
     }
 
@@ -213,7 +309,7 @@ export function Config() {
             {/* 页面标题 */}
             <header className="mb-8 relative z-10">
                 <div className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
-                    Model operations
+                    {t('ui.modelOperations')}
                 </div>
                 <h2 className="mb-2 text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                     {t('config.title')}
@@ -236,6 +332,34 @@ export function Config() {
                         </h3>
                     </div>
 
+                    {/* 配置来源提示：说明当前生效值来自管理台保存还是 .env */}
+                    <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-black/45">
+                        <Info className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                            {runtimeSource
+                                ? t('config.llm.runtimeSource', {
+                                    time: formatRuntimeTime(runtimeSource.updatedAt) || '—',
+                                    by: runtimeSource.updatedBy || '—',
+                                })
+                                : t('config.llm.envSource')}
+                        </span>
+                        {runtimeSource && (
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                disabled={resetting}
+                                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:border-teal-300 hover:text-teal-700 disabled:opacity-50"
+                            >
+                                {resetting ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                    <RotateCcw className="h-3 w-3" />
+                                )}
+                                {t('config.llm.resetToEnv')}
+                            </button>
+                        )}
+                    </div>
+
                     <div className="space-y-5">
                         {/* Provider */}
                         <div className="space-y-1.5 max-w-sm relative" ref={providerSelectRef}>
@@ -249,7 +373,9 @@ export function Config() {
                                     {(() => {
                                         const ui = PROVIDER_UI[provider] || DEFAULT_UI
                                         const Icon = ui.icon
-                                        const label = providersData[provider]?.name || provider
+                                        const label = t(`config.llm.providers.${provider}`, {
+                                            defaultValue: providersData[provider]?.name || provider,
+                                        })
                                         return (
                                             <>
                                                 <div className={`p-1 rounded-md ${ui.bg}`}>
@@ -292,7 +418,9 @@ export function Config() {
                                                     <div className={`p-1 flex items-center justify-center rounded-md ${isSelected ? 'bg-white shadow-sm' : ui.bg}`}>
                                                         <Icon className={`h-4 w-4 ${isSelected ? 'text-teal-600' : ui.color}`} />
                                                     </div>
-                                                    <span className={isSelected ? 'font-semibold' : 'font-medium'}>{pdata.name}</span>
+                                                    <span className={isSelected ? 'font-semibold' : 'font-medium'}>
+                                                        {t(`config.llm.providers.${pid}`, { defaultValue: pdata.name })}
+                                                    </span>
                                                     {isSelected && <CheckCircle className="ml-auto h-4 w-4 text-teal-600" />}
                                                 </button>
                                             )
@@ -437,6 +565,23 @@ export function Config() {
                             </AnimatePresence>
                         </div>
 
+                        <div className="space-y-1.5 max-w-sm">
+                            <label htmlFor="context-window" className="text-sm font-medium text-gray-700">{t('config.llm.contextWindow')}</label>
+                            <input id="context-window" type="number" min="1" step="1" value={contextWindow}
+                                aria-invalid={!validContext} aria-describedby="context-window-hint"
+                                onChange={event => {
+                                    limitsRevision.current += 1
+                                    setLimitsLoading(false)
+                                    setContextHint('')
+                                    setContextWindowEdited(true)
+                                    setContextWindow(event.target.value)
+                                }}
+                                className="flex h-10 w-full rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/30" />
+                            <p id="context-window-hint" aria-live="polite" className="text-xs text-gray-500">
+                                {!validContext ? t('config.llm.contextInvalid') : limitsLoading ? t('config.llm.contextLoading') : contextHint || t('config.llm.contextHint')}
+                            </p>
+                        </div>
+
                         {/* 视觉能力开关 */}
                         {(() => {
                             const isPredefinedModel = (providersData[provider]?.models || []).some(
@@ -484,7 +629,7 @@ export function Config() {
                         <div className="flex items-center gap-3 pt-6">
                             <Button
                                 onClick={handleSave}
-                                disabled={saving}
+                                disabled={saving || !validContext || limitsLoading}
                                 className="bg-teal-600 hover:bg-teal-700 text-white shadow-sm rounded-xl px-5"
                             >
                                 {saving ? (
@@ -564,9 +709,9 @@ export function Config() {
                             </div>
                         )}
                         <div className="flex-1 min-w-0">
-                            <p className={cn("font-semibold text-sm", testResult.success ? 'text-green-700' : 'text-red-700')}>
-                                {testResult.message}
-                            </p>
+                            <div className={cn("font-semibold text-sm", testResult.success ? 'text-green-700' : 'text-red-700')}>
+                                <MessageView message={testResult.i18n || testResult.key ? testResult : asMessage(testResult.message, 'ui.connectionTestFailed')} />
+                            </div>
                             {testResult.latency_ms != null && (
                                 <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
@@ -619,9 +764,9 @@ export function Config() {
                             )}
                             <h4 className="text-sm font-bold text-gray-700">{t('config.health.title')}</h4>
                         </div>
-                        <p className={cn("text-sm font-semibold", healthResult.success ? 'text-green-700' : 'text-red-700')}>
-                            {healthResult.message}
-                        </p>
+                        <div className={cn("text-sm font-semibold", healthResult.success ? 'text-green-700' : 'text-red-700')}>
+                            <MessageView message={healthResult.i18n || healthResult.key ? healthResult : asMessage(healthResult.message, 'ui.healthTestFailed')} />
+                        </div>
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                             {healthResult.latency_ms != null && (
                                 <span className="flex items-center gap-1">

@@ -331,16 +331,16 @@ class BatchModelScoreLoader:
         
         Args:
             output_dir: output根目录路径
-            batch_dirs: 指定的批次目录名列表，为 None 则自动发现所有 batch_* 目录
+            batch_dirs: 指定的批次目录名列表，为 None 则自动发现所有 batch_* / cot_* 目录
         """
         self.output_dir = Path(output_dir)
         self._loaders: Dict[str, ModelScoreLoader] = {}
         
-        # 如果未指定，则自动发现所有 batch_* 目录
+        # 如果未指定，则自动发现所有 batch_* / cot_* 目录
         if batch_dirs is None:
             batch_dirs = sorted([
                 d.name for d in self.output_dir.iterdir()
-                if d.is_dir() and d.name.startswith('batch_')
+                if d.is_dir() and (d.name.startswith('batch_') or d.name.startswith('cot_'))
             ]) if self.output_dir.exists() else []
         
         # 初始化各批次加载器

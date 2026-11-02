@@ -1,7 +1,14 @@
 import { API_URL } from '@/config'
-import { apiFetch } from '@/services/http'
+import { apiFetch, readJson } from '@/services/http'
 
 const API_BASE_URL = API_URL
+
+export interface SkillScoringPrinciple {
+    range: string | number
+    condition?: string
+    condition_zh?: string
+    [key: string]: unknown
+}
 
 export interface Skill {
     item_id: string
@@ -19,7 +26,7 @@ export interface Skill {
     description_en?: string
     locating_info_en?: string
     criteria: string[]
-    scoring_principle: Record<string, any>[]
+    scoring_principle: SkillScoringPrinciple[]
 }
 
 export interface SkillUpdateDetails {
@@ -30,24 +37,14 @@ export interface SkillUpdateDetails {
     description: string
     locating_info: string
     criteria: string[]
-    scoring_principle: Record<string, any>[]
+    scoring_principle: SkillScoringPrinciple[]
 }
 
 export const skillsService = {
     async getAll(): Promise<Skill[]> {
-        // 获取当前语言并转换为后端格式 (zh-CN -> zh, en-US -> en)
-        const currentLang = document.documentElement.lang || 'en'
-        const lang = currentLang.split('-')[0]
+        const response = await apiFetch(`${API_BASE_URL}/skills`)
 
-        const response = await apiFetch(`${API_BASE_URL}/skills`, {
-            headers: {
-                'Accept-Language': lang
-            }
-        })
-        if (!response.ok) {
-            throw new Error('Failed to fetch skills')
-        }
-        return response.json()
+        return readJson(response)
     },
 
     async updateStatus(id: string, enabled: boolean): Promise<Skill> {
@@ -58,10 +55,8 @@ export const skillsService = {
             },
             body: JSON.stringify({ enabled }),
         })
-        if (!response.ok) {
-            throw new Error('Failed to update skill status')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     async updateDetails(id: string, details: SkillUpdateDetails): Promise<Skill> {
@@ -72,10 +67,8 @@ export const skillsService = {
             },
             body: JSON.stringify(details),
         })
-        if (!response.ok) {
-            throw new Error('Failed to update skill details')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     /**
@@ -89,9 +82,7 @@ export const skillsService = {
             },
             body: JSON.stringify({ enabled }),
         })
-        if (!response.ok) {
-            throw new Error('Failed to batch update skills')
-        }
-        return response.json()
+
+        return readJson(response)
     }
 }

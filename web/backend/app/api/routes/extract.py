@@ -4,8 +4,10 @@ KG 抽取路由
 提供知识图谱抽取的 API 接口
 """
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
+
+from ...i18n.messages import LocalizedHTTPException
 
 router = APIRouter()
 
@@ -64,7 +66,7 @@ async def upload_and_extract(file: UploadFile = File(...)):
     3. 启动 KG 抽取流程
     """
     if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="仅支持 PDF 文件")
+        raise LocalizedHTTPException(400, "error.pdf_only")
     
     # TODO: 实现上传和抽取逻辑
     # 1. 保存文件

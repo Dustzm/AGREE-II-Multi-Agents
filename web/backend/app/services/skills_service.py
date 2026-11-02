@@ -1,10 +1,13 @@
-import yaml
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+import logging
 
-from web.backend.app.schemas.skills import SkillBase, SkillUpdate, SkillUpdateDetails
+import yaml
+from typing import List, Dict, Any
+
+from web.backend.app.schemas.skills import SkillUpdateDetails
 from core.skills.loader import list_available_skills, _load_skill_config_raw, SKILLS_DIR
 from web.backend.app.i18n import get_language
+
+logger = logging.getLogger(__name__)
 
 def _format_skill_response(config: dict, skill_id: str, lang: str = "en") -> dict:
     """
@@ -66,13 +69,13 @@ def get_all_skills(lang: str = "en") -> List[Dict[str, Any]]:
         try:
             config = _load_skill_config_raw(skill_id)
             skills_list.append(_format_skill_response(config, skill_id, lang))
-        except Exception as e:
-            print(f"Error loading skill {skill_id}: {e}")
-            continue
+        except Exception:
+            logger.exception("Error loading skill %s", skill_id)
+            raise
             
     return skills_list
 
-def update_skill_status(skill_id: str, enabled: bool) -> Dict[str, Any]:
+def update_skill_status(skill_id: str, enabled: bool, lang: str = "en") -> Dict[str, Any]:
     """
     Update the enabled status of a skill in its YAML file.
     """
@@ -91,9 +94,9 @@ def update_skill_status(skill_id: str, enabled: bool) -> Dict[str, Any]:
         
     # Reload and format (fixes the language bug)
     updated_config = _load_skill_config_raw(skill_id)
-    return _format_skill_response(updated_config, skill_id)
+    return _format_skill_response(updated_config, skill_id, lang)
 
-def update_skill_details(skill_id: str, details: SkillUpdateDetails) -> Dict[str, Any]:
+def update_skill_details(skill_id: str, details: SkillUpdateDetails, lang: str = "en") -> Dict[str, Any]:
     """
     Update skill details (title_zh, description_zh, etc.)
     """
@@ -123,10 +126,10 @@ def update_skill_details(skill_id: str, details: SkillUpdateDetails) -> Dict[str
         yaml.dump(config, f, allow_unicode=True, sort_keys=False)
         
     updated_config = _load_skill_config_raw(skill_id)
-    return _format_skill_response(updated_config, skill_id)
+    return _format_skill_response(updated_config, skill_id, lang)
 
 
-def update_all_skills_status(enabled: bool) -> List[Dict[str, Any]]:
+def update_all_skills_status(enabled: bool, lang: str = "en") -> List[Dict[str, Any]]:
     """
     批量更新所有 skills 的启用状态
     
@@ -141,11 +144,11 @@ def update_all_skills_status(enabled: bool) -> List[Dict[str, Any]]:
     
     for skill_id in skill_ids:
         try:
-            updated = update_skill_status(skill_id, enabled)
+            updated = update_skill_status(skill_id, enabled, lang)
             updated_skills.append(updated)
-        except Exception as e:
-            print(f"Error updating skill {skill_id}: {e}")
-            continue
+        except Exception:
+            logger.exception("Error updating skill %s", skill_id)
+            raise
     
     return updated_skills
 

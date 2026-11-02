@@ -11,7 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, List, Optional
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from core.config import get_settings
@@ -33,6 +33,8 @@ from ...services.batch_jobs import (
     resume_batch_job,
 )
 from ...services.input_tree import build_input_tree
+
+from ...i18n.messages import ui_message, LocalizedHTTPException, http_error
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,8 @@ class BatchStatusResponse(BaseModel):
     status: str = "completed"
     status_reason: str = "normal"
     last_error: Optional[str] = None
+    error_i18n: Optional[dict] = None
+    diagnostic: Optional[str] = None
     is_running: bool
     total: int
     concurrency: int
@@ -254,11 +258,11 @@ async def list_folder_pdfs(folder_name: str):
     input_dir_resolved = input_dir.resolve()
 
     if input_dir_resolved not in folder_path.parents and folder_path != input_dir_resolved:
-        raise HTTPException(status_code=400, detail=f"非法文件夹路径: {folder_name}")
+        raise LocalizedHTTPException(400, "error.invalid_path", path=folder_name)
     if not folder_path.exists():
-        raise HTTPException(status_code=404, detail=f"文件夹不存在: {folder_name}")
+        raise LocalizedHTTPException(404, "error.folder_not_found", path=folder_name)
     if not folder_path.is_dir():
-        raise HTTPException(status_code=400, detail=f"不是文件夹: {folder_name}")
+        raise LocalizedHTTPException(400, "error.not_folder", path=folder_name)
 
     tree_payload = build_input_tree(folder_path)
     results = [PdfInfo.parse_obj(pdf) for pdf in tree_payload["pdfs"]]
@@ -272,19 +276,19 @@ async def start_batch(request: StartBatchRequest):
     folder_path = (input_dir / request.folder).resolve()
     input_dir_resolved = input_dir.resolve()
     if input_dir_resolved not in folder_path.parents and folder_path != input_dir_resolved:
-        raise HTTPException(status_code=400, detail=f"非法文件夹路径: {request.folder}")
+        raise LocalizedHTTPException(400, "error.invalid_path", path=request.folder)
     if not folder_path.exists():
-        raise HTTPException(status_code=404, detail=f"文件夹不存在: {request.folder}")
+        raise LocalizedHTTPException(404, "error.folder_not_found", path=request.folder)
 
     tree_payload = build_input_tree(folder_path)
     pdf_paths = [pdf["path"] for pdf in tree_payload["pdfs"]]
     if not pdf_paths:
-        raise HTTPException(status_code=400, detail=f"文件夹中没有 PDF 文件: {request.folder}")
+        raise LocalizedHTTPException(400, "error.no_pdfs", path=request.folder)
 
     try:
         payload = create_batch_job(pdf_paths, request.concurrency, 1)
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_error(400, exc) from exc
     return _status_response(payload)
 
 
@@ -295,15 +299,15 @@ async def start_selected(request: StartSelectedRequest):
     for path_str in request.pdf_paths:
         pdf_path = Path(path_str)
         if not pdf_path.exists():
-            raise HTTPException(status_code=404, detail=f"PDF 文件不存在: {path_str}")
+            raise LocalizedHTTPException(404, "error.pdf_not_found", path=path_str)
         if pdf_path.suffix.lower() != ".pdf":
-            raise HTTPException(status_code=400, detail=f"不是 PDF 文件: {path_str}")
+            raise LocalizedHTTPException(400, "error.pdf_only")
         pdf_paths.append(str(pdf_path))
 
     try:
         payload = create_batch_job(pdf_paths, request.concurrency, request.experiment_rounds)
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_error(400, exc) from exc
     return _status_response(payload)
 
 
@@ -339,7 +343,7 @@ async def get_batch_job_status(job_id: str):
     recover_stale_batch_jobs()
     job = get_batch_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail=f"批量任务不存在: {job_id}")
+        raise LocalizedHTTPException(404, "error.batch_not_found", id=job_id)
     return _status_response(get_batch_job_status_payload(job_id))
 
 
@@ -358,7 +362,7 @@ async def resume_batch(job_id: str, request: ResumeLatestRequest | None = None):
             concurrency_override=request.concurrency if request and request.concurrency is not None else None,
         )
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_error(400, exc) from exc
     return _status_response(payload)
 
 
@@ -367,7 +371,7 @@ async def resume_latest_batch(request: ResumeLatestRequest | None = None):
     """恢复最新一条可恢复的批量任务。"""
     job = get_latest_resumable_job()
     if job is None:
-        raise HTTPException(status_code=404, detail="没有可继续的批量任务")
+        raise LocalizedHTTPException(404, "error.no_resumable_batch")
     return await resume_batch(job["job_id"], request)
 
 
@@ -377,7 +381,7 @@ async def stop_batch_job(job_id: str):
     try:
         payload = request_stop(job_id)
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise http_error(400, exc) from exc
     return _status_response(payload)
 
 
@@ -386,9 +390,9 @@ async def stop_batch():
     """兼容接口：停止当前活跃 job。"""
     active = get_active_job()
     if active is None:
-        raise HTTPException(status_code=400, detail="没有正在运行的批量任务")
+        raise LocalizedHTTPException(400, "error.no_running_batch")
     payload = request_stop(active["job_id"])
-    return {"message": "批量任务已停止", "status": payload}
+    return {**ui_message("status.batch_stopped"), "status": payload}
 
 
 @router.websocket("/batch/ws/{job_id}")
@@ -410,7 +414,7 @@ async def batch_websocket(websocket: WebSocket, job_id: str):
     try:
         job = get_batch_job(job_id)
         if job is None:
-            await websocket.send_json({"type": "error", "content": f"批量任务不存在: {job_id}"})
+            await websocket.send_json({"type": "error", **ui_message("error.batch_not_found", field="content", id=job_id)})
             return
 
         await websocket.send_json({
@@ -456,10 +460,10 @@ async def restore_batch_session(session_id: str):
     """查看指定会话状态。"""
     job = get_batch_job(session_id)
     if job is None:
-        raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
+        raise LocalizedHTTPException(404, "error.session_not_found", id=session_id)
     status = _status_response(get_batch_job_status_payload(session_id))
     return {
-        "message": "会话状态已加载",
+        **ui_message("status.session_loaded"),
         "session_id": session_id,
         "status": status,
     }
@@ -471,8 +475,8 @@ async def remove_batch_session(session_id: str):
     try:
         delete_batch_job(session_id)
     except RuntimeError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"message": f"会话 {session_id} 已删除"}
+        raise http_error(404, exc) from exc
+    return ui_message("status.deleted", filename=session_id)
 
 
 BatchDirectoryNode.update_forward_refs()

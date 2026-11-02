@@ -29,6 +29,12 @@ if llm_aided_config:
                             "please execute `pip install mineru[core]` to install the required packages.")
 
 
+def _page_size(page_or_size) -> tuple[int, int]:
+    if isinstance(page_or_size, (tuple, list)) and len(page_or_size) >= 2:
+        return int(page_or_size[0]), int(page_or_size[1])
+    return tuple(map(int, page_or_size.get_size()))
+
+
 def blocks_to_page_info(page_blocks, image_dict, page, image_writer, page_index) -> dict:
     """将blocks转换为页面信息"""
 
@@ -36,7 +42,7 @@ def blocks_to_page_info(page_blocks, image_dict, page, image_writer, page_index)
     # page_pil_img = image_dict["img_pil"]
     page_pil_img = image_dict["img_pil"]
     page_img_md5 = bytes_md5(page_pil_img.tobytes())
-    width, height = map(int, page.get_size())
+    width, height = _page_size(page)
 
     magic_model = MagicModel(page_blocks, width, height)
     image_blocks = magic_model.get_image_blocks()
@@ -119,5 +125,6 @@ def result_to_middle_json(model_output_blocks_list, images_list, pdf_doc, image_
         logger.info(f'llm aided title time: {round(time.time() - llm_aided_title_start_time, 2)}')
 
     # 关闭pdf文档
-    pdf_doc.close()
+    if hasattr(pdf_doc, "close"):
+        pdf_doc.close()
     return middle_json

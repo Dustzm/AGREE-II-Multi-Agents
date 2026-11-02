@@ -4,6 +4,9 @@
 提供 t() 函数用于消息翻译，默认语言为英语
 """
 from typing import Optional
+from contextvars import ContextVar
+
+request_language = ContextVar("request_language", default="en")
 
 # 支持的语言
 SUPPORTED_LANGUAGES = ["en", "zh"]
@@ -22,14 +25,21 @@ def get_language(lang: Optional[str]) -> str:
     """
     if not lang:
         return DEFAULT_LANGUAGE
-    
-    # 规范化语言代码
-    lang = lang.lower().split("-")[0]  # 'zh-CN' -> 'zh'
-    
-    if lang in SUPPORTED_LANGUAGES:
-        return lang
-    
-    return DEFAULT_LANGUAGE
+
+    candidates = []
+    for index, entry in enumerate(lang.split(",")):
+        parts = entry.strip().lower().split(";")
+        code = parts[0].split("-")[0]
+        quality = 1.0
+        try:
+            for option in parts[1:]:
+                if option.strip().startswith("q="):
+                    quality = float(option.strip()[2:])
+        except ValueError:
+            continue
+        if code in SUPPORTED_LANGUAGES and 0 < quality <= 1:
+            candidates.append((quality, -index, code))
+    return max(candidates)[2] if candidates else DEFAULT_LANGUAGE
 
 
 # 中文消息字典
@@ -41,10 +51,11 @@ ZH_MESSAGES = {
     "status.task_id": "任务ID: {task_id}",
     "status.reusing_task": "复用已有任务: {task_id}",
     "status.doc_found_skip": "📄 发现已解析的文档，跳过解析步骤",
-    "status.parsing_mineru": "📄 正在解析 PDF (MinerU VLM)...",
-    "status.parse_done_mineru": "✓ PDF 解析完成 ({pages} 页) - MinerU",
-    "status.parsing_pypdf": "📄 正在解析 PDF (本地 PyPDF)...",
-    "status.parse_done_pypdf": "✓ PDF 解析完成 ({pages} 页) - PyPDF",
+    "status.reusing_mineru_cache": "📄 复用文件解析结果 ({pages} 页)",
+    "status.parsing_mineru": "📄 文件解析中...",
+    "status.parse_done_mineru": "✓ 文件解析完成 ({pages} 页)",
+    "status.parsing_pypdf": "📄 文件解析中...",
+    "status.parse_done_pypdf": "✓ 文件解析完成 ({pages} 页)",
     "status.parse_retry": "⚠️ 解析失败，{delay}秒后重试 ({attempt}/{max_retries})...",
     "error.parse_failed": "PDF 解析失败: {error}",
     "error.mineru_not_configured": "MinerU 服务未配置 (MINERU_SERVER_URL)",
@@ -91,6 +102,23 @@ ZH_MESSAGES = {
     "batch.task_done": "已完成",
     "batch.task_error": "失败",
     "batch.task_cancelled": "已取消",
+
+    # === config.py ===
+    "config.connection.official_provider": "已选择官方提供商 ({provider})，请运行健康验证测试实际可用性",
+    "config.connection.base_url_missing": "未配置 LLM Base URL",
+    "config.connection.success": "连接成功",
+    "config.connection.auth_failed": "认证失败 (401)，请检查 API Key",
+    "config.connection.forbidden": "访问被拒绝 (403)",
+    "config.connection.models_unsupported": "服务连通（但提供商不支持获取模型列表），请运行健康验证确认推理",
+    "config.connection.http_error": "服务返回异常状态码: {status}",
+    "config.connection.connect_failed": "无法连接到 {url}，请检查 URL 是否正确",
+    "config.connection.timeout": "连接超时，服务可能不可用",
+    "config.connection.error": "连接测试异常: {error}",
+    "config.health.base_url_missing": "提供商 '{provider}' 要求配置 LLM Base URL",
+    "config.health.reasoning": "[思考模式] {reasoning}",
+    "config.health.empty_reply": "（模型已响应，但未返回文本内容）",
+    "config.health.success": "LLM 服务正常，推理可用",
+    "config.health.error": "健康验证异常: {error}",
 }
 
 # 英文消息字典
@@ -102,10 +130,11 @@ EN_MESSAGES = {
     "status.task_id": "Task ID: {task_id}",
     "status.reusing_task": "Reusing existing task: {task_id}",
     "status.doc_found_skip": "📄 Parsed document found, skipping parsing",
-    "status.parsing_mineru": "📄 Parsing PDF (MinerU VLM)...",
-    "status.parse_done_mineru": "✓ PDF parsed ({pages} pages) - MinerU",
-    "status.parsing_pypdf": "📄 Parsing PDF (Local PyPDF)...",
-    "status.parse_done_pypdf": "✓ PDF parsed ({pages} pages) - PyPDF",
+    "status.reusing_mineru_cache": "📄 Reusing parsed file result ({pages} pages)",
+    "status.parsing_mineru": "📄 Parsing file...",
+    "status.parse_done_mineru": "✓ File parsed ({pages} pages)",
+    "status.parsing_pypdf": "📄 Parsing file...",
+    "status.parse_done_pypdf": "✓ File parsed ({pages} pages)",
     "status.parse_retry": "⚠️ Parse failed, retrying in {delay}s ({attempt}/{max_retries})...",
     "error.parse_failed": "PDF parsing failed: {error}",
     "error.mineru_not_configured": "MinerU service not configured (MINERU_SERVER_URL)",
@@ -152,7 +181,41 @@ EN_MESSAGES = {
     "batch.task_done": "Completed",
     "batch.task_error": "Failed",
     "batch.task_cancelled": "Cancelled",
+
+    # === config.py ===
+    "config.connection.official_provider": "Official provider selected ({provider}); run the health check to verify inference",
+    "config.connection.base_url_missing": "LLM Base URL is not configured",
+    "config.connection.success": "Connection successful",
+    "config.connection.auth_failed": "Authentication failed (401); check the API Key",
+    "config.connection.forbidden": "Access denied (403)",
+    "config.connection.models_unsupported": "Service is reachable, but the provider does not support listing models; run the health check to verify inference",
+    "config.connection.http_error": "Service returned HTTP status {status}",
+    "config.connection.connect_failed": "Unable to connect to {url}; check the URL",
+    "config.connection.timeout": "Connection timed out; the service may be unavailable",
+    "config.connection.error": "Connection test failed: {error}",
+    "config.health.base_url_missing": "Provider '{provider}' requires an LLM Base URL",
+    "config.health.reasoning": "[Reasoning] {reasoning}",
+    "config.health.empty_reply": "(The model responded without text content)",
+    "config.health.success": "LLM service is healthy and inference is available",
+    "config.health.error": "Health check failed: {error}",
 }
+
+# 业务消息与现有运行状态共用同一套键。
+from .catalog import MESSAGES as BUSINESS_MESSAGES
+
+for _key, (_en, _zh) in BUSINESS_MESSAGES.items():
+    EN_MESSAGES[_key] = _en
+    ZH_MESSAGES[_key] = _zh
+
+# 原始异常通过 diagnostic 单独传递，避免翻译前缀后混入其他语言。
+for _key, _en, _zh in (
+    ("error.init_failed", "Initialization failed. See diagnostic details.", "初始化失败，请查看诊断详情。"),
+    ("error.parse_failed", "PDF parsing failed. See diagnostic details.", "PDF 解析失败，请查看诊断详情。"),
+    ("config.connection.error", "Connection test failed. See diagnostic details.", "连接测试失败，请查看诊断详情。"),
+    ("config.health.error", "Health check failed. See diagnostic details.", "健康验证失败，请查看诊断详情。"),
+):
+    EN_MESSAGES[_key] = _en
+    ZH_MESSAGES[_key] = _zh
 
 # 消息字典映射
 MESSAGES = {
@@ -167,14 +230,14 @@ def t(key: str, lang: Optional[str] = None, **kwargs) -> str:
     
     Args:
         key: 消息键名
-        lang: 语言代码 (zh/en)，为 None 时使用英语
+        lang: 语言代码 (zh/en)，为 None 时使用请求上下文，缺省英语
         **kwargs: 格式化参数
     
     Returns:
         翻译后的消息，找不到时返回 key 本身
     """
     try:
-        lang = get_language(lang)
+        lang = get_language(lang) if lang else request_language.get()
         messages = MESSAGES.get(lang, EN_MESSAGES)
         template = messages.get(key)
         

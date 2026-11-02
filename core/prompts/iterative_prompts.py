@@ -159,7 +159,7 @@ Return a JSON object with this EXACT structure:
             {{
                 "point": "Short label for this scoring aspect (e.g., 'Health Intent', 'Target Population')",
                 "explanation": "Detailed explanation of how the evidence supports or fails this aspect",
-                "evidence_chunks": ["chunk_001", "chunk_005"]  // Array of chunk_ids in format "chunk_XXX" from the evidence list above
+                "evidence_chunks": ["chunk_001", "chunk_005"]
             }}
         ],
         "score_justification": "Explain why this score was chosen and why adjacent scores were not appropriate"
@@ -167,10 +167,11 @@ Return a JSON object with this EXACT structure:
 }}
 
 ## Guidelines
-1. Each item in "reasons" should address one specific aspect from the scoring rubric
-2. "evidence_chunks" must contain chunk_ids in the format "chunk_XXX" (e.g., "chunk_001", "chunk_015") - use the exact chunk_id labels shown in the evidence list, NOT numeric indices like [0] or [1]
-3. Include 2-5 reasons depending on the complexity of the scoring rubric
-4. The "score_justification" should explicitly reference the rubric conditions
+1. Each item in "reasons" MUST be a JSON object with "point" and "explanation" keys - NEVER a bare string or a list of strings
+2. Each item in "reasons" should address one specific aspect from the scoring rubric
+3. "evidence_chunks" must contain chunk_ids in the format "chunk_XXX" (e.g., "chunk_001", "chunk_015") - use the exact chunk_id labels shown in the evidence list, NOT numeric indices like [0] or [1]
+4. Include 2-5 reasons depending on the complexity of the scoring rubric
+5. The "score_justification" should explicitly reference the rubric conditions
 
 IMPORTANT: Return ONLY the JSON object, no additional text or markdown formatting.
 """

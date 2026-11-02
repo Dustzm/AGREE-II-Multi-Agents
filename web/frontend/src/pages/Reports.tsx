@@ -1,3 +1,5 @@
+import { formatDate } from '@/i18n/format'
+import { notifyError } from '@/i18n/notify'
 /**
  * Reports - 评价报告页面
  * 
@@ -7,7 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Download as _Download, Folder, Home, ChevronRight, Info, Quote, Sparkles, Scale } from 'lucide-react'
+import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Folder, Home, ChevronRight, Info, Quote, Sparkles, Scale } from 'lucide-react'
 import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo, type StructuredReasoning, type ItemEvaluation } from '@/services/api'
 import { cn } from '@/utils/cn'
 import { EvidenceViewer } from '@/components/EvidenceViewer'
@@ -25,7 +27,7 @@ interface ItemEvaluationCardProps {
 }
 
 function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
 
     // 判断 step3_reasoning 是结构化格式还是旧的字符串格式
     const isStructuredReasoning = (reasoning: unknown): reasoning is StructuredReasoning => {
@@ -66,7 +68,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                 </span>
                 <span className="text-sm font-semibold flex-1 line-clamp-1">{item.title}</span>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground hidden group-open:inline-block">Score:</span>
+                    <span className="text-xs text-muted-foreground hidden group-open:inline-block">{t('ui.score')}</span>
                     <span className={cn(
                         "text-lg font-bold font-mono tracking-tight",
                         item.score && item.score >= 5 ? "text-green-600" : item.score && item.score <= 3 ? "text-red-500" : "text-yellow-600"
@@ -130,7 +132,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <h4 className="text-xs font-bold text-indigo-900/50 uppercase tracking-wider">Evaluation Summary</h4>
+                                    <h4 className="text-xs font-bold text-indigo-900/50 uppercase tracking-wider">{t('ui.evaluationSummary')}</h4>
                                     <p className="text-sm font-medium text-slate-700 leading-relaxed">
                                         {structuredReasoning.summary}
                                     </p>
@@ -179,7 +181,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                                                     {hasEvidence && (
                                                         <span className="flex items-center gap-1 text-[10px] text-primary/60 font-medium uppercase tracking-wide opacity-0 group-hover/reason:opacity-100 transition-opacity ml-2">
                                                             <Eye className="h-3 w-3" />
-                                                            Verify
+                                                            {t('ui.verify')}
                                                         </span>
                                                     )}
                                                 </div>
@@ -188,7 +190,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                                                 {hasEvidence && (
                                                     <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500 border border-slate-200 group-hover/reason:bg-primary/5 group-hover/reason:text-primary group-hover/reason:border-primary/20 transition-colors">
                                                         <Quote className="h-3 w-3 rotate-180" />
-                                                        <span>{chunkIds.length} Citations</span>
+                                                        <span>{t('ui.citations', { count: chunkIds.length })}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -235,7 +237,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                 {/* 评价时间 */}
                 {item.evaluated_at && (
                     <p className="text-xs text-muted-foreground/50 text-right">
-                        {t('reports.detail.evaluatedAt')} {new Date(item.evaluated_at).toLocaleString()}
+                        {t('reports.detail.evaluatedAt')} {formatDate(item.evaluated_at, i18n.language)}
                     </p>
                 )}
             </div>
@@ -245,7 +247,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
 
 
 export function Reports() {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const [reports, setReports] = useState<ReportSummary[]>([])
     const [folders, setFolders] = useState<BatchFolderInfo[]>([])
     const [currentFolder, setCurrentFolder] = useState<string | null>(null)
@@ -279,7 +281,18 @@ export function Reports() {
 
     useEffect(() => {
         loadReports(currentFolder)
-    }, [loadReports, currentFolder])
+    }, [loadReports, currentFolder, i18n.language])
+
+    // Language changes refresh standard display fields without resetting the selected tab.
+    const selectedTaskId = selectedReport?.task_id
+    useEffect(() => {
+        if (!selectedTaskId) return
+        let active = true
+        api.getReport(selectedTaskId, currentFolder || undefined)
+            .then(detail => { if (active) setSelectedReport(detail) })
+            .catch(error => { if (active) notifyError(error, 'reports.error.loadFailed') })
+        return () => { active = false }
+    }, [selectedTaskId, currentFolder, i18n.language])
 
     // 查看报告详情
     const viewReport = async (taskId: string) => {
@@ -366,10 +379,15 @@ export function Reports() {
                                 <h1 className="text-2xl font-bold tracking-tight text-gray-900 leading-tight">
                                     {selectedReport.guideline_title}
                                 </h1>
+                                {selectedReport.status === 'partial' && (
+                                    <p className="mt-2 text-sm text-amber-700">
+                                        {t('reports.partial', { completed: 23 - selectedReport.missing_items.length, missing: selectedReport.missing_items.join(', ') })}
+                                    </p>
+                                )}
                                 <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
                                     <span className="flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60"></span>
-                                        {t('reports.detail.date')} <span className="font-medium text-gray-700">{selectedReport.evaluation_date}</span>
+                                        {t('reports.detail.date')} <span className="font-medium text-gray-700">{formatDate(selectedReport.evaluation_date, i18n.language, { dateStyle: 'medium' })}</span>
                                     </span>
                                 </div>
                             </div>
@@ -427,7 +445,7 @@ export function Reports() {
                                         <span className="text-xl font-bold text-gray-900 font-mono leading-none">
                                             {selectedReport.total_raw_score}
                                         </span>
-                                        <span className="text-[10px] text-muted-foreground">pts</span>
+                                        <span className="text-[10px] text-muted-foreground">{t('ui.points')}</span>
                                     </div>
                                 </div>
                             )}
@@ -474,15 +492,15 @@ export function Reports() {
                                     </div>
                                     <div className="p-3 space-y-2">
                                         <div className="relative pl-3 border-l-2 border-red-200">
-                                            <div className="text-[10px] font-bold text-red-600 uppercase mb-0.5">No Recommend</div>
+                                            <div className="text-[10px] font-bold text-red-600 uppercase mb-0.5">{t('ui.noRecommend')}</div>
                                             <p className="text-[10px] text-muted-foreground leading-relaxed">{t('reports.tooltip.noRecommend')}</p>
                                         </div>
                                         <div className="relative pl-3 border-l-2 border-amber-200">
-                                            <div className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Modifications</div>
+                                            <div className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">{t('ui.modifications')}</div>
                                             <p className="text-[10px] text-muted-foreground leading-relaxed">{t('reports.tooltip.recommendModify')}</p>
                                         </div>
                                         <div className="relative pl-3 border-l-2 border-emerald-200">
-                                            <div className="text-[10px] font-bold text-emerald-600 uppercase mb-0.5">Recommend</div>
+                                            <div className="text-[10px] font-bold text-emerald-600 uppercase mb-0.5">{t('ui.recommend')}</div>
                                             <p className="text-[10px] text-muted-foreground leading-relaxed">{t('reports.tooltip.recommend')}</p>
                                         </div>
                                     </div>
@@ -555,10 +573,14 @@ export function Reports() {
                                                 )}
                                             </div>
                                             <span className={cn(
-                                                "w-16 text-right text-sm font-medium",
+                                                "w-28 text-right text-sm font-medium",
                                                 domain.score === null && "text-muted-foreground"
                                             )}>
-                                                {domain.score !== null ? `${domain.score}%` : 'N/A'}
+                                                {domain.score !== null
+                                                    ? `${domain.score}%`
+                                                    : domain.evaluated_count > 0
+                                                        ? t('reports.detail.pendingDomain', { completed: domain.evaluated_count, total: domain.item_count })
+                                                        : t('reports.detail.notEvaluated')}
                                             </span>
 
                                         </div>
@@ -572,7 +594,7 @@ export function Reports() {
                                     <div className="grid md:grid-cols-2 gap-4">
                                         {selectedReport.overall_assessment.strengths?.length > 0 && (
                                             <div className="bg-green-50 rounded-xl border border-green-100 p-6">
-                                                <h3 className="font-medium text-green-800 mb-3">{t('reports.detail.strengths')}</h3>
+                                                <h3 className="font-medium text-green-800 mb-3">{t(selectedReport.status === 'partial' ? 'reports.detail.partialStrengths' : 'reports.detail.strengths')}</h3>
                                                 <ul className="space-y-2">
                                                     {selectedReport.overall_assessment.strengths.map((s, i) => (
                                                         <li key={i} className="text-sm text-green-700">{s}</li>
@@ -582,7 +604,7 @@ export function Reports() {
                                         )}
                                         {selectedReport.overall_assessment.weaknesses?.length > 0 && (
                                             <div className="bg-red-50 rounded-xl border border-red-100 p-6">
-                                                <h3 className="font-medium text-red-800 mb-3">{t('reports.detail.weaknesses')}</h3>
+                                                <h3 className="font-medium text-red-800 mb-3">{t(selectedReport.status === 'partial' ? 'reports.detail.partialWeaknesses' : 'reports.detail.weaknesses')}</h3>
                                                 <ul className="space-y-2">
                                                     {selectedReport.overall_assessment.weaknesses.map((w, i) => (
                                                         <li key={i} className="text-sm text-red-700">{w}</li>
@@ -644,7 +666,7 @@ export function Reports() {
             <header className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-6 border-b border-gray-200/50">
                 <div className="space-y-2">
                     <div className="text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
-                        Reporting surface
+                        {t('ui.reportingSurface')}
                     </div>
                     <h2 className="text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                         {t('reports.title')}
@@ -797,12 +819,13 @@ export function Reports() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="font-medium text-gray-900 line-clamp-2">{report.title}</div>
+                                                {report.status === 'partial' && <div className="text-xs text-amber-700">{t('reports.partial', { completed: 23 - report.missing_items.length, missing: report.missing_items.join(', ') })}</div>}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="text-gray-900 whitespace-nowrap">{report.date.split(' ')[0]}</div>
+                                                <div className="text-gray-900 whitespace-nowrap">{formatDate(report.date, i18n.language, { dateStyle: 'medium' })}</div>
                                                 {report.date.split(' ')[1] && (
                                                     <div className="text-xs text-gray-400 whitespace-nowrap font-mono mt-0.5">
-                                                        {report.date.split(' ')[1]}
+                                                        {formatDate(report.date, i18n.language, { timeStyle: 'short' })}
                                                     </div>
                                                 )}
                                             </td>
@@ -856,7 +879,7 @@ export function Reports() {
                                                     <span className="text-sm text-gray-400 ml-1">/7</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-gray-300 font-mono">N/A</span>
+                                                <span className="text-gray-300 font-mono">{t('ui.notAvailable')}</span>
                                             )}
                                         </div>
 
@@ -866,7 +889,7 @@ export function Reports() {
                                         </div>
 
                                         <div className="pt-4 border-t border-gray-50 flex items-center justify-between text-sm">
-                                            <span className="text-gray-500">{report.date}</span>
+                                            <span className="text-gray-500">{formatDate(report.date, i18n.language)}</span>
                                             {report.recommendation && (
                                                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 group-hover:bg-white transition-colors">
                                                     {getRecommendationIcon(report.recommendation)}

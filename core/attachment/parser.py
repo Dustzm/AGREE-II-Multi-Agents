@@ -100,6 +100,15 @@ class PDFAttachmentParser(AttachmentParser):
         source_path = attachment_output_dir / f"{file_path.stem}.md"
         
         try:
+            from core.parsers.mineru_cache import restore_attachment_cache
+
+            cached_content_list = restore_attachment_cache(file_path, attachment_output_dir)
+            if cached_content_list:
+                items = self._load_content_list(cached_content_list)
+                contents = self._items_to_contents(items, file_path.stem)
+                logger.info(f"附件复用 MinerU 缓存完成: {file_path}, 生成 {len(contents)} 个内容块")
+                return contents
+
             # 调用 MinerU 解析（使用 parse_pdf_to_file 避免 vlm 子目录）
             logger.info(f"开始解析附件 PDF: {file_path} -> {attachment_output_dir}")
             parser = MinerUParser()
@@ -119,8 +128,7 @@ class PDFAttachmentParser(AttachmentParser):
                 logger.error(f"content_list 不存在: {content_list_path}")
                 return []
             
-            with open(content_list_path, "r", encoding="utf-8") as f:
-                items = json.load(f)
+            items = self._load_content_list(content_list_path)
             
             # 转换为 ParsedContent
             contents = self._items_to_contents(items, file_path.stem)
@@ -131,6 +139,22 @@ class PDFAttachmentParser(AttachmentParser):
         except Exception as e:
             logger.error(f"附件解析异常: {e}", exc_info=True)
             return []
+
+    def _load_content_list(self, content_list_path: Path) -> List[Dict[str, Any]]:
+        """
+        读取 MinerU content_list.json。
+
+        Args:
+            content_list_path: content_list.json 路径
+
+        Returns:
+            content_list 条目列表
+        """
+        with open(content_list_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+        if not isinstance(items, list):
+            raise ValueError(f"content_list 格式错误: {content_list_path}")
+        return items
     
     def _items_to_contents(self, items: List[Dict[str, Any]], attachment_name: str) -> List[ParsedContent]:
         """

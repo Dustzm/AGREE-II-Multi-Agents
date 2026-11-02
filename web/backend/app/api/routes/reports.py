@@ -2,15 +2,22 @@
 报告 API - 获取评价报告列表和详情
 """
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from core.config import get_settings
+from core.agents.tools.appraiser_tools import validate_evaluation
+
+from ...i18n import request_language, t
+from ...i18n.messages import LocalizedHTTPException, sanitize_diagnostic
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -22,6 +29,8 @@ class ReportSummary(BaseModel):
     date: str
     quality_score: Optional[int]  # 总体质量评分 (1-7)
     recommendation: Optional[str]
+    status: str = "complete"
+    missing_items: List[str] = []
 
 
 class BatchFolderInfo(BaseModel):
@@ -78,6 +87,7 @@ class ItemEvaluation(BaseModel):
     evaluated_at: Optional[str]
     scoring_principle: Optional[List[ScoringPrincipleItem]] = None  # 评分准则
     evidence_sources: Optional[List[str]] = None  # chunk_id 列表，用于原文定位
+    rule_engine: Optional[Dict[str, Any]] = None  # 规则引擎输出详情
 
 
 class ReportDetail(BaseModel):
@@ -91,6 +101,9 @@ class ReportDetail(BaseModel):
     item_evaluations: List[ItemEvaluation]
     total_raw_score: Optional[int] = None  # 总分（所有条目原始分数总和）
     overall_quality_score: Optional[int] = None  # 总体质量评分 (1-7)
+    status: str = "complete"
+    missing_items: List[str] = []
+    assessment_limitations: List[str] = []
 
 
 def get_output_dir() -> Path:
@@ -98,12 +111,15 @@ def get_output_dir() -> Path:
     return get_settings().app.path_output
 
 
-def parse_report(report_path: Path) -> Optional[dict]:
+def parse_report(report_path: Path, *, strict: bool = False) -> Optional[dict]:
     """解析报告 JSON 文件"""
     try:
         with open(report_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as exc:
+        if strict:
+            raise
+        logger.error("解析报告失败: %s\n%s", report_path, sanitize_diagnostic(exc, limit=None))
         return None
 
 
@@ -119,7 +135,9 @@ def load_evaluations(task_dir: Path) -> List[dict]:
     for eval_file in sorted(eval_dir.glob("item_*.json")):
         try:
             with open(eval_file, "r", encoding="utf-8") as f:
-                evaluations.append(json.load(f))
+                evaluation = json.load(f)
+            if validate_evaluation(evaluation, eval_file.stem):
+                evaluations.append(evaluation)
         except Exception:
             continue
     
@@ -176,7 +194,7 @@ async def list_reports(folder: Optional[str] = None):
         # 获取质量评分（优先使用新字段，兼容旧格式）
         quality_score = data.get("overall_quality_score")
         
-        if quality_score is None:
+        if quality_score is None and data.get("status") != "partial":
             # 旧格式：计算平均分数转换为质量评分
             domain_scores = data.get("domain_scores", {})
             valid_scores = []
@@ -192,13 +210,18 @@ async def list_reports(folder: Optional[str] = None):
         
         # 获取推荐结论
         recommendation = data.get("overall_assessment", {}).get("recommendation")
+        if data.get("status") == "partial":
+            quality_score = None
+            recommendation = None
         
         reports.append(ReportSummary(
             task_id=data.get("task_id", item.name),
-            title=data.get("guideline_title", "未命名指南")[:50],
+            title=data.get("guideline_title", t("report.untitled"))[:50],
             date=data.get("evaluation_date", ""),
             quality_score=quality_score,
-            recommendation=recommendation
+            recommendation=recommendation,
+            status=data.get("status", "complete"),
+            missing_items=data.get("missing_items", []),
         ))
     
     # 排序：文件夹按名称，报告按日期降序
@@ -232,37 +255,46 @@ async def get_report(task_id: str, folder: Optional[str] = None):
     report_path = task_dir / "appraisal_report.json"
     
     if not report_path.exists():
-        raise HTTPException(status_code=404, detail=f"报告不存在: {task_id}")
+        raise LocalizedHTTPException(404, "error.report_not_found", id=task_id)
     
-    data = parse_report(report_path)
+    try:
+        data = parse_report(report_path, strict=True)
+    except Exception as exc:
+        raise LocalizedHTTPException(500, "error.report_parse_failed", diagnostic=exc) from exc
     if not data:
-        raise HTTPException(status_code=500, detail="解析报告失败")
+        raise LocalizedHTTPException(500, "error.report_parse_failed")
     
     # 转换领域评分 - 兼容两种格式
     # 新格式: {"1": {"name": "...", "score": 66.7, ...}}
     # 旧格式: {"1": 66.7}
     domain_scores = {}
+    lang = request_language.get()
     domain_names = {
-        "1": "Scope and Purpose",
-        "2": "Stakeholder Involvement", 
-        "3": "Rigour of Development",
-        "4": "Clarity of Presentation",
-        "5": "Applicability",
-        "6": "Editorial Independence",
+        str(number): names[0 if lang == "en" else 1]
+        for number, names in enumerate([
+            ("Scope and Purpose", "范围与目的"),
+            ("Stakeholder Involvement", "参与人员"),
+            ("Rigour of Development", "制定的严谨性"),
+            ("Clarity of Presentation", "表达的清晰性"),
+            ("Applicability", "应用性"),
+            ("Editorial Independence", "编辑独立性"),
+        ], start=1)
     }
     for key, domain in data.get("domain_scores", {}).items():
         if isinstance(domain, dict):
             # 新格式
+            item_count = domain.get("item_count", 0)
+            evaluated_count = domain.get("evaluated_count", 0)
             domain_scores[key] = DomainScore(
-                name=domain.get("name", domain_names.get(key, f"Domain {key}")),
-                score=domain.get("score"),
-                item_count=domain.get("item_count", 0),
-                evaluated_count=domain.get("evaluated_count", 0)
+                name=domain_names.get(key, domain.get("name", key)),
+                score=None if item_count and evaluated_count < item_count else domain.get("score"),
+                item_count=item_count,
+                evaluated_count=evaluated_count,
             )
         else:
             # 旧格式 - domain 直接是分数
             domain_scores[key] = DomainScore(
-                name=domain_names.get(key, f"Domain {key}"),
+                name=domain_names.get(key, key),
                 score=domain if isinstance(domain, (int, float)) else None,
                 item_count=0,
                 evaluated_count=0
@@ -282,42 +314,53 @@ async def get_report(task_id: str, folder: Optional[str] = None):
         
         # 加载该 item 的评分准则
         scoring_principle = None
+        display_title = eval_data.get("title", "")
         try:
-            skill_config = load_skill_config(item_id, check_enabled=False)
+            skill_config = load_skill_config(item_id, check_enabled=False, lang=lang)
+            display_title = skill_config.get("title") or display_title
             raw_principles = skill_config.get("scoring_principle", [])
             scoring_principle = [
                 ScoringPrincipleItem(
                     range=str(sp.get("range", "")),
-                    condition=sp.get("condition", sp.get("condition_zh", ""))
+                    condition=(sp.get("condition_zh") or sp.get("condition", "")) if lang == "zh" else sp.get("condition", "")
                 )
                 for sp in raw_principles
             ]
-        except Exception:
-            pass  # 加载失败则忽略
+        except (FileNotFoundError, ValueError, KeyError):
+            logger.warning("Standard display fields unavailable for %s", item_id, exc_info=True)
         
         item_evaluations.append(ItemEvaluation(
             item_id=item_id,
             domain=eval_data.get("domain", 0),
-            title=eval_data.get("title", ""),
+            title=display_title,
             score=cot.get("score"),
             step1_locate=cot.get("step1_locate"),
             step2_evidence=cot.get("step2_evidence"),
             step3_reasoning=cot.get("step3_reasoning"),  # 兼容新旧格式
             evaluated_at=metadata.get("evaluated_at"),
             scoring_principle=scoring_principle,
-            evidence_sources=eval_data.get("evidence_sources")
+            evidence_sources=eval_data.get("evidence_sources"),
+            rule_engine=eval_data.get("rule_engine"),
         ))
     
+    partial = data.get("status") == "partial"
+    overall_assessment = dict(data.get("overall_assessment", {}))
+    if partial:
+        overall_assessment["recommendation"] = None
+
     return ReportDetail(
         task_id=data.get("task_id", task_id),
         guideline_title=data.get("guideline_title", ""),
         evaluation_date=data.get("evaluation_date", ""),
         evaluator=data.get("evaluator", ""),
         domain_scores=domain_scores,
-        overall_assessment=data.get("overall_assessment", {}),
+        overall_assessment=overall_assessment,
         item_evaluations=item_evaluations,
-        total_raw_score=data.get("total_raw_score"),
-        overall_quality_score=data.get("overall_quality_score")
+        total_raw_score=None if partial else data.get("total_raw_score"),
+        overall_quality_score=None if partial else data.get("overall_quality_score"),
+        status=data.get("status", "complete"),
+        missing_items=data.get("missing_items", []),
+        assessment_limitations=data.get("assessment_limitations", []),
     )
 
 
@@ -353,13 +396,13 @@ async def get_visual_evidence(task_id: str, folder: Optional[str] = None):
     visual_evidence_path = prep_dir / f"{base_name}_visual_evidence.json"
     
     if not visual_evidence_path.exists():
-        raise HTTPException(status_code=404, detail=f"可视化证据不存在: {task_id}")
+        raise LocalizedHTTPException(404, "error.evidence_not_found", id=task_id)
     
     try:
         with open(visual_evidence_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"读取可视化证据失败: {e}")
+        raise LocalizedHTTPException(500, "error.read_failed", diagnostic=e)
 
 
 @router.get("/reports/{task_id}/pdf")
@@ -384,7 +427,7 @@ async def get_pdf_file(task_id: str):
             break
     
     if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail=f"PDF 文件不存在: {base_name}.pdf")
+        raise LocalizedHTTPException(404, "error.pdf_not_found", path=f"{base_name}.pdf")
     
     return FileResponse(
         path=str(pdf_path),
@@ -452,7 +495,7 @@ async def get_evidence_location(
         with open(visual_evidence_path, "r", encoding="utf-8") as f:
             visual_data = json.load(f)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"读取可视化证据失败: {e}")
+        raise LocalizedHTTPException(500, "error.read_failed", diagnostic=e)
     
     matches = []
     
@@ -490,4 +533,3 @@ async def get_evidence_location(
         matches=matches,
         total=len(matches)
     )
-

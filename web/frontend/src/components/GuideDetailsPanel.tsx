@@ -1,3 +1,4 @@
+import localeI18n from '@/i18n'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp, Download, BarChart3 } from 'lucide-react'
@@ -57,6 +58,7 @@ function EditableScore({
     onChange: (newValue: number) => void;
     isModel?: boolean;
 }) {
+    const { t } = useTranslation()
     const [isEditing, setIsEditing] = useState(false)
     const [tempValue, setTempValue] = useState('')
 
@@ -132,7 +134,9 @@ function EditableScore({
                     : 'hover:bg-slate-100 hover:ring-1 hover:ring-slate-200'
                 }
             `}
-            title={isModified ? `原始值: ${originalValue ?? '-'}` : '点击修改'}
+            title={isModified
+                ? t('benchmark.edit.originalValue', { value: originalValue ?? '-' })
+                : t('benchmark.edit.clickToEdit')}
         >
             {value}
         </span>
@@ -163,6 +167,7 @@ function StatCard({ label, value, subValue, icon: Icon, colorClass }: { label: s
 
 // 环形进度指示器 - 优化版
 function ConsistencyRing({ value }: { value: number }) {
+    const { t } = useTranslation()
     const percentage = Math.round(value * 100)
     const circumference = 2 * Math.PI * 42
     const strokeDashoffset = circumference - (value * circumference)
@@ -206,7 +211,7 @@ function ConsistencyRing({ value }: { value: number }) {
             {/* 中间文字 */}
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
                 <span className="text-4xl font-black text-slate-800 tracking-tighter drop-shadow-sm">{percentage}%</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">一致性</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{t('benchmark.visualization.consistency')}</span>
             </div>
         </div>
     )
@@ -214,9 +219,10 @@ function ConsistencyRing({ value }: { value: number }) {
 
 // 指南一致性排行榜
 function GuideBarChart({ guides }: { guides: GuideConsistency[] }) {
+    const { t } = useTranslation()
     const sorted = [...guides].sort((a, b) => b.consistency - a.consistency)
 
-    if (sorted.length === 0) return <div className="text-center text-gray-400 py-8 text-sm">暂无数据</div>
+    if (sorted.length === 0) return <div className="text-center text-gray-400 py-8 text-sm">{t('benchmark.visualization.noData')}</div>
 
     return (
         <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
@@ -239,7 +245,7 @@ function GuideBarChart({ guides }: { guides: GuideConsistency[] }) {
                                 <div className="flex items-center justify-between mb-1.5">
                                     <div className="flex items-center gap-2 min-w-0">
                                         <span className="text-xs font-medium text-slate-500 truncate" title={guide.guide_name || guide.guide_id}>
-                                            指南{guide.seq_no}
+                                            {t('benchmark.visualization.guide')}{guide.seq_no}
                                         </span>
                                         <span className="text-xs font-mono text-slate-700 truncate">
                                             {guide.guide_id}
@@ -304,7 +310,7 @@ function DomainItemHeatmap({ items }: { items: ItemConsistency[] }) {
                                         ${getConsistencyLightBg(consistency)}
                                         hover:scale-110 hover:shadow-md hover:z-10
                                     `}
-                                    title={`${item.item_name}: ${(consistency * 100).toFixed(0)}%`}
+                                    title={`${t('server:benchmark.item', { number: item.item_id.replace('item_', '') })}: ${(consistency * 100).toFixed(0)}%`}
                                 >
                                     <span className={`text-[10px] font-bold opacity-60 ${getConsistencyTextColor(consistency)}`}>
                                         #{itemId}
@@ -457,7 +463,7 @@ export function GuideDetailsPanel({
 
                                         {/* 修改状态指示点 */}
                                         {tab.hasChanges && (
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" title="有未保存的修改" />
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" title={t('benchmark.header.unsaved')} />
                                         )}
 
                                         <div className="flex items-center gap-2 w-full pl-1">
@@ -528,7 +534,7 @@ export function GuideDetailsPanel({
                                                             />
                                                             <StatCard
                                                                 label={t('benchmark.visualization.totalMatches')}
-                                                                value={`${(summary.total_guides * 92).toLocaleString()}`}
+                                                                value={`${(summary.total_guides * 92).toLocaleString(localeI18n.language)}`}
                                                                 subValue="Items × Evaluators"
                                                             />
                                                         </div>
@@ -706,7 +712,7 @@ export function GuideDetailsPanel({
                                                                             {idx + 1}
                                                                         </span>
                                                                         <span className={`text-xs ${hasLargeDiff ? 'text-rose-900 font-medium' : 'text-slate-700'}`}>
-                                                                            {item.item_name}
+                                                                            {t('server:benchmark.item', { number: item.item_id.replace('item_', '') })}
                                                                         </span>
                                                                     </div>
                                                                 </td>

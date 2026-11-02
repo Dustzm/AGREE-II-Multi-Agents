@@ -1,12 +1,14 @@
 """
 提示词管理 API 路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional
 
 from ...permissions import require_admin
 from ...services import prompts_service
+
+from ...i18n.messages import LocalizedHTTPException
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
 
@@ -39,10 +41,7 @@ async def get_prompt(
     result = prompts_service.get_prompt(agent_name, lang)
     
     if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Prompt not found for agent '{agent_name}' with lang '{lang}'"
-        )
+        raise LocalizedHTTPException(404, "error.prompt_not_found", agent=agent_name, lang=lang)
     
     return result
 
@@ -59,7 +58,4 @@ async def update_prompt(
         result = prompts_service.update_prompt(agent_name, lang, request.content)
         return result
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update prompt: {str(e)}"
-        )
+        raise LocalizedHTTPException(500, "error.save_failed", diagnostic=e)

@@ -8,11 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 
 from core.config import get_settings
 from ...services.input_tree import build_input_tree
+
+from ...i18n import t
+from ...i18n.messages import descriptor, sanitize_diagnostic, LocalizedHTTPException
 
 router = APIRouter()
 
@@ -156,10 +159,10 @@ async def upload_pdf_to_input(file: UploadFile = File(...)):
     """
     # 验证文件类型
     if not file.filename:
-        raise HTTPException(status_code=400, detail="文件名不能为空")
+        raise LocalizedHTTPException(400, "error.filename_required")
     
     if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="只支持 PDF 文件")
+        raise LocalizedHTTPException(400, "error.pdf_only")
     
     input_dir = get_input_dir()
     
@@ -176,7 +179,7 @@ async def upload_pdf_to_input(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存文件失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.save_failed", diagnostic=e)
     
     # 获取文件大小
     file_size = file_path.stat().st_size
@@ -198,13 +201,13 @@ async def start_task(request: StartTaskRequest):
     pdf_path = Path(request.pdf_path)
     
     if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail=f"文件不存在: {pdf_path}")
+        raise LocalizedHTTPException(404, "error.file_not_found", path=pdf_path)
     
     if not pdf_path.suffix.lower() == '.pdf':
-        raise HTTPException(status_code=400, detail="只支持 PDF 文件")
+        raise LocalizedHTTPException(400, "error.pdf_only")
     
     # 生成任务 ID
-    timestamp = datetime.now().strftime("%m%d%H%M")
+    timestamp = datetime.now().strftime("%m%d%H%M%S%f")
     base_name = pdf_path.stem[:20]
     task_id = f"{base_name}-{timestamp}"
     
@@ -254,12 +257,12 @@ async def upload_folder(files: List[UploadFile] = File(...)):
 
             # 验证文件类型
             if not relative_path.lower().endswith('.pdf'):
-                failed_files.append({"filename": relative_path, "error": "非 PDF 文件"})
+                failed_files.append({"filename": relative_path, "error": t("error.pdf_only"), "i18n": descriptor("error.pdf_only")})
                 continue
 
             # 安全检查：防止路径遍历
             if ".." in relative_path or relative_path.startswith("/"):
-                failed_files.append({"filename": relative_path, "error": "非法路径"})
+                failed_files.append({"filename": relative_path, "error": t("error.invalid_path", path=relative_path), "i18n": descriptor("error.invalid_path", path=relative_path)})
                 continue
 
             # 构建目标路径
@@ -289,7 +292,7 @@ async def upload_folder(files: List[UploadFile] = File(...)):
         except Exception as e:
             failed_files.append({
                 "filename": getattr(file, 'filename', 'unknown'),
-                "error": str(e)
+                "error": t("error.upload_failed"), "i18n": descriptor("error.upload_failed"), "diagnostic": sanitize_diagnostic(e)
             })
 
     return UploadFolderResponse(

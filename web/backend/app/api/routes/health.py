@@ -1,7 +1,7 @@
 """
 健康检查路由
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -10,6 +10,8 @@ import time
 
 from ...auth import is_auth_enabled
 from ...database import get_db
+
+from ...i18n.messages import LocalizedHTTPException
 
 STARTUP_TIME = int(time.time() * 1000)
 
@@ -33,6 +35,6 @@ async def readiness_check():
         conn = get_db()
         conn.execute("SELECT 1").fetchone()
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="sqlite 数据库未就绪") from exc
+        raise LocalizedHTTPException(503, "error.database_unavailable") from exc
 
     return {"status": "ready"}

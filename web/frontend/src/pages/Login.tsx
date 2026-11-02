@@ -1,3 +1,5 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
 import { FormEvent, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +22,7 @@ export function Login() {
     const { authenticated, login } = useAuth()
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<UiMessage | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const isZh = i18n.language?.startsWith('zh')
 
@@ -70,7 +72,7 @@ export function Login() {
             await login(username.trim(), password)
             navigate(redirectTo, { replace: true })
         } catch (submitError) {
-            setError(submitError instanceof Error ? submitError.message : copy.error)
+            setError(asMessage(submitError, 'server.error.invalid_credentials'))
         } finally {
             setIsSubmitting(false)
         }
@@ -140,7 +142,7 @@ export function Login() {
                                     {error ? (
                                         <div className="flex items-start gap-2 rounded-[18px] border border-[#d12e2e]/16 bg-[#fff1f1] px-4 py-3 text-sm text-[#9f1c1c]">
                                             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                                            <span>{error}</span>
+                                            <MessageView message={error} />
                                         </div>
                                     ) : null}
 

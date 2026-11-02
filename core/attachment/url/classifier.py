@@ -15,7 +15,9 @@ import litellm
 from core.agents.base.model_config import (
     get_compatible_reasoning_kwargs,
     get_compatible_sampling_kwargs,
+    get_provider_kwargs,
 )
+from core.utils.llm_limiter import llm_sync_slot
 from core.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -297,19 +299,21 @@ Please return in JSON format, strictly following the schema requirements."""
         logger.info(f"LLM 分类 URL: {url}")
         
         try:
-            response = litellm.completion(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format=URLClassificationOutput,
-                base_url=self.api_base,
-                api_key=self.api_key,
-                timeout=get_settings().llm.timeout,
-                **get_compatible_reasoning_kwargs(self.model),
-                **get_compatible_sampling_kwargs(self.model, temperature=0.1),
-            )
+            with llm_sync_slot("attachment_url_classifier"):
+                response = litellm.completion(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format=URLClassificationOutput,
+                    base_url=self.api_base,
+                    api_key=self.api_key,
+                    timeout=get_settings().llm.timeout,
+                    **get_compatible_reasoning_kwargs(self.model),
+                    **get_compatible_sampling_kwargs(self.model, temperature=0.1),
+                    **get_provider_kwargs(),
+                )
             
             result = response.choices[0].message.parsed
             

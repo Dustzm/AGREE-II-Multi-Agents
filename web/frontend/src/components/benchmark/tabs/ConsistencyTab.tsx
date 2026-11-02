@@ -1,7 +1,8 @@
+import localeI18n from '@/i18n'
+import { notifyError, notifySuccess } from '@/i18n/notify'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Loader2 } from 'lucide-react'
-import { toast } from 'react-hot-toast'
 import { BenchmarkSummary } from '@/services/api'
 import { exportItemConsistencyChart } from '@/utils/exportBenchmarkChart'
 
@@ -64,9 +65,9 @@ export function ConsistencyTab({ summary, xlsxFile }: ConsistencyTabProps) {
         yAxisLabel: t('benchmark.visualization.chartYAxis'),
         itemLabelPrefix: t('benchmark.details.item')
       })
-      toast.success(t('benchmark.visualization.exportSuccess'))
+      notifySuccess('benchmark.visualization.exportSuccess')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('benchmark.visualization.exportError'))
+      notifyError(error, 'benchmark.visualization.exportError')
     } finally {
       setIsExporting(false)
     }
@@ -134,7 +135,7 @@ export function ConsistencyTab({ summary, xlsxFile }: ConsistencyTabProps) {
               <div className="bg-slate-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-slate-500">{t('benchmark.visualization.totalMatches')}</p>
                 <p className="text-xl font-bold text-slate-800">
-                  {(summary.total_guides * 92).toLocaleString()}
+                  {(summary.total_guides * 92).toLocaleString(localeI18n.language)}
                 </p>
               </div>
             </div>
@@ -263,7 +264,7 @@ export function ConsistencyTab({ summary, xlsxFile }: ConsistencyTabProps) {
                               ${getConsistencyLightBg(consistency)}
                               hover:scale-110 hover:shadow-md
                             `}
-                            title={`${item.item_name}: ${(consistency * 100).toFixed(0)}%`}
+                            title={`${t('server:benchmark.item', { number: item.item_id.replace('item_', '') })}: ${(consistency * 100).toFixed(0)}%`}
                           >
                             <span className={`text-[10px] font-bold opacity-60 ${getConsistencyTextColor(consistency)}`}>
                               #{itemId}

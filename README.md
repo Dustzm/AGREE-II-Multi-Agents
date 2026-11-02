@@ -122,12 +122,6 @@ cd web/frontend && npm run dev
 | **后端 API** | http://localhost:8011 |
 | **API 文档 (Swagger)** | http://localhost:8011/docs |
 
-### 5. 运行 CLI (可选)
-
-```bash
-python cli.py
-```
-
 ## AGREE-II 评价维度
 
 | 维度 | 条目数 | 说明 |
@@ -167,7 +161,6 @@ AMA/
 │       └── src/
 │           ├── pages/        # 页面组件
 │           └── components/   # 通用组件
-├── cli.py                    # 交互式 CLI
 ├── service.sh                    # 服务管理脚本
 ├── input/                    # 输入 PDF 目录
 ├── output/                   # 输出目录
@@ -212,6 +205,21 @@ AMA/
 - [x] 前端 Web 管理平台
 - [ ] 端到端测试
 - [ ] 多评价者支持
+
+## 模型上下文窗口与失败恢复
+
+在管理台「配置」中填写部署服务实际支持的**上下文窗口（tokens）**。也可在未被运行时配置覆盖的环境中设置 `LLM_CONTEXT_WINDOW=131072`。未配置时，新评价会在调用模型前给出配置错误；历史报告仍可读取。
+
+- 模型 ID 精确匹配本地 models.dev 快照时自动填写建议值；同名模型存在冲突或无法匹配时手动填写。建议值可以修改，保存后的值不会随目录更新自动改变。
+- 切换 provider、模型或服务地址会重新确认窗口；正在执行的文档使用启动时的配置快照。第三方网关和自部署服务不会套用官方服务的输入／输出上限。
+- 模型请求统一经过 `core/llm/gateway.py`（参数、预算、并发闸门、用量统计）；`context.py` 负责完整请求预算，`json_output.py` 负责有限语法兼容及截断检测，`recovery.py` 提供条目共享的恢复额度、唯一的重试循环和超限拆分 `split_on_overflow`。业务阶段只提供拆分与合并规则，并保留来源及索引。
+- 评价编排在 `core/pipeline/`：失败以 `FailureCode` 表达，Web、批量和 MCP 各自映射为界面文案、状态原因或外部错误码，不解析错误文字。
+- 输入估算包含提示、输出预留、工具定义和历史；未知 tokenizer 使用保守估算，图片另留预算。估算无法保证与所有服务的计费／视觉 tokenizer 完全一致。不可再拆分的评分输入超限会明确失败，不静默丢弃证据。
+- 每条目最多共享三次额外恢复机会；传输、JSON 修复、缺失判定补齐共用额度。缺失判定、无效引用和解析失败不会转换为正常低分。指南缺少条目时保留 partial 状态。
+
+目录由应用离线读取；更新快照时需同时记录来源、抓取时间和上游许可说明，保存在同一个 JSON 文件中。
+
+本地回归可运行 `python -m pytest -q web/backend/tests/test_llm_budget.py web/backend/tests/test_appraisal_recovery.py`。真实模型端到端评价需在模型资源可用后单独验证。
 
 ## License
 

@@ -6,37 +6,63 @@ domain_name_zh: 制定严谨性
 title: The health benefits, side effects, and risks have been considered in formulating
   the recommendations.
 title_zh: 形成推荐意见时考虑了对健康的益处、副作用以及危险。
-description: 'Description of how benefits and harms were considered and balanced in
-  formulating recommendations.'
-description_zh: '描述在形成推荐意见时如何考虑和权衡获益与危害。'
+description: Description of how benefits and harms were considered and balanced in
+  formulating recommendations.
+description_zh: 描述在形成推荐意见时如何考虑和权衡获益与危害。
 locating_info: Check Method, Recommendations, Conclusion sections.
 locating_info_zh: 查看方法、推荐意见、结论章节。
 criteria:
 - '例如，一个乳腺癌的指南可能包括对多种最终结局的总效率的讨论，这些讨论可能包括：生存率，生活质量，不良反应，症状管理，或一种治疗选择与另一种治疗选择的对照，这些问题都应提出来作为证据。 '
-special_rules_en: |-
-  Core principle: item 11 requires BOTH benefit evidence and harm/side-effect/risk evidence for the SAME recommendation, option, or management decision.
+special_rules_en: 'Core principle: item 11 requires BOTH benefit evidence and harm/side-effect/risk
+  evidence for the SAME recommendation, option, or management decision.
+
   Decision order:
+
   1. Identify one concrete recommendation or option.
+
   2. Find benefit evidence for that same recommendation/option.
+
   3. Find harm/risk evidence for that same recommendation/option.
-  4. Then check whether the text explicitly says the recommendation was formed by weighing or balancing those benefits and harms.
+
+  4. Then check whether the text explicitly says the recommendation was formed by
+  weighing or balancing those benefits and harms.
+
   Score ceiling rules:
-  - If only one side is discussed, or one side lacks supporting evidence, the score must NOT exceed 3.
-  - If both sides have supporting evidence but the text does not explicitly show benefit-harm balancing in recommendation formation, the score must NOT exceed 5.
-  Do NOT count generic efficacy/safety statements, adverse-event lists, contraindications, precautions, or background discussion that is not clearly tied to the same recommendation as explicit benefit-harm balancing.
-  Score 7 is allowed ONLY when the original text clearly shows benefit evidence, harm/risk evidence, and an explicit statement that the same recommendation was formed by weighing or balancing those benefits and harms.
-special_rules_zh: |-
-  核心原则：item 11 必须针对同一条推荐、同一选项或同一管理决策，同时看到“获益证据”和“危害/副作用/风险证据”。
+
+  - If only one side is discussed, or one side lacks supporting evidence, the score
+  must NOT exceed 3.
+
+  - If both sides have supporting evidence but the text does not explicitly show benefit-harm
+  balancing in recommendation formation, the score must NOT exceed 5.
+
+  Do NOT count generic efficacy/safety statements, adverse-event lists, contraindications,
+  precautions, or background discussion that is not clearly tied to the same recommendation
+  as explicit benefit-harm balancing.
+
+  Score 7 is allowed ONLY when the original text clearly shows benefit evidence, harm/risk
+  evidence, and an explicit statement that the same recommendation was formed by weighing
+  or balancing those benefits and harms.'
+special_rules_zh: '核心原则：item 11 必须针对同一条推荐、同一选项或同一管理决策，同时看到“获益证据”和“危害/副作用/风险证据”。
+
   评分顺序：
+
   1. 先锁定一条具体推荐或一个具体选项；
+
   2. 找这条推荐/这个选项对应的获益证据；
+
   3. 找同一条推荐/同一选项对应的危害/风险证据；
+
   4. 再判断原文是否明确写出，这条推荐是通过利弊权衡形成的。
+
   分数上限规则：
+
   - 如果只讨论了一侧，或其中一侧没有佐证数据，分数不得高于 3。
+
   - 如果两侧都有佐证数据，但原文没有明确写出“如何基于利弊形成推荐”，分数不得高于 5。
+
   不要把泛泛的疗效/安全性描述、不良反应列表、禁忌证、注意事项，或没有明确连到同一条推荐的背景讨论，直接当作“已明确考虑利弊”。
-  只有当原文明确显示：同一条推荐同时具备获益证据、危害/风险证据，并且明确写出该推荐是通过权衡这些利弊形成的，才能给 7 分。
+
+  只有当原文明确显示：同一条推荐同时具备获益证据、危害/风险证据，并且明确写出该推荐是通过权衡这些利弊形成的，才能给 7 分。'
 scoring_principle:
 - range: '1'
   condition: Not mentioned
@@ -48,11 +74,19 @@ scoring_principle:
     multiple recommendations) '
   condition_zh: 虽提供了益处或风险，但未提供佐证数据(佐证数据要求为同一条证据或为同一条推荐意见的证据，风险和益处可以为多条证据或多条推荐意见的证据)
 - range: 4-5
-  condition: Provided BOTH benefits and harms/side effects/risks with supporting data, but without an explicit statement showing how those benefits and harms were balanced in forming the recommendation
+  condition: Provided BOTH benefits and harms/side effects/risks with supporting data,
+    but without an explicit statement showing how those benefits and harms were balanced
+    in forming the recommendation
   condition_zh: 同时提供了获益和危害/副作用/风险两侧内容，并有佐证数据，但未明确说明形成推荐时如何进行利弊权衡
 - range: 6-7
-  condition: Provided BOTH benefits and harms/side effects/risks with supporting data, and explicitly considered the balance between benefits and harms when formulating the recommendation
+  condition: Provided BOTH benefits and harms/side effects/risks with supporting data,
+    and explicitly considered the balance between benefits and harms when formulating
+    the recommendation
   condition_zh: 同时提供了获益和危害/副作用/风险两侧内容，并有佐证数据，且明确说明在形成推荐时考虑了利弊权衡
 - range: '7'
-  condition: Use score 7 only when the original text clearly shows benefit evidence, harm/side-effect/risk evidence, and an explicit statement that the recommendation was formed by weighing or balancing those benefits and harms for the same recommendation or management choice.
-  condition_zh: 只有当原文明确显示：同一条推荐或同一管理选择同时具备获益证据、危害/副作用/风险证据，并且明确写出该推荐是通过权衡这些利弊形成的，才能给 7 分。
+  condition: Use score 7 only when the original text clearly shows benefit evidence,
+    harm/side-effect/risk evidence, and an explicit statement that the recommendation
+    was formed by weighing or balancing those benefits and harms for the same recommendation
+    or management choice.
+  condition_zh: 只有当原文明确显示：同一条推荐或同一管理选择同时具备获益证据、危害/副作用/风险证据，并且明确写出该推荐是通过权衡这些利弊形成的，才能给
+    7 分。

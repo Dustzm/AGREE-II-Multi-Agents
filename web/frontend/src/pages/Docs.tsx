@@ -1,3 +1,5 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -97,14 +99,12 @@ export function Docs() {
     const lang = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US'
     const [manual, setManual] = useState<ManualResponse | null>(null)
     const [isLoading, setIsLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<UiMessage | null>(null)
     const [mobileTocOpen, setMobileTocOpen] = useState(false)
     const [activeHeading, setActiveHeading] = useState<string>('')
 
     const toc = useMemo(() => (manual?.content ? buildToc(manual.content) : []), [manual?.content])
     const headingRenderCounts = new Map<string, number>()
-    const sourceFile = lang === 'en-US' ? 'docs/USER_MANUAL_EN.md' : 'docs/USER_MANUAL.md'
-
     useEffect(() => {
         let cancelled = false
 
@@ -119,7 +119,7 @@ export function Docs() {
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setError(err instanceof Error ? err.message : t('docs.errorDescription'))
+                    setError(asMessage(err, 'docs.errorDescription'))
                 }
             } finally {
                 if (!cancelled) {
@@ -299,7 +299,7 @@ export function Docs() {
             return (
                 <div className="rounded-[28px] border border-red-200 bg-white p-8 shadow-sm">
                     <h2 className="text-2xl font-semibold text-slate-900">{t('docs.errorTitle')}</h2>
-                    <p className="mt-3 text-slate-600">{error || t('docs.errorDescription')}</p>
+                    <p className="mt-3 text-slate-600">{error ? <MessageView message={error} /> : t('docs.errorDescription')}</p>
                     <Button className="mt-6" onClick={() => window.location.reload()}>
                         <RefreshCw className="h-4 w-4" />
                         {t('docs.retry')}
@@ -335,7 +335,7 @@ export function Docs() {
 
         return (
             <article className="rounded-[28px] border border-slate-200/80 bg-white px-6 py-8 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.35)] md:px-10 md:py-10">
-                <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-p:text-slate-600 prose-p:leading-8 prose-li:text-slate-600 prose-strong:text-slate-900 prose-hr:my-8 prose-hr:border-slate-200 prose-ul:space-y-2 prose-ol:space-y-2">
+                <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-p:text-slate-600 prose-p:leading-8 prose-li:text-slate-600 prose-strong:text-slate-900 prose-hr:my-8 prose-hr:border-slate-200 prose-ul:space-y-2 prose-ol:space-y-2 prose-code:before:content-none prose-code:after:content-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                         {manual.content}
                     </ReactMarkdown>
@@ -358,9 +358,8 @@ export function Docs() {
                     </div>
 
                     <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-600 sm:flex sm:items-center sm:gap-2">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
                             <Languages className="h-4 w-4 text-slate-400" />
-                            <span>{t('docs.language')}:</span>
                             <div className="inline-flex items-center rounded-full bg-white p-0.5 shadow-sm">
                                 <button
                                     type="button"
@@ -449,50 +448,20 @@ export function Docs() {
                 </aside>
 
                 <main className="min-w-0">
-                    <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-slate-200/80 bg-white/75 px-5 py-4 shadow-sm">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t('docs.brand')}</p>
-                            <p className="mt-1 text-sm text-slate-600">{t('docs.sourceLabel')}: {sourceFile}</p>
-                        </div>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm text-slate-600">
-                            <Languages className="ml-1 h-4 w-4 text-slate-400" />
-                            <button
-                                type="button"
-                                onClick={() => i18n.changeLanguage('zh-CN')}
-                                className={cn(
-                                    'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                                    lang === 'zh-CN' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
-                                )}
-                            >
-                                {t('docs.langZh')}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => i18n.changeLanguage('en-US')}
-                                className={cn(
-                                    'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                                    lang === 'en-US' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
-                                )}
-                            >
-                                {t('docs.langEn')}
-                            </button>
-                        </div>
-                    </div>
-
                     {renderBody()}
                 </main>
             </div>
 
             <footer className="border-t border-white/70 bg-white/70">
                 <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-slate-500 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-                    <span>AMA Docs</span>
+                    <span>{t('ui.docsName')}</span>
                     <a
                         href={`${APP_BASE_PATH}/api-docs`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-2 font-medium text-slate-600 transition-colors hover:text-slate-900"
                     >
-                        API Docs
+                        {t('ui.apiDocs')}
                         <ExternalLink className="h-4 w-4" />
                     </a>
                 </div>

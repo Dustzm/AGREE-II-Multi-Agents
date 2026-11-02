@@ -1,13 +1,19 @@
+import type { MessageDescriptor, UiMessage } from '@/i18n/messages'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createAuthenticatedWebSocket, isUnauthorizedClose, notifyUnauthorized } from '@/services/http'
 
 export interface ChatMessage {
-    type: 'status' | 'agent' | 'progress' | 'complete' | 'cancelled' | 'error' | 'item_progress' | 'batch_summary' | 'pong'
+    type: 'status' | 'agent' | 'progress' | 'complete' | 'partial' | 'cancelled' | 'error' | 'item_progress' | 'batch_summary' | 'session_state' | 'pong'
     content?: string
+    i18n?: MessageDescriptor
+    diagnostic?: string
+    phase?: string
+    // session_state 快照额外使用 idle / starting
+    state?: 'idle' | 'starting' | 'running' | 'done' | 'error' | 'stopping'
     agent?: string
     progress?: number
     total?: number
-    task_id?: string
+    task_id?: string | null
     prompt?: string
     skill_id?: string
     title?: string
@@ -15,6 +21,8 @@ export interface ChatMessage {
     duration?: number
     completed_count?: number
     elapsed?: number
+    missing_items?: string[]
+    failed_details?: Record<string, UiMessage & { type: string; stage: string; message: string }>
 }
 
 interface UseWebSocketOptions {

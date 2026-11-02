@@ -3,8 +3,8 @@ enabled: true
 domain: 5
 domain_name: Applicability
 domain_name_zh: 适用性
-title: The guideline provides advice or tools on how the recommendations can be
-  put into practice.
+title: The guideline provides advice or tools on how the recommendations can be put
+  into practice.
 title_zh: 指南提供应用推荐意见的工具和资源。
 description: 'For a guideline to be effective it needs to be disseminated and implemented
   with additional materials. '
@@ -12,133 +12,192 @@ description_zh: "要使一个指南更为有效，需要一些附加的材料使
 locating_info: Check Recommendations, Implementation, Appendices sections.
 locating_info_zh: 查看推荐意见、实施、附录章节。
 criteria: []
-special_rules_en: |-
-  Core principle: item 19 asks whether THIS guideline provides implementation tools/resources for putting THIS guideline's recommendations into practice.
+special_rules_en: 'Core principle: item 19 asks whether THIS guideline provides implementation
+  tools/resources for putting THIS guideline''s recommendations into practice.
+
 
   A candidate counts ONLY when BOTH conditions are met:
-  1. it is a concrete, usable aid rather than a general recommendation, service model, or process description; and
-  2. the text clearly shows that THIS guideline itself provides it, adopts it, embeds it, or recommends using it for implementing THIS guideline.
+
+  For the highest score, a candidate counts only when BOTH conditions are met:
+
+  1. it is a concrete, usable aid rather than a general recommendation, service model,
+  or process description; and
+
+  2. the text clearly shows that THIS guideline itself provides it, adopts it, embeds
+  it, or recommends using it for implementing THIS guideline.
+
+
+  Implementation support that is not a concrete aid may still support middle or high-middle
+  scores when it is clearly tied to putting THIS guideline into practice and contains
+  operational implementation elements.
+
 
   Mere mention is not enough.
-  If the text only mentions, cites, lists, summarizes, hyperlinks, or discusses a tool/resource-like item, do NOT count it.
+
+  If the text only mentions, cites, lists, summarizes, hyperlinks, or discusses a
+  tool/resource-like item, do NOT count it.
+
 
   Decision order:
-  1. Identify tool/resource-like content.
-  2. Ask: is this a concrete aid?
-  3. Ask: does the text clearly connect it to implementing THIS guideline?
-  4. Remove everything that fails either test.
-  5. Score only on the remaining eligible tools/resources.
-  6. If no eligible tool/resource remains, the score must NOT exceed 4.
-  7. If eligible tools/resources remain but the text does not clearly explain how to use them, the score must NOT exceed 6.
 
-  A concrete implementation aid may include a checklist, patient leaflet, summary sheet, implementation flowchart,
-  questionnaire, educational material, computer support, how-to manual, template, audit form, or other practical aid.
+  1. Identify tool/resource-like content.
+
+  2. Ask: is this a concrete aid?
+
+  3. Ask: does the text clearly connect it to implementing THIS guideline?
+
+  4. Remove everything that fails either test.
+
+  5. Score only on the remaining eligible tools/resources.
+
+  6. If no eligible tool/resource remains, the score must NOT exceed 4.
+
+  7. If eligible tools/resources remain but the text does not clearly explain how
+  to use them, the score must NOT exceed 6.
+
+
+  A concrete implementation aid may include a checklist, patient leaflet, summary
+  sheet, implementation flowchart,
+
+  questionnaire, educational material, computer support, how-to manual, template,
+  audit form, or other practical aid.
+
 
   The following do NOT count by default:
-  - ordinary recommendations, treatment steps, monitoring rules, or disease-management advice
-  - eligibility criteria, patient selection rules, thresholds, diagnostic criteria, or screening criteria
-  - team approaches, structured educational programmes, care models, service arrangements, or workflow descriptions unless the guideline also provides a concrete aid and clearly recommends using that aid
-  - policies, procedures, protocols, order sets, consent requirements, or workflow requirements that are merely said to be needed
-  - insulin pumps, CGM devices, medicines, dosing regimens, or other clinical interventions themselves
-  - resource requirements, staffing requirements, training needs, education needs, discharge processes, or follow-up processes
-  - tables that mainly summarize evidence, criteria, resources, staffing, equipment, feasibility, or background information
-  - pharmacokinetic tables, pharmacologic tables, drug classification tables, background evidence tables, or general clinical advice
-  - external studies, external websites, external questionnaires, external frameworks, external campaigns, or external training packages unless the guideline explicitly says that they should be used for THIS guideline
-  - advocacy materials, business cases, organization-setup materials, stakeholder-engagement materials
-  - situation/needs analyses, service mapping, baseline prevalence surveys, epidemiologic survey procedures, programme planning modules, community awareness modules, surveillance modules, databases, or research-operation materials, even if they include forms, procedures, checklists, or templates
+
+  - ordinary recommendations, treatment steps, monitoring rules, or disease-management
+  advice
+
+  - eligibility criteria, patient selection rules, thresholds, diagnostic criteria,
+  or screening criteria
+
+  - team approaches, structured educational programmes, care models, service arrangements,
+  or workflow descriptions do not count as concrete tools, but may count as implementation
+  support when tied to applying THIS guideline and described with operational elements
+
+  - policies, procedures, protocols, order sets, consent requirements, or workflow
+  requirements that are merely said to be needed; protocol/process/EHR implementation
+  changes may count as implementation support when described as part of applying THIS
+  guideline
+
+  - insulin pumps, CGM devices, medicines, dosing regimens, or other clinical interventions
+  themselves
+
+  - resource requirements, staffing requirements, training needs, education needs,
+  discharge processes, or follow-up processes
+
+  - tables that mainly summarize evidence, criteria, resources, staffing, equipment,
+  feasibility, or background information
+
+  - pharmacokinetic tables, pharmacologic tables, drug classification tables, background
+  evidence tables, or general clinical advice
+
+  - external studies, external websites, external questionnaires, external frameworks,
+  external campaigns, or external training packages unless the guideline explicitly
+  says that they should be used for THIS guideline
+
+  - advocacy materials, business cases, organization-setup materials, stakeholder-engagement
+  materials
+
+  - situation/needs analyses, service mapping, baseline prevalence surveys, epidemiologic
+  survey procedures, programme planning modules, community awareness modules, surveillance
+  modules, databases, or research-operation materials, even if they include forms,
+  procedures, checklists, or templates
+
 
   Special caution for toolbox/programme/planning documents:
-  Even if the document contains modules, forms, procedures, survey tools, awareness tools, or databases, do NOT automatically treat them as item 19 implementation tools.
-  Count them ONLY if the text clearly presents them as aids for implementing THIS guideline's recommendations rather than for programme planning, advocacy, prevalence estimation, service assessment, surveillance, or research execution.
+
+  Even if the document contains modules, forms, procedures, survey tools, awareness
+  tools, or databases, do NOT automatically treat them as item 19 implementation tools.
+
+  Count them ONLY if the text clearly presents them as aids for implementing THIS
+  guideline''s recommendations rather than for programme planning, advocacy, prevalence
+  estimation, service assessment, surveillance, or research execution.
+
 
   Tool-use instruction rule:
+
   Do NOT treat clinical management instructions as tool-use instructions.
-  A sentence counts as "how to use the tool/resource" ONLY when it explains how to complete, distribute, fill in, operate, deploy, apply, or use an eligible implementation aid.
-  Instructions about how to treat patients, choose patients, monitor disease, interpret tests, adjust doses, or run clinical care do NOT become tool-use instructions unless they are explicitly framed as instructions for using an eligible implementation tool/resource.
+
+  A sentence counts as "how to use the tool/resource" ONLY when it explains how to
+  complete, distribute, fill in, operate, deploy, apply, or use an eligible implementation
+  aid.
+
+  Instructions about how to treat patients, choose patients, monitor disease, interpret
+  tests, adjust doses, or run clinical care do NOT become tool-use instructions unless
+  they are explicitly framed as instructions for using an eligible implementation
+  tool/resource.
+
 
   High-score rule:
-  Implementation-related text alone does NOT justify a high score.
-  High scores require eligible tools/resources that THIS guideline itself provides, adopts, or recommends for use.
-  Score 7 additionally requires clear guidance on how those tools/resources should be used.
 
-  Apply the same rules in both evidence extraction and scoring.
-special_rules_zh: |-
-  核心原则：item 19 评价的是“本指南是否提供了帮助落实本指南推荐的实施工具/资源”。
+  Implementation-related text alone does NOT justify score 7.
 
-  某项内容只有在同时满足以下两个条件时才计入：
-  1. 它本身是一个具体、可使用的辅助物，而不是一般建议、服务模式或流程描述；
-  2. 原文明确显示：本指南本身提供、采用、嵌入，或推荐使用它来落实本指南推荐。
+  High scores require eligible tools/resources that THIS guideline itself provides,
+  adopts, or recommends for use.
 
-  仅仅“看起来像工具”还不够。
-  如果原文只是提到、引用、列出、总结、超链接、讨论某项内容，都不能计入。
+  Score 7 additionally requires clear guidance on how those tools/resources should
+  be used.
 
-  评分顺序必须是：
-  1. 先识别看起来像工具/资源的内容；
-  2. 再问：它是不是一个具体辅助物？
-  3. 再问：原文有没有明确把它和“落实本指南推荐”联系起来？
-  4. 任一问题不能明确回答“是”，该内容就不得计入；
-  5. 只基于剩余的合格工具/资源评分；
-  6. 如果最终没有合格工具/资源，分数不得高于 4；
-  7. 如果有合格工具/资源，但原文没有清楚说明如何使用，分数不得高于 6。
+  Middle or high-middle scores may be supported by structured implementation support
+  with operational elements, but not by ordinary clinical content or mentioned-only
+  external resources.
 
-  具体实施辅助物可以包括：清单、患者材料、摘要表、实施流程图、问卷、教育材料、
-  计算机支持、操作手册、模板、审计表等。
 
-  下列内容默认都不算：
-  - 普通推荐内容、治疗步骤、监测规则、一般疾病管理建议
-  - 患者筛选标准、适用条件、阈值、诊断标准、筛查标准
-  - team approach、structured educational programmes、care model、服务安排、工作模式，
-    除非指南同时提供了具体可用材料，并明确推荐使用该材料
-  - 仅仅说“需要具备”的政策、流程、protocol、order set、知情同意要求、工作流要求
-  - 胰岛素泵、CGM 设备、药物、给药方案等临床干预本身
-  - 资源要求、人员要求、培训需求、教育需求、出院流程、随访流程
-  - 主要用于汇总证据、标准、资源、设备、可行性或背景信息的表格
-  - 药代/药理表、药物分类表、背景证据表、一般性临床建议
-  - 外部研究、外部网站、外部问卷、外部框架、外部宣传项目、外部培训包，
-    除非指南明确写出“本指南实施时应采用/推荐使用它”
-  - 倡导材料、商业论证材料、组织建设材料、利益相关方动员材料
-  - situation/needs analysis、服务摸底、baseline prevalence survey、流行病学调查流程、
-    programme planning、community awareness、监测模块、数据库、研究执行材料，
-    即使其中带有 form、procedure、checklist 或 template
-
-  对 toolbox / programme manual / planning guide / survey guide 要特别谨慎：
-  即使文档里有模块、表单、procedure、survey tool、awareness tool、database，
-  也不能自动把它们当作 item 19 的实施工具。
-  只有当原文明确把这些材料作为“落实本指南推荐”的辅助物时，才可计入。
-
-  “工具使用说明”判定规则：
-  不要把临床管理说明直接当成工具使用说明。
-  只有当原文是在说明如何填写、发放、部署、操作、应用某个“合格实施工具/资源”时，
-  才能算作“如何使用工具”。
-  如何治疗患者、如何选择患者、如何监测疾病、如何解读检查、如何调药、如何执行临床照护，
-  都不自动构成工具使用说明，除非这些句子被明确写成对某个合格工具/资源的使用指引。
-
-  高分规则：
-  仅仅出现实施相关文字，不足以支持高分。
-  高分必须建立在“指南本身明确提供/采用/推荐使用了合格实施工具/资源”之上；
-  要给 7 分，还必须清楚说明这些工具/资源应如何使用。
-
-  抽证据和评分时都执行同一套规则。
-
+  Apply the same rules in both evidence extraction and scoring.'
+special_rules_zh: "核心原则：item 19 评价的是“本指南是否提供了帮助落实本指南推荐的实施工具/资源”。\n\n若要进入最高分，某项内容必须同时满足以下两个条件：\n\
+  1. 它本身是一个具体、可使用的辅助物，而不是一般建议、服务模式或流程描述；\n2. 原文明确显示：本指南本身提供、采用、嵌入，或推荐使用它来落实本指南推荐。\n\
+  \n非具体工具的 implementation support，如果明确服务于落实本指南推荐，并包含可操作的实施要素，可以支持中档或中高档评分。\n\n仅仅“看起来像工具”还不够。\n\
+  如果原文只是提到、引用、列出、总结、超链接、讨论某项内容，都不能计入。\n\n评分顺序必须是：\n1. 先识别看起来像工具/资源的内容；\n2. 再问：它是不是一个具体辅助物？\n\
+  3. 再问：原文有没有明确把它和“落实本指南推荐”联系起来？\n4. 任一问题不能明确回答“是”，该内容就不得计入；\n5. 只基于剩余的合格工具/资源评分；\n\
+  6. 如果最终没有合格工具/资源，分数不得高于 4；\n7. 如果有合格工具/资源，但原文没有清楚说明如何使用，分数不得高于 6。\n\n具体实施辅助物可以包括：清单、患者材料、摘要表、实施流程图、问卷、教育材料、\n\
+  计算机支持、操作手册、模板、审计表等。\n\n下列内容默认都不算：\n- 普通推荐内容、治疗步骤、监测规则、一般疾病管理建议\n- 患者筛选标准、适用条件、阈值、诊断标准、筛查标准\n\
+  - team approach、structured educational programmes、care model、服务安排、工作模式本身不算具体工具；\n\
+  \  但如果明确用于落实本指南，并包含可操作实施要素，可以作为 implementation support\n- 仅仅说“需要具备”的政策、流程、protocol、order\
+  \ set、知情同意要求、工作流要求；\n  但作为本指南实施安排的一部分被具体描述的 protocol/process/EHR changes 可以作为 implementation\
+  \ support\n- 胰岛素泵、CGM 设备、药物、给药方案等临床干预本身\n- 资源要求、人员要求、培训需求、教育需求、出院流程、随访流程\n- 主要用于汇总证据、标准、资源、设备、可行性或背景信息的表格\n\
+  - 药代/药理表、药物分类表、背景证据表、一般性临床建议\n- 外部研究、外部网站、外部问卷、外部框架、外部宣传项目、外部培训包，\n  除非指南明确写出“本指南实施时应采用/推荐使用它”\n\
+  - 倡导材料、商业论证材料、组织建设材料、利益相关方动员材料\n- situation/needs analysis、服务摸底、baseline prevalence\
+  \ survey、流行病学调查流程、\n  programme planning、community awareness、监测模块、数据库、研究执行材料，\n\
+  \  即使其中带有 form、procedure、checklist 或 template\n\n对 toolbox / programme manual /\
+  \ planning guide / survey guide 要特别谨慎：\n即使文档里有模块、表单、procedure、survey tool、awareness\
+  \ tool、database，\n也不能自动把它们当作 item 19 的实施工具。\n只有当原文明确把这些材料作为“落实本指南推荐”的辅助物时，才可计入。\n\
+  \n“工具使用说明”判定规则：\n不要把临床管理说明直接当成工具使用说明。\n只有当原文是在说明如何填写、发放、部署、操作、应用某个“合格实施工具/资源”时，\n\
+  才能算作“如何使用工具”。\n如何治疗患者、如何选择患者、如何监测疾病、如何解读检查、如何调药、如何执行临床照护，\n都不自动构成工具使用说明，除非这些句子被明确写成对某个合格工具/资源的使用指引。\n\
+  \n高分规则：\n仅仅出现实施相关文字，不足以支持 7 分。\n高分必须建立在“指南本身明确提供/采用/推荐使用了合格实施工具/资源”之上；\n要给 7 分，还必须清楚说明这些工具/资源应如何使用。\n\
+  包含可操作要素的结构化 implementation support 可以支持中档或中高档，但普通临床内容或仅提及的外部资源不能支持高分。\n\n抽证据和评分时都执行同一套规则。"
 scoring_principle:
 - range: '1'
   condition: Not mentioned (no implementation advice AND no explicit tools/resources).
   condition_zh: 未提及（既无实施性建议，也无明确实施工具/资源）。
 - range: 2-4
-  condition: Implementation advice, implementation discussion, or tool-like content is present, but after applying the eligibility and exclusion rules the guideline does NOT provide any eligible implementation tool/resource.
+  condition: Implementation advice, implementation discussion, or tool-like content
+    is present, but after applying the eligibility and exclusion rules the guideline
+    does NOT provide any eligible implementation tool/resource.
   condition_zh: 存在实施建议、实施讨论或“看起来像工具”的内容，但按资格判断和排除规则处理后，指南并未提供任何合格的实施工具/资源。
 - range: 2-3
-  condition: No separate implementation section/module. The guideline provides exactly one eligible implementation tool/resource, with no clear guidance on how to use it.
+  condition: No separate implementation section/module. The guideline provides exactly
+    one eligible implementation tool/resource, with no clear guidance on how to use
+    it.
   condition_zh: 没有独立实施章节/模块；指南仅提供 1 个合格的实施工具/资源，且没有清楚说明如何使用该工具。
 - range: 4-5
-  condition: No separate implementation section/module. The guideline provides two or more eligible implementation tools/resources, with no clear guidance on how to use them.
+  condition: No separate implementation section/module. The guideline provides two
+    or more eligible implementation tools/resources, with no clear guidance on how
+    to use them.
   condition_zh: 没有独立实施章节/模块；指南提供 2 个及以上合格的实施工具/资源，且没有清楚说明如何使用这些工具。
 - range: 5-6
-  condition: A separate implementation section/module is present, and at least one eligible implementation tool/resource is provided, but there is no clear guidance on how to use that tool/resource.
+  condition: A separate implementation section/module is present, and at least one
+    eligible implementation tool/resource is provided, but there is no clear guidance
+    on how to use that tool/resource.
   condition_zh: 有独立实施章节/模块，且至少提供 1 个合格的实施工具/资源，但没有清楚说明如何使用该工具/资源。
 - range: 6-7
-  condition: Eligible implementation tools/resources are provided, and the guideline clearly explains how to use those tools/resources in practice.
+  condition: Eligible implementation tools/resources are provided, and the guideline
+    clearly explains how to use those tools/resources in practice.
   condition_zh: 提供了合格的实施工具/资源，并且指南清楚说明了如何在实践中使用这些工具/资源。
 - range: '7'
-  condition: Use score 7 only when the guideline itself clearly provides eligible implementation tools/resources and clearly explains how to use them; do NOT use 7 for cited external tools, general processes, policies/protocols merely said to be needed, resource tables, or ordinary recommendations.
-  condition_zh: 只有当指南本身明确提供、采用或推荐使用合格的实施工具/资源，并且清楚说明如何使用这些工具/资源时，才能给 7 分；对于被引用的外部工具、仅被要求具备的政策/流程/protocol、资源表、一般流程、普通推荐内容，或主要服务于规划/调查/倡导/研究的材料，不得给 7 分。
+  condition: Use score 7 only when the guideline itself clearly provides eligible
+    implementation tools/resources and clearly explains how to use them; do NOT use
+    7 for cited external tools, general processes, policies/protocols merely said
+    to be needed, resource tables, or ordinary recommendations.
+  condition_zh: 只有当指南本身明确提供、采用或推荐使用合格的实施工具/资源，并且清楚说明如何使用这些工具/资源时，才能给 7 分；对于被引用的外部工具、仅被要求具备的政策/流程/protocol、资源表、一般流程、普通推荐内容，或主要服务于规划/调查/倡导/研究的材料，不得给
+    7 分。

@@ -1,3 +1,7 @@
+import { formatDate } from '@/i18n/format'
+import { asMessage, uploadMessage, type UiMessage } from '@/i18n/messages'
+import { taskEvent } from '@/i18n/taskMessages'
+import { notifyError, notifySuccess } from '@/i18n/notify'
 /**
  * Chat - 评价任务工作区
  * 
@@ -41,7 +45,7 @@ function getParentDirectory(filePath: string) {
     return parts.join('/')
 }
 
-type TaskPhase = 'idle' | 'ready' | 'starting' | 'running' | 'stopping' | 'completed' | 'cancelled' | 'error'
+type TaskPhase = 'idle' | 'ready' | 'starting' | 'running' | 'stopping' | 'completed' | 'partial' | 'cancelled' | 'error'
 type PersistedTimelineEvent = Omit<TimelineEvent, 'timestamp'> & { timestamp: string }
 
 function isBusyPhase(phase: TaskPhase) {
@@ -57,14 +61,14 @@ const folderInputAttributes = {
 }
 
 export function Chat() {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     // 持久化状态初始化
     const [sessionId] = useState(() => {
-        const saved = sessionStorage.getItem('ama_session_id')
-        if (saved) return saved
-        const newId = `session-${Date.now()}`
-        sessionStorage.setItem('ama_session_id', newId)
-        return newId
+        // 任务状态保存在 localStorage，会话 ID 也须跨标签页和浏览器重启保持一致，才能收到后端积压的终态消息
+        const saved = localStorage.getItem('ama_session_id') || sessionStorage.getItem('ama_session_id')
+        const id = saved || `session-${Date.now()}`
+        localStorage.setItem('ama_session_id', id)
+        return id
     })
 
     // 从 localStorage 恢复初始状态
@@ -92,6 +96,7 @@ export function Chat() {
                 .filter((e) => e.id !== 'connection_error') // 确保加载时不包含连接错误
                 .map((e) => ({
                     ...e,
+                    ui_message: e.ui_message || (e.type === 'appraiser' && e.detail ? { ...asMessage(e.message), params: { ...asMessage(e.message).params, skill_id: e.detail } } : asMessage(e.message)),
                     timestamp: new Date(e.timestamp)
                 }))
         } catch {
@@ -166,23 +171,10 @@ export function Chat() {
                 const serverStartup = String(health.startup_time)
                 const localStartup = localStorage.getItem('ama_startup_time')
 
-                // 如果本地没有记录，或者记录不一致（服务重启），则清理缓存
+                // 服务重启后保留任务 ID 和 PDF 路径，供人工续跑。
                 if (localStartup && localStartup !== serverStartup) {
-                    console.log('检测到服务重启，清理旧缓存...')
-                    // 清理所有相关缓存
-                    localStorage.removeItem('ama_session_id')
-                    localStorage.removeItem('ama_is_loading')
-                    localStorage.removeItem('ama_task_phase')
-                    localStorage.removeItem('ama_current_file')
-                    localStorage.removeItem('ama_task_id')
-                    localStorage.removeItem('ama_timeline_events')
-                    localStorage.removeItem('ama_batch_summary')
-
-                    // 更新启动时间
                     localStorage.setItem('ama_startup_time', serverStartup)
-
-                    // 重新加载页面以重置状态
-                    window.location.reload()
+                    setTaskPhase(prev => isBusyPhase(prev) ? 'error' : prev)
                 } else if (!localStartup) {
                     // 首次运行，记录启动时间
                     localStorage.setItem('ama_startup_time', serverStartup)
@@ -200,7 +192,7 @@ export function Chat() {
         id: string,
         type: TimelineEvent['type'],
         status: TimelineEvent['status'],
-        message: string,
+        message: string | UiMessage,
         detail?: string,
         prompt?: string
     ) => {
@@ -210,7 +202,8 @@ export function Chat() {
                 id,
                 type,
                 status,
-                message,
+                message: typeof message === 'string' ? message : '',
+                ui_message: asMessage(message, status === 'error' ? 'chat.error.occurred' : 'chat.status.processing'),
                 detail,
                 prompt,
                 timestamp: new Date()
@@ -259,7 +252,7 @@ export function Chat() {
     // 处理文件上传
     const handleUpload = useCallback(async (file: File) => {
         if (!file.name.toLowerCase().endsWith('.pdf')) {
-            alert(t('chat.error.pdfOnly'))
+            notifyError({ key: 'chat.error.pdfOnly' })
             return
         }
 
@@ -269,11 +262,11 @@ export function Chat() {
             await loadPdfFiles()  // 刷新文件列表
         } catch (error) {
             console.error('Upload failed:', error)
-            alert(error instanceof Error ? error.message : t('chat.error.uploadFailed'))
+            notifyError(error, 'chat.error.uploadFailed')
         } finally {
             setIsUploading(false)
         }
-    }, [loadPdfFiles, t])
+    }, [loadPdfFiles])
 
     // 文件选择处理
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,15 +292,15 @@ export function Chat() {
 
             // 显示上传结果
             if (result.failed_count > 0) {
-                alert(t('chat.upload.result', { success: result.success_count, failed: result.failed_count }))
+                notifyError(uploadMessage('chat.upload.result', result))
             } else {
-                alert(t('chat.upload.success', { count: result.success_count }))
+                notifySuccess('chat.upload.success', { count: result.success_count })
             }
 
             await loadPdfFiles()  // 刷新文件列表
         } catch (error) {
             console.error('Folder upload failed:', error)
-            alert(error instanceof Error ? error.message : t('chat.error.folderUploadFailed'))
+            notifyError(error, 'chat.error.folderUploadFailed')
         } finally {
             setIsUploadingFolder(false)
             // 重置 input
@@ -315,7 +308,7 @@ export function Chat() {
                 folderInputRef.current.value = ''
             }
         }
-    }, [loadPdfFiles, t])
+    }, [loadPdfFiles])
 
     // 拖拽处理
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -343,112 +336,62 @@ export function Chat() {
 
     const isBusy = isBusyPhase(taskPhase)
 
+    const markCancelled = useCallback(() => {
+        setTaskPhase('cancelled')
+        setTimelineEvents(prev => prev.map(e => {
+            if (e.status === 'running') {
+                const doneMessage = e.message.endsWith('...')
+                    ? e.message.replace(/\.\.\.$/, '')
+                    : e.message
+                return { ...e, status: 'done' as const, message: doneMessage }
+            }
+            return e
+        }))
+        upsertEvent('cancelled', 'cancelled', 'done', { key: 'chat.status.cancelled' })
+    }, [upsertEvent])
+
+    // 连接建立时以后端快照为准：终态消息丢失后不能永久停在执行中或终止中
+    const reconcileSessionState = (snapshot: ChatMessage) => {
+        const serverActive = snapshot.state !== 'idle' && snapshot.task_id === currentTaskId
+        if (serverActive) {
+            if (snapshot.state === 'stopping') setTaskPhase('stopping')
+            // 停止请求未送达后端（例如断线期间刷新页面），恢复为可再次终止
+            else if (taskPhase === 'stopping') setTaskPhase('running')
+        } else if (taskPhase === 'stopping') {
+            markCancelled()
+        } else if (taskPhase === 'running') {
+            // starting 不校正：启动指令可能尚未到达后端
+            setTaskPhase('error')
+            upsertEvent('error', 'error', 'error', { key: 'chat.error.taskLost' })
+        }
+    }
+
     const { connect, send, reconnectAttempts } = useWebSocket({
         onOpen: () => {
             setConnectionError(false)
         },
         onMessage: (msg: ChatMessage) => {
+            if (msg.type === 'session_state') {
+                reconcileSessionState(msg)
+                return
+            }
+
             if (msg.task_id) {
                 setCurrentTaskId(msg.task_id)
             }
 
             if (msg.type === 'status' || msg.type === 'agent' || msg.type === 'item_progress' || msg.type === 'batch_summary') {
-                setTaskPhase(prev => prev === 'starting' ? 'running' : prev)
+                setTaskPhase(prev => ['starting', 'idle', 'ready'].includes(prev) ? 'running' : prev)
             }
 
-            // 解析 agent 名称获取事件类型
-            const agentToType = (agent: string | undefined): TimelineEvent['type'] => {
-                if (!agent) return 'orchestrator'
-                const lower = agent.toLowerCase()
-                if (lower.includes('initiator')) return 'initiator'
-                if (lower.includes('appraiser')) return 'appraiser'
-                if (lower.includes('reporter')) return 'reporter'
-                if (lower.includes('orchestrator')) return 'orchestrator'
-                return 'orchestrator'
-            }
-
-            if (msg.type === 'agent') {
-                const eventType = agentToType(msg.agent)
-                const content = msg.content || t('chat.status.processing', { agent: msg.agent })
-
-                // 解析 Appraiser 的 item_id
-                let eventId: string = eventType
-                let detail: string | undefined
-
-                if (eventType === 'appraiser' && content.includes('item_')) {
-                    // 提取 item_X
-                    const match = content.match(/item_\d+/)
-                    if (match) {
-                        eventId = `appraiser_${match[0]}`
-                        detail = match[0]
-                    }
+            if (msg.type === 'agent' || msg.type === 'status') {
+                const event = taskEvent(msg)
+                if (event) {
+                    setTimelineEvents(prev => prev.map(entry => entry.status === 'running' && entry.type !== event.type
+                        ? { ...entry, status: 'done' as const } : entry))
+                    upsertEvent(event.id, event.type, event.status, event.message, msg.skill_id, msg.prompt)
                 }
-
-                // 在添加新事件前，将之前运行中的事件标记为完成
-                setTimelineEvents(prev => {
-                    const updated = prev.map(e => {
-                        // 如果是不同类型的代理切换，标记前一个为完成
-                        if (e.status === 'running' && e.type !== eventType) {
-                            // 移除消息末尾的 "..."
-                            const doneMessage = e.message.endsWith('...')
-                                ? e.message.replace(/\.\.\.$/, '')
-                                : e.message
-                            return { ...e, status: 'done' as const, message: doneMessage }
-                        }
-                        // 如果是同类型（Appraiser）但不同 item，保持运行（并发模式下多个可同时运行）
-                        return e
-                    })
-                    return updated
-                })
-
-                upsertEvent(eventId, eventType, 'running', content, detail, msg.prompt)
-
-            } else if (msg.type === 'status') {
-                const content = msg.content || ''
-                const contentLower = content.toLowerCase()
-
-                // 检测 PDF 解析状态 (Bilingual)
-                // ZH: 正在解析 PDF... / PDF 解析完成
-                // EN: Parsing PDF... / PDF parsed
-                if (content.includes('解析') || content.includes('PDF') || content.includes('Parsing') || content.includes('Parsed')) {
-                    if (content.includes('完成') || content.includes('parsed') || content.includes('found')) {
-                        upsertEvent('parsing', 'parsing', 'done', content)
-                    } else if (content.includes('失败') || content.includes('failed')) {
-                        upsertEvent('parsing', 'parsing', 'error', content)
-                    } else {
-                        upsertEvent('parsing', 'parsing', 'running', content)
-                    }
-                }
-                // 检测语义来源池状态 (Bilingual, case-insensitive)
-                // ZH: 正在构建语义来源池... / 语义来源池构建完成 / 预处理异常
-                // EN: Building semantic source pool... / Semantic source pool built / Preprocessing error
-                // Use toLowerCase() for case-insensitive matching
-                else if (content.includes('语义来源池') || contentLower.includes('source pool') || contentLower.includes('evidence') || contentLower.includes('preprocessing') || content.includes('预处理异常')) {
-                    if (content.includes('正在') || contentLower.includes('building')) {
-                        upsertEvent('preprocessing', 'preprocessing', 'running', content)
-                    } else if (content.includes('完成') || contentLower.includes('built')) {
-                        upsertEvent('preprocessing', 'preprocessing', 'done', content)
-                    } else if (content.includes('失败') || content.includes('异常') || contentLower.includes('error') || contentLower.includes('failed')) {
-                        upsertEvent('preprocessing', 'preprocessing', 'error', content)
-                    } else {
-                        // 默认 fallback 用于显示其他预处理相关消息
-                        upsertEvent('preprocessing', 'preprocessing', 'running', content)
-                    }
-                }
-                // 检测 Orchestrator 启动 (Bilingual)
-                // ZH: 启动智能体团队
-                // EN: Starting agent team
-                else if (content.includes('智能体') || content.includes('启动') || content.includes('Starting agent')) {
-                    upsertEvent('orchestrator', 'orchestrator', 'running', t('chat.status.orchestrating'))
-                }
-                // 检测任务 ID
-                else if (content.includes('任务')) {
-                    // 静默处理，不添加事件
-                }
-                if (content.includes('终止') || contentLower.includes('stopping')) {
-                    setTaskPhase('stopping')
-                }
-
+                if (msg.state === 'stopping') setTaskPhase('stopping')
             } else if (msg.type === 'complete') {
                 setTaskPhase('completed')
                 // 标记所有运行中的事件为完成
@@ -463,67 +406,37 @@ export function Chat() {
                     }
                     return e
                 }))
-                upsertEvent('complete', 'complete', 'done', t('chat.status.complete'))
+                upsertEvent('complete', 'complete', 'done', { key: 'chat.status.complete' })
+
+            } else if (msg.type === 'partial') {
+                setTaskPhase('partial')
+                upsertEvent('partial', 'reporter', 'done', { key: 'chat.status.partial', params: { completed: 23 - (msg.missing_items?.length || 0) } })
+                Object.entries(msg.failed_details || {}).forEach(([item, failure]) => {
+                    upsertEvent(`appraiser_${item}`, 'appraiser', 'error', { ...asMessage(failure.i18n ? failure : failure.message, 'server.error.appraisal_failed'), diagnostic: failure.diagnostic || asMessage(failure.message).diagnostic || `${item} · ${failure.type} (${failure.stage})` })
+                })
 
             } else if (msg.type === 'cancelled') {
-                setTaskPhase('cancelled')
-                setTimelineEvents(prev => prev.map(e => {
-                    if (e.status === 'running') {
-                        const doneMessage = e.message.endsWith('...')
-                            ? e.message.replace(/\.\.\.$/, '')
-                            : e.message
-                        return { ...e, status: 'done' as const, message: doneMessage }
-                    }
-                    return e
-                }))
-                upsertEvent('cancelled', 'cancelled', 'done', t('chat.status.cancelled'))
+                markCancelled()
 
             } else if (msg.type === 'error') {
-                setTaskPhase(prev => (
-                    prev === 'starting' || prev === 'running' || prev === 'stopping'
-                        ? 'error'
-                        : prev
-                ))
-                upsertEvent('error', 'error', 'error', msg.content || t('chat.error.occurred'))
+                if (msg.i18n?.key === 'error.task_already_running') {
+                    notifyError(msg)
+                    return
+                }
+                setTaskPhase('error')
+                upsertEvent('error', 'error', 'error', msg.i18n ? msg : asMessage(msg.content, 'chat.error.occurred'))
+                Object.entries(msg.failed_details || {}).forEach(([item, failure]) => {
+                    upsertEvent(`appraiser_${item}`, 'appraiser', 'error', { ...asMessage(failure.i18n ? failure : failure.message, 'server.error.appraisal_failed'), diagnostic: failure.diagnostic || asMessage(failure.message).diagnostic || `${item} · ${failure.type} (${failure.stage})` })
+                })
 
             } else if (msg.type === 'item_progress') {
-                // 并发评价单条目进度
-                const { skill_id, title, item_status, duration } = msg
+                const { skill_id, item_status, duration } = msg
                 if (!skill_id) return
-
-                const eventId = `appraiser_${skill_id}`
-
-                if (item_status === 'started') {
-                    // 新条目开始，添加事件（带渐入动画）
-                    setTimelineEvents(prev => {
-                        const existing = prev.find(e => e.id === eventId)
-                        if (existing) return prev  // 已存在则不重复添加
-                        return [...prev, {
-                            id: eventId,
-                            type: 'appraiser',
-                            status: 'running',
-                            message: t('timeline.evaluating', { title: title || skill_id }),
-                            detail: skill_id,
-                            timestamp: new Date(),
-                            isNew: true
-                        }]
-                    })
-                } else if (item_status === 'completed') {
-                    // 条目完成（不显示"已完成"文字）
-                    setTimelineEvents(prev => prev.map(e =>
-                        e.id === eventId
-                            ? { ...e, status: 'done' as const, message: t('timeline.evaluated', { title: title || skill_id }), duration, isNew: false }
-                            : e
-                    ))
-                } else if (item_status === 'failed') {
-                    // 条目失败
-                    setTimelineEvents(prev => prev.map(e =>
-                        e.id === eventId
-                            ? { ...e, status: 'error' as const, message: t('timeline.evaluateFailed', { title: title || skill_id }), isNew: false }
-                            : e
-                    ))
-                }
-
+                const status = item_status === 'completed' ? 'done' : item_status === 'failed' ? 'error' : 'running'
+                const key = item_status === 'completed' ? 'timeline.evaluated' : item_status === 'failed' ? 'timeline.evaluateFailed' : 'timeline.evaluating'
+                upsertEvent(`appraiser_${skill_id}`, 'appraiser', status,
+                    { key, params: { ...msg.i18n?.params, skill_id } }, skill_id)
+                if (duration !== undefined) setTimelineEvents(prev => prev.map(event => event.id === `appraiser_${skill_id}` ? { ...event, duration } : event))
             } else if (msg.type === 'batch_summary') {
                 // 并发评价汇总进度
                 setBatchSummary({
@@ -560,7 +473,7 @@ export function Chat() {
         clearTaskState('starting')
 
         // 添加初始解析事件
-        upsertEvent('parsing', 'parsing', 'running', t('chat.status.parsing'))
+        upsertEvent('parsing', 'parsing', 'running', { key: 'chat.status.parsing' })
 
         try {
             const result = await api.startTask(currentFile)
@@ -576,10 +489,21 @@ export function Chat() {
                 send({ type: 'start', task_id: result.task_id, pdf_path: currentFile, lang })
             }, 500)
         } catch (error) {
-            upsertEvent('error', 'error', 'error', t('chat.error.startFailed', { error: String(error) }))
+            upsertEvent('error', 'error', 'error', asMessage(error, 'chat.error.occurred'))
             setTaskPhase('error')
         }
-    }, [clearTaskState, connect, currentFile, isBusy, send, sessionId, t, upsertEvent])
+    }, [clearTaskState, connect, currentFile, isBusy, send, sessionId, upsertEvent])
+
+    const handleResumeTask = useCallback(() => {
+        if (!currentFile || !currentTaskId || isBusy) return
+        setTaskPhase('starting')
+        setConnectionError(false)
+        connect(sessionId)
+        setTimeout(() => {
+            const lang = (document.documentElement.lang || 'en').split('-')[0]
+            send({ type: 'resume', task_id: currentTaskId, pdf_path: currentFile, lang })
+        }, 500)
+    }, [connect, currentFile, currentTaskId, isBusy, send, sessionId])
 
     const handleStopTask = useCallback(() => {
         if (!currentTaskId || (taskPhase !== 'starting' && taskPhase !== 'running')) return
@@ -593,7 +517,8 @@ export function Chat() {
     }, [currentTaskId, send, taskPhase])
 
     const selectedFileName = currentFile?.split('/').pop() ?? null
-    const canStart = Boolean(currentFile) && ['ready', 'completed', 'cancelled', 'error'].includes(taskPhase)
+    const canStart = Boolean(currentFile) && ['ready', 'completed', 'partial', 'cancelled', 'error'].includes(taskPhase)
+    const canResume = Boolean(currentFile && currentTaskId) && ['partial', 'cancelled', 'error'].includes(taskPhase)
     const canStop = taskPhase === 'starting' || taskPhase === 'running'
 
     const phaseLabel = (() => {
@@ -611,6 +536,8 @@ export function Chat() {
                 return t('chat.progress.stopping')
             case 'completed':
                 return t('chat.progress.completed')
+            case 'partial':
+                return t('chat.progress.partial')
             case 'cancelled':
                 return t('chat.progress.cancelled')
             case 'error':
@@ -621,9 +548,9 @@ export function Chat() {
     })()
 
     const formatFileSize = (bytes: number) => {
-        if (bytes < 1024) return `${bytes} B`
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+        if (bytes < 1024) return `${bytes.toLocaleString(i18n.language)} B`
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString(i18n.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`
+        return `${(bytes / (1024 * 1024)).toLocaleString(i18n.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`
     }
 
     const getFileTypeStyle = (fileName: string) => {
@@ -686,7 +613,7 @@ export function Chat() {
                         <p className="text-xs text-muted-foreground/70 mt-0.5 flex items-center gap-1.5">
                             <span>{formatFileSize(file.size)}</span>
                             <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
-                            <span>{file.modified}</span>
+                            <span>{formatDate(file.modified, i18n.language)}</span>
                         </p>
                     </div>
                 </div>
@@ -758,7 +685,7 @@ export function Chat() {
                     <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-2">
                         <span>{formatFileSize(file.size)}</span>
                         <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
-                        <span>{file.modified}</span>
+                        <span>{formatDate(file.modified, i18n.language)}</span>
                     </p>
                 </div>
             </div>
@@ -1032,6 +959,11 @@ export function Chat() {
                                 t('chat.actions.start')
                             )}
                         </Button>
+                        {canResume && (
+                            <Button variant="outline" onClick={handleResumeTask} className="rounded-xl px-4">
+                                {t('chat.actions.resume')}
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             onClick={handleStopTask}
@@ -1051,13 +983,13 @@ export function Chat() {
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 rounded-lg border border-yellow-200">
                                 <Loader2 className="h-3 w-3 text-yellow-600 animate-spin" />
                                 <span className="text-xs text-yellow-700 font-medium">
-                                    重连中 ({reconnectAttempts}/5)
+                                    {t('chat.connection.reconnecting', { current: reconnectAttempts, max: 5 })}
                                 </span>
                             </div>
                         ) : connectionError ? (
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-200">
                                 <span className="w-2 h-2 rounded-full bg-red-500" />
-                                <span className="text-xs text-red-600 font-medium">连接断开</span>
+                                <span className="text-xs text-red-600 font-medium">{t('chat.connection.disconnected')}</span>
                             </div>
                         ) : null}
                     </div>

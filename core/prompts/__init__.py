@@ -8,15 +8,11 @@ from .loader import (
     get_prompt,
     PROMPTS_DIR,
 )
-from .renderer import (
-    render_appraiser_prompt,
-)
 
 
 __all__ = [
     "load_prompt",
     "get_prompt",
     "PROMPTS_DIR",
-    "render_appraiser_prompt",
 ]
 

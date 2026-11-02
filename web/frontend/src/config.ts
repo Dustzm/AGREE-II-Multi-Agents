@@ -19,19 +19,5 @@ export const API_URL = `${APP_BASE_PATH}/api`
 // WebSocket URL
 export const WS_URL = (() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const hostname = window.location.hostname
-    const port = window.location.port
-
-    // 生产环境：通过 nginx 代理，使用相同 host（无需指定端口）
-    // 开发环境：前端 8012，后端 8011
-    if (!port || port === '80' || port === '443') {
-        // 生产环境，WebSocket 通过 nginx 代理
-        return `${protocol}//${hostname}${APP_BASE_PATH}/api`
-    } else if (port === '8012') {
-        // 开发环境
-        return `${protocol}//${hostname}:8011${APP_BASE_PATH}/api`
-    } else {
-        // 其他情况使用相同端口
-        return `${protocol}//${hostname}:${port}${APP_BASE_PATH}/api`
-    }
+    return `${protocol}//${window.location.host}${APP_BASE_PATH}/api`
 })()

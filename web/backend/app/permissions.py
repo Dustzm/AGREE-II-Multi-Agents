@@ -5,9 +5,11 @@
 """
 from __future__ import annotations
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 
-from .auth import AuthenticatedUser
+from .auth import AuthenticatedUser, get_auth_disabled_user, is_auth_enabled
+
+from .i18n.messages import LocalizedHTTPException
 
 
 def require_role(*roles: str):
@@ -22,11 +24,14 @@ def require_role(*roles: str):
     """
 
     async def _checker(request: Request) -> AuthenticatedUser:
+        if not is_auth_enabled():
+            return get_auth_disabled_user()
+
         user: AuthenticatedUser | None = getattr(request.state, "auth_user", None)
         if user is None:
-            raise HTTPException(status_code=401, detail="未登录或登录已失效")
+            raise LocalizedHTTPException(401, "error.unauthorized")
         if user.role not in roles:
-            raise HTTPException(status_code=403, detail="权限不足，需要管理员权限")
+            raise LocalizedHTTPException(403, "error.admin_required")
         return user
 
     return _checker

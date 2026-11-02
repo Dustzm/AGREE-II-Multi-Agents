@@ -11,11 +11,7 @@ KG-Weaver Core Package
 """
 from .agents import (
     create_portal_agent,
-    create_orchestrator,
-    create_initiator_agent,
     create_reporter_agent,
-    list_input_pdfs,
-    check_extraction_intent,
     get_model,
     init_task_directory,
 )
@@ -25,11 +21,7 @@ from .parsers import MinerUParser
 __all__ = [
     # 智能体
     "create_portal_agent",
-    "create_orchestrator",
-    "create_initiator_agent",
     "create_reporter_agent",
-    "list_input_pdfs",
-    "check_extraction_intent",
     "get_model",
     "init_task_directory",
     # 配置

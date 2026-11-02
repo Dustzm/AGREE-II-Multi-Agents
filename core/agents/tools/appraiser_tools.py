@@ -10,69 +10,14 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
-from .public_tools import get_task_paths, read_source_document
+from .public_tools import get_task_paths
 from core.skills import load_skill_config as _load_skill_config
 from core.utils.unicode_sanitizer import sanitize_unicode
+from core.utils.atomic_json import write_json_atomically
 
 logger = logging.getLogger(__name__)
-
-
-def load_source_to_cache(task_id: str, skill_id: str) -> dict:
-    """
-    从证据池加载与条目领域相关的上下文
-    
-    Args:
-        task_id: 任务 ID
-        skill_id: 条目 ID（必需，用于确定领域）
-    
-    Returns:
-        dict: {
-            "status": "success/error/no_evidence",
-            "content": str,  # 领域相关的证据文本
-            "char_count": int,  # 字符数
-            "domain": int,  # 领域 ID
-            "auto_evaluated": bool,  # 是否已自动评分
-            "error": str
-        }
-    """
-    # 从证据池加载相关上下文
-    from core.preprocessor import load_evidence_for_skill
-    
-    result = load_evidence_for_skill(task_id, skill_id)
-    
-    if result["status"] == "error" or not result.get("content"):
-        # 证据池为空或加载失败，自动评分为 1 分
-        logger.warning(f"证据池无可用内容: skill_id={skill_id}, domain={result.get('domain')}")
-        
-        # 自动保存 1 分评价
-        auto_eval_result = save_item_evaluation(
-            task_id=task_id,
-            skill_id=skill_id,
-            step1_locate="无法定位：证据池中无该领域相关内容",
-            step2_evidence=["无相关内容"],
-            step3_reasoning="由于证据池中不存在与该评价条目领域相关的语义块，无法提取有效证据进行评价。根据 AGREE-II 评分原则，信息完全缺失时应评为最低分。",
-            score=1
-        )
-        
-        return {
-            "status": "no_evidence",
-            "content": "",
-            "char_count": 0,
-            "domain": result.get("domain", 0),
-            "auto_evaluated": True,
-            "eval_path": auto_eval_result.get("path", ""),
-            "error": f"证据池无可用内容，已自动评分为 1 分"
-        }
-    
-    logger.info(f"证据池已加载: skill_id={skill_id}, domain={result.get('domain')}, 字符数={result.get('char_count')}")
-    
-    return {
-        **result,
-        "auto_evaluated": False
-    }
-
 
 
 def save_item_evaluation(
@@ -82,7 +27,9 @@ def save_item_evaluation(
     step2_evidence: list[str],
     step3_reasoning: str,
     score: int,
-    evidence_sources: Optional[list[str]] = None
+    evidence_sources: Optional[list[str]] = None,
+    rule_engine: Optional[dict[str, Any]] = None,
+    hybrid_router: Optional[dict[str, Any]] = None,
 ) -> dict:
     """
     保存单个条目的评价结果
@@ -97,22 +44,21 @@ def save_item_evaluation(
         step3_reasoning: 推理过程
         score: 最终评分 (1-7)
         evidence_sources: 证据来源 chunk_id 列表 (可选)
+        rule_engine: 规则引擎输出详情 (可选)
+        hybrid_router: Dynamic-Hybrid 路由结果 (可选)
     
     Returns:
-        dict: {
-            "status": "success/error",
-            "path": str,
-            "error": str
-        }
+        dict: {"status": "success", "path": str, "error": ""}
+
+    Raises:
+        任务不存在、评分无效、结果未通过校验或写入失败时抛出原始异常。
     """
     try:
         paths = get_task_paths(task_id)
         if not paths:
-            return {
-                "status": "error",
-                "path": "",
-                "error": f"任务不存在: {task_id}"
-            }
+            raise FileNotFoundError(f"任务不存在: {task_id}")
+        if not isinstance(score, int) or isinstance(score, bool) or not 1 <= score <= 7:
+            raise ValueError(f"条目评分必须为 1-7 的整数: {skill_id}")
         
         # 创建 evaluations 目录
         eval_dir = Path(paths["weaver_dir"]) / "evaluations"
@@ -144,11 +90,17 @@ def save_item_evaluation(
                 "evaluated_at": datetime.now().isoformat(),
             }
         })
+        if rule_engine is not None:
+            evaluation["rule_engine"] = sanitize_unicode(rule_engine)
+        if hybrid_router is not None:
+            evaluation["hybrid_router"] = sanitize_unicode(hybrid_router)
         
+        if not validate_evaluation(evaluation, skill_id):
+            raise ValueError(f"条目包含无效结果或未解决的技术失败: {skill_id}")
+
         # 保存到 JSON 文件
         file_path = eval_dir / f"{skill_id}.json"
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(evaluation, f, ensure_ascii=False, indent=2)
+        write_json_atomically(file_path, evaluation)
         
         logger.info(f"条目评价已保存: {file_path} (分数: {score})")
         return {
@@ -156,12 +108,9 @@ def save_item_evaluation(
             "path": str(file_path),
             "error": ""
         }
-    except Exception as e:
-        return {
-            "status": "error",
-            "path": "",
-            "error": str(e)
-        }
+    except Exception:
+        logger.exception("条目评价保存失败: task=%s item=%s", task_id, skill_id)
+        raise
 
 
 def list_evaluations(task_id: str) -> dict:
@@ -196,7 +145,7 @@ def list_evaluations(task_id: str) -> dict:
                 "error": ""
             }
         
-        evaluations = [f.stem for f in sorted(eval_dir.glob("item_*.json"))]
+        evaluations = [f.stem for f in sorted(eval_dir.glob("item_*.json")) if read_evaluation(task_id, f.stem)["status"] == "success"]
         
         return {
             "status": "success",
@@ -209,6 +158,38 @@ def list_evaluations(task_id: str) -> dict:
             "evaluations": [],
             "error": str(e)
         }
+
+
+def validate_evaluation(evaluation: Any, skill_id: str) -> bool:
+    """校验可复用条目的身份、领域和基本评分内容。"""
+    if not isinstance(evaluation, dict):
+        return False
+    # Persisted technical failures must never become reusable low scores.
+    def has_failure(value):
+        if isinstance(value, dict):
+            if value.get("severity") == "error" or value.get("code") in {
+                "rubric_appraiser_json_failed", "rubric_classifier_missing_decision",
+                "verifier_missing_decision", "group_verifier_missing_decision", "classifier_missing_decision",
+            }:
+                return True
+            return any(has_failure(item) for item in value.values())
+        return isinstance(value, list) and any(has_failure(item) for item in value)
+
+    if has_failure(evaluation.get("rule_engine")):
+        return False
+    cot = evaluation.get("chain_of_thought")
+    if not isinstance(cot, dict):
+        return False
+    score = cot.get("score")
+    return (
+        evaluation.get("item_id") == skill_id
+        and evaluation.get("domain") == _load_skill_config(skill_id, check_enabled=False).get("domain")
+        and isinstance(score, int)
+        and not isinstance(score, bool)
+        and 1 <= score <= 7
+        and isinstance(cot.get("step2_evidence"), list)
+        and isinstance(cot.get("step3_reasoning"), (str, dict))
+    )
 
 
 def read_evaluation(task_id: str, skill_id: str) -> dict:
@@ -246,6 +227,8 @@ def read_evaluation(task_id: str, skill_id: str) -> dict:
         
         with open(file_path, "r", encoding="utf-8") as f:
             evaluation = json.load(f)
+        if not validate_evaluation(evaluation, skill_id):
+            raise ValueError(f"条目结果损坏或与条目不匹配: {file_path}")
         
         return {
             "status": "success",

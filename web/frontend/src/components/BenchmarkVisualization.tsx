@@ -1,3 +1,4 @@
+import localeI18n from '@/i18n'
 import { BenchmarkSummary, GuideConsistency, ItemConsistency } from '@/services/api'
 import { useTranslation } from 'react-i18next'
 
@@ -155,7 +156,7 @@ function DomainItemHeatmap({ items }: { items: ItemConsistency[] }) {
             {DOMAINS.map((domain) => (
                 <div key={domain.id} className="bg-white/40 border border-white/50 rounded-xl p-3 hover:bg-white/60 transition-colors">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
-                        <span>Domain {domain.id}</span>
+                        <span>{t('ui.domain')} {domain.id}</span>
                         <span className="opacity-60 font-normal normal-case">
                             {t(`benchmark.visualization.domains.${domain.key}`)}
                         </span>
@@ -178,7 +179,7 @@ function DomainItemHeatmap({ items }: { items: ItemConsistency[] }) {
                                         ${getConsistencyLightBg(consistency)} 
                                         hover:scale-105 hover:shadow-md hover:border-current
                                     `}
-                                    title={item.item_name}
+                                    title={t('server:benchmark.item', { number: item.item_id.replace('item_', '') })}
                                 >
                                     {/* 顶部：条目编号 */}
                                     <span className={`text-[10px] font-bold ${getConsistencyTextColor(consistency)} opacity-70`}>
@@ -258,7 +259,7 @@ export function BenchmarkVisualization({ summary }: Props) {
                             />
                             <StatCard
                                 label={t('benchmark.visualization.totalMatches')}
-                                value={`${(summary.total_guides * 92).toLocaleString()}`}
+                                value={`${(summary.total_guides * 92).toLocaleString(localeI18n.language)}`}
                                 subValue="Items × Evaluators"
                             />
                         </div>

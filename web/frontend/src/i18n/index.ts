@@ -12,8 +12,8 @@ import enUS from '../locales/en-US.json'
 
 // 语言资源
 const resources = {
-    'zh-CN': { translation: zhCN },
-    'en-US': { translation: enUS }
+    'zh-CN': { translation: zhCN, server: zhCN.server },
+    'en-US': { translation: enUS, server: enUS.server }
 }
 
 i18n
@@ -40,10 +40,10 @@ i18n
 
 // 监听语言变化，更新 html lang 属性
 i18n.on('languageChanged', (lng) => {
-    document.documentElement.lang = lng
+    if (typeof document !== 'undefined') document.documentElement.lang = lng
 })
 
 // 初始化时设置 html lang 属性
-document.documentElement.lang = i18n.language
+if (typeof document !== 'undefined') document.documentElement.lang = i18n.language
 
 export default i18n

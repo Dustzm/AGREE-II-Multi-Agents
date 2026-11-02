@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict
 
+from core.utils.atomic_json import write_json_atomically
 from .pojo import SemanticLabel, SemanticChunk
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,9 @@ class EvidencePool:
             chunks: 语义块列表
         """
         self.chunks = chunks
+        self._chunks_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+        if len(self._chunks_by_id) != len(chunks):
+            raise ValueError("证据池包含重复的 chunk ID")
         self.domain_index = self._build_domain_index()
     
     def _build_domain_index(self) -> Dict[int, List[str]]:
@@ -111,13 +115,13 @@ class EvidencePool:
         # 获取对应的块并拼接
         evidence_texts = []
         for chunk_id in chunk_ids:
-            chunk = next((c for c in self.chunks if c.chunk_id == chunk_id), None)
+            chunk = self._chunks_by_id.get(chunk_id)
             if chunk:
                 evidence_texts.append(f"## {chunk.title}\n\n{chunk.content}")
         
         return "\n\n---\n\n".join(evidence_texts)
     
-    def save(self, output_path: str) -> None:
+    def save(self, output_path: str, source_digest: str | None = None) -> None:
         """
         保存证据池到 JSON 文件
         
@@ -132,6 +136,8 @@ class EvidencePool:
         data = {
             "version": "1.0",
             "created_at": datetime.now().isoformat(),
+            "source_digest": source_digest,
+            "chunk_count": len(self.chunks),
             "chunks": [
                 {
                     "id": chunk.chunk_id,
@@ -153,8 +159,7 @@ class EvidencePool:
             }
         }
         
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        write_json_atomically(output_path, data)
         
         logger.info(f"证据池已保存: {output_path}")
     
@@ -176,12 +181,29 @@ class EvidencePool:
         
         if not evidence_files:
             raise FileNotFoundError(f"未找到证据池文件: {prep_dir}")
-        
-        evidence_path = evidence_files[0]
-        
+        if len(evidence_files) != 1:
+            raise ValueError(f"证据池文件不唯一: {prep_dir}")
+
+        return cls.load_file(evidence_files[0])
+
+    @classmethod
+    def load_file(
+        cls, evidence_path: str | Path, expected_source_digest: str | None = None,
+    ) -> "EvidencePool":
+        """校验并读取指定证据池文件，供续跑复用。"""
+        evidence_path = Path(evidence_path)
         with open(evidence_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        
+
+        if not isinstance(data, dict) or data.get("version") != "1.0":
+            raise ValueError(f"证据池版本或结构无效: {evidence_path}")
+        if not isinstance(data.get("chunks"), list) or not data["chunks"]:
+            raise ValueError(f"证据池缺少有效内容块: {evidence_path}")
+        if data.get("chunk_count", len(data["chunks"])) != len(data["chunks"]):
+            raise ValueError(f"证据池内容块数量不一致: {evidence_path}")
+        if expected_source_digest is not None and data.get("source_digest") != expected_source_digest:
+            raise ValueError(f"证据池与当前解析结果不一致: {evidence_path}")
+
         # 重构 SemanticChunk 对象
         chunks = [
             SemanticChunk(

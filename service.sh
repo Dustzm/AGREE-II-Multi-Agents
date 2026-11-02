@@ -8,13 +8,16 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 配置
-BACKEND_PORT=8011
-FRONTEND_PORT=8012
+# 配置（可在启动时通过环境变量覆盖）
+BACKEND_PORT="${BACKEND_PORT:-8011}"
+FRONTEND_PORT="${FRONTEND_PORT:-8012}"
+FRONTEND_HOST="${FRONTEND_HOST:-0.0.0.0}"
+BACKEND_URL="${BACKEND_URL:-http://localhost:$BACKEND_PORT}"
 CONDA_ENV="ama"
 PID_DIR="$SCRIPT_DIR/logs"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 BATCH_WORKER_PID_FILE="$PID_DIR/batch-worker.pid"
+MCP_WORKER_PID_FILE="$PID_DIR/mcp-worker.pid"
 FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
 
 # 颜色输出
@@ -142,9 +145,46 @@ start_batch_worker() {
     fi
 }
 
+# 启动 MCP 单 PDF 任务 Worker
+start_mcp_worker() {
+    local mcp_enabled="false"
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        mcp_enabled=$(grep -E '^AMA_MCP_ENABLED=' "$SCRIPT_DIR/.env" | tail -1 | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr '[:upper:]' '[:lower:]' | tr -d '\r' || true)
+    fi
+    if [ "$mcp_enabled" != "true" ]; then
+        info "AMA MCP 未启用，跳过 MCP Worker"
+        return 0
+    fi
+
+    info "启动 MCP Worker..."
+    if [ -f "$MCP_WORKER_PID_FILE" ]; then
+        local existing_pid=$(cat "$MCP_WORKER_PID_FILE" 2>/dev/null)
+        if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
+            warn "MCP Worker 已在运行 (PID: $existing_pid)"
+            return 0
+        fi
+        rm -f "$MCP_WORKER_PID_FILE"
+    fi
+
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate $CONDA_ENV
+    nohup python mcp/run_worker.py > "$PID_DIR/mcp-worker.log" 2>&1 &
+    echo $! > "$MCP_WORKER_PID_FILE"
+    sleep 1
+
+    local worker_pid=$(cat "$MCP_WORKER_PID_FILE" 2>/dev/null)
+    if [ -n "$worker_pid" ] && kill -0 "$worker_pid" 2>/dev/null; then
+        success "MCP Worker 已启动 (PID: $worker_pid)"
+    else
+        error "MCP Worker 启动失败，请查看日志: $PID_DIR/mcp-worker.log"
+        return 1
+    fi
+}
+
 # 启动前端服务
 start_frontend() {
     info "启动前端服务 (端口: $FRONTEND_PORT)..."
+    info "前端代理后端 → $BACKEND_URL"
     
     if check_port $FRONTEND_PORT; then
         warn "端口 $FRONTEND_PORT 已被占用，正在释放..."
@@ -153,7 +193,8 @@ start_frontend() {
     fi
     
     cd "$SCRIPT_DIR/web/frontend"
-    nohup npm run dev > "$PID_DIR/frontend.log" 2>&1 &
+    nohup env VITE_BACKEND_URL="$BACKEND_URL" VITE_FRONTEND_PORT="$FRONTEND_PORT" \
+        npm run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort > "$PID_DIR/frontend.log" 2>&1 &
     echo $! > "$FRONTEND_PID_FILE"
     cd "$SCRIPT_DIR"
     
@@ -200,6 +241,28 @@ stop_batch_worker() {
     success "批量任务 Worker 已停止"
 }
 
+# 停止 MCP Worker
+stop_mcp_worker() {
+    info "停止 MCP Worker..."
+    if [ -f "$MCP_WORKER_PID_FILE" ]; then
+        local worker_pid=$(cat "$MCP_WORKER_PID_FILE" 2>/dev/null)
+        if [ -n "$worker_pid" ]; then
+            kill "$worker_pid" 2>/dev/null
+            local waited=0
+            while kill -0 "$worker_pid" 2>/dev/null && [ "$waited" -lt 35 ]; do
+                sleep 1
+                waited=$((waited + 1))
+            done
+            if kill -0 "$worker_pid" 2>/dev/null; then
+                warn "MCP Worker 未在 35 秒内退出，将强制停止"
+                kill -9 "$worker_pid" 2>/dev/null
+            fi
+        fi
+        rm -f "$MCP_WORKER_PID_FILE"
+    fi
+    success "MCP Worker 已停止"
+}
+
 # 停止前端服务
 stop_frontend() {
     info "停止前端服务..."
@@ -234,6 +297,16 @@ show_status() {
         echo -e "║  批量 Worker: ${GREEN}运行中${NC}                       ║"
     else
         echo -e "║  批量 Worker: ${RED}已停止${NC}                       ║"
+    fi
+
+    local mcp_worker_pid=""
+    if [ -f "$MCP_WORKER_PID_FILE" ]; then
+        mcp_worker_pid=$(cat "$MCP_WORKER_PID_FILE" 2>/dev/null)
+    fi
+    if [ -n "$mcp_worker_pid" ] && kill -0 "$mcp_worker_pid" 2>/dev/null; then
+        echo -e "║  MCP Worker: ${GREEN}运行中${NC}                        ║"
+    else
+        echo -e "║  MCP Worker: ${RED}已停止${NC}                        ║"
     fi
     
     if check_port $FRONTEND_PORT; then
@@ -300,6 +373,7 @@ start_all() {
     
     start_backend || return 1
     start_batch_worker || return 1
+    start_mcp_worker || return 1
     start_frontend || return 1
     
     echo ""
@@ -315,6 +389,7 @@ stop_all() {
     echo ""
     
     stop_frontend
+    stop_mcp_worker
     stop_batch_worker
     stop_backend
     
@@ -343,6 +418,8 @@ show_help() {
     echo "示例:"
     echo "  $0 start   # 启动服务"
     echo "  $0 stop    # 停止服务"
+    echo "  BACKEND_PORT=8121 FRONTEND_PORT=8122 $0 start"
+    echo "  BACKEND_URL=http://127.0.0.1:8121 FRONTEND_PORT=8122 $0 start"
     echo ""
 }
 

@@ -1,3 +1,6 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
+import { notifyError } from '@/i18n/notify'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { promptsService } from '../services/prompts'
@@ -14,27 +17,11 @@ import { MilkdownProvider } from '@milkdown/react'
 import MilkdownEditorContent from '../components/MilkdownEditor'
 
 // 智能体元数据
-const AGENT_META: Record<string, { name_zh: string; description: string; icon: string }> = {
-    appraiser: {
-        name_zh: '评价专家',
-        description: '负责对指南各维度进行专业评价',
-        icon: '🎯'
-    },
-    initiator: {
-        name_zh: '初始化专家',
-        description: '负责解析和初始化评价任务',
-        icon: '🚀'
-    },
-    orchestrator: {
-        name_zh: '调度专家',
-        description: '负责协调多智能体工作流程',
-        icon: '🎭'
-    },
-    reporter: {
-        name_zh: '报告专家',
-        description: '负责生成评价报告和总结',
-        icon: '📝'
-    }
+const AGENT_ICONS: Record<string, string> = {
+    appraiser: '🎯',
+    initiator: '🚀',
+    orchestrator: '🎭',
+    reporter: '📝',
 }
 
 // ------------------------------------------------------------------
@@ -57,10 +44,10 @@ const HighlightEditor = React.memo(({ content, onChange }: { content: string; on
 })
 
 export function Agents() {
-    const { t: _t } = useTranslation()
+    const { t } = useTranslation()
     const [agents, setAgents] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<UiMessage | null>(null)
 
     // 弹窗状态
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -102,7 +89,7 @@ export function Agents() {
             const list = await promptsService.list()
             setAgents(list)
         } catch (err) {
-            setError('加载智能体列表失败')
+            setError(asMessage(err, 'agents.error.loadFailed'))
             console.error(err)
         } finally {
             setLoading(false)
@@ -124,6 +111,7 @@ export function Agents() {
             setEditorKey(prev => prev + 1) // 强制重新挂载编辑器
         } catch (err) {
             console.error('加载提示词失败', err)
+            notifyError(err)
             setPromptContent('')
             setVariables([])
         } finally {
@@ -145,6 +133,7 @@ export function Agents() {
             setEditorKey(prev => prev + 1) // 强制重新挂载编辑器
         } catch (err) {
             console.error('切换语言失败', err)
+            notifyError(err)
         }
     }
 
@@ -158,6 +147,7 @@ export function Agents() {
             setSaveStatus('saved')
         } catch (err) {
             console.error('保存失败', err)
+            notifyError(err)
             setSaveStatus('error')
         }
     }
@@ -171,7 +161,7 @@ export function Agents() {
     if (error) return (
         <div className="flex h-full items-center justify-center text-red-500 gap-2 p-8">
             <AlertCircle className="h-5 w-5" />
-            <span>{error}</span>
+            <div><MessageView message={error} /></div>
         </div>
     )
 
@@ -181,20 +171,24 @@ export function Agents() {
                 {/* 页面标题 */}
                 <header className="mb-12 relative z-10">
                     <div className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
-                        Prompt control
+                        {t('ui.promptControl')}
                     </div>
                     <h2 className="mb-2 text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
-                        智能体提示词管理
+                        {t('agents.title')}
                     </h2>
                     <p className="max-w-2xl text-[1.02rem] leading-[1.55] text-black/58">
-                        管理各智能体的系统提示词，定制评价流程和行为模式。
+                        {t('agents.description')}
                     </p>
                 </header>
 
                 {/* 智能体卡片网格 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {agents.map((agent) => {
-                        const meta = AGENT_META[agent] || { name_zh: agent, description: '智能体', icon: '🤖' }
+                        const meta = {
+                            name: t(`agents.meta.${agent}.name`, { defaultValue: agent }),
+                            description: t(`agents.meta.${agent}.desc`, { defaultValue: t('agents.card.agent') }),
+                            icon: AGENT_ICONS[agent] || '🤖',
+                        }
                         return (
                             <AgentCard
                                 key={agent}
@@ -214,11 +208,11 @@ export function Agents() {
                         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl filter drop-shadow-sm">
-                                    {editingAgent && AGENT_META[editingAgent]?.icon}
+                                    {editingAgent && (AGENT_ICONS[editingAgent] || '🤖')}
                                 </span>
                                 <div>
                                     <DialogTitle className="text-lg font-bold text-gray-800">
-                                        {editingAgent && AGENT_META[editingAgent]?.name_zh}
+                                        {editingAgent && t(`agents.meta.${editingAgent}.name`, { defaultValue: editingAgent })}
                                     </DialogTitle>
                                     <p className="text-xs text-gray-400 font-mono">
                                         {editingAgent}.md
@@ -238,7 +232,7 @@ export function Agents() {
                                                 : "text-gray-500 hover:text-gray-700 hover:bg-black/5"
                                         )}
                                     >
-                                        English
+                                        {t('agents.dialog.english')}
                                     </button>
                                     <button
                                         onClick={() => switchLanguage('zh')}
@@ -249,7 +243,7 @@ export function Agents() {
                                                 : "text-gray-500 hover:text-gray-700 hover:bg-black/5"
                                         )}
                                     >
-                                        中文
+                                        {t('agents.dialog.chinese')}
                                     </button>
                                 </div>
 
@@ -268,17 +262,17 @@ export function Agents() {
                                         {saveStatus === 'saving' ? (
                                             <>
                                                 <Loader2 className="w-3 h-3 animate-spin" />
-                                                保存中...
+                                                {t('agents.dialog.saving')}
                                             </>
                                         ) : saveStatus === 'saved' ? (
                                             <>
                                                 <Check className="w-3 h-3" />
-                                                已保存
+                                                {t('agents.dialog.saved')}
                                             </>
                                         ) : (
                                             <>
                                                 <Pencil className="w-3 h-3" />
-                                                保存
+                                                {t('agents.dialog.save')}
                                             </>
                                         )}
                                     </span>
@@ -292,11 +286,11 @@ export function Agents() {
                                 <div className="flex items-center justify-between text-xs text-gray-500 px-1">
                                     <span className="flex items-center gap-1.5">
                                         <Pencil className="w-3 h-3" />
-                                        编辑内容
+                                        {t('agents.dialog.editContent')}
                                     </span>
                                     <span className="flex items-center gap-1.5 text-amber-600/70">
                                         <Bot className="w-3 h-3" />
-                                        支持 &#123;variable&#125; 注入语法
+                                        {t('agents.dialog.variableSyntax')}
                                     </span>
                                 </div>
                                 <div className="flex-1 relative min-h-0">
@@ -319,14 +313,14 @@ export function Agents() {
                         <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex-shrink-0">
                             <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
                                 <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold shrink-0">
-                                    Variables
+                                    {t('agents.dialog.variables')}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     {variables.map((v, i) => (
                                         <span
                                             key={i}
                                             className="inline-flex items-center px-2 py-1 rounded bg-white border border-gray-200 shadow-sm text-[11px] font-mono text-gray-600 select-all hover:border-amber-300 hover:text-amber-600 transition-colors cursor-help"
-                                            title={`检测到的变量: {${v}}`}
+                                            title={`${t('agents.dialog.detectedVar')} {${v}}`}
                                         >
                                             <span className="opacity-50 mr-0.5">{`{`}</span>
                                             {v}
@@ -334,7 +328,7 @@ export function Agents() {
                                         </span>
                                     ))}
                                     {variables.length === 0 && (
-                                        <span className="text-xs text-gray-400 italic">No variables detected</span>
+                                        <span className="text-xs text-gray-400 italic">{t('agents.dialog.noVariables')}</span>
                                     )}
                                 </div>
                             </div>
@@ -350,9 +344,11 @@ export function Agents() {
 // 智能体卡片组件
 function AgentCard({ agent, meta, onEdit }: {
     agent: string
-    meta: { name_zh: string; description: string; icon: string }
+    meta: { name: string; description: string; icon: string }
     onEdit: () => void
 }) {
+    const { t } = useTranslation()
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -373,7 +369,7 @@ function AgentCard({ agent, meta, onEdit }: {
                     <div className="text-4xl">{meta.icon}</div>
                     <div className="flex-1">
                         <h4 className="text-lg font-bold text-gray-900 mb-1">
-                            {meta.name_zh}
+                            {meta.name}
                         </h4>
                         <p className="text-xs text-gray-500 font-mono">
                             {agent}
@@ -384,7 +380,7 @@ function AgentCard({ agent, meta, onEdit }: {
                         size="icon"
                         onClick={onEdit}
                         className="h-8 w-8 text-gray-400 hover:text-amber-600 hover:bg-amber-50"
-                        title="编辑提示词"
+                        title={t('agents.card.editPrompt')}
                     >
                         <Pencil className="h-4 w-4" />
                     </Button>
@@ -397,11 +393,11 @@ function AgentCard({ agent, meta, onEdit }: {
                 <div className="mt-4 pt-4 border-t border-gray-100/50 flex items-center justify-between text-xs text-gray-400">
                     <div className="flex items-center gap-1.5">
                         <Bot className="w-3.5 h-3.5" />
-                        <span>Agent</span>
+                        <span>{t('agents.card.agent')}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-amber-500">
                         <Languages className="w-3.5 h-3.5" />
-                        <span>EN / 中文</span>
+                        <span>{t('agents.card.languages')}</span>
                     </div>
                 </div>
             </div>

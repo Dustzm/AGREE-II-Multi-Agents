@@ -8,11 +8,16 @@ import re
 from pathlib import Path
 from typing import List, Optional
 
+from core.llm.gateway import LLMGateway
+from core.llm.json_output import parse_json_object
+from core.llm.recovery import RecoveryBudget
+from core.utils.llm_errors import InvalidModelJSON
+from .label_checkpoint import LabelCheckpoint
 from .pojo import TitleContentBlock, SemanticChunk, SemanticLabel
+from .section_titles import is_non_evidence_title
 
 logger = logging.getLogger(__name__)
 
-_PROMPT_PREVIEW_LIMIT = 1200
 
 class SemanticLabeler:
     """
@@ -21,30 +26,15 @@ class SemanticLabeler:
     使用 LLM 为每个标题-内容块打语义标签
     """
     
-    def __init__(self, model=None, lang: str = "zh"):
+    def __init__(self, lang: str = "zh"):
         """
-        初始化分类器
+        初始化分类器；模型配置取自当前任务快照，分类失败始终抛出异常。
         
         Args:
-            model: LLM 模型实例，默认从配置获取
             lang: Prompt 语言（zh/en）
         """
-        from core.agents.base import get_model
-        from core.agents.base.model_config import get_provider_kwargs
-        
-        self.model = model or get_model()
         self.lang = lang
         self.prompt_template = self._load_prompt_template()
-
-    def _preview_text(self, text: str, limit: int = _PROMPT_PREVIEW_LIMIT) -> str:
-        """生成简短的日志预览，避免把完整提示词刷进日志。"""
-        if not text:
-            return ""
-
-        if len(text) <= limit:
-            return text
-
-        return f"{text[:limit]}\n... [截断，原始长度 {len(text)} 字符]"
     
     def _load_prompt_template(self) -> str:
         """加载 Prompt 模板"""
@@ -76,121 +66,29 @@ class SemanticLabeler:
             total_pages=total_pages
         )
 
-    def _coerce_message_text(self, value) -> str:
-        """把不同响应形态统一提取为纯文本。"""
-        if isinstance(value, str):
-            return value.strip()
-
-        if isinstance(value, list):
-            parts: list[str] = []
-            for item in value:
-                if isinstance(item, str) and item.strip():
-                    parts.append(item.strip())
-                    continue
-
-                if not isinstance(item, dict):
-                    continue
-
-                for key in ("text", "content", "value"):
-                    text = item.get(key)
-                    if isinstance(text, str) and text.strip():
-                        parts.append(text.strip())
-                        break
-
-            return "\n".join(parts).strip()
-
-        return ""
-
-    def _extract_response_text(self, response) -> str:
-        """兼容 content=None、分段 content，以及 reasoning 字段。"""
-        choices = getattr(response, "choices", None) or []
-        if not choices:
-            return ""
-
-        message = getattr(choices[0], "message", None)
-        if message is None:
-            return ""
-
-        candidates = [
-            self._coerce_message_text(getattr(message, "content", None)),
-            self._coerce_message_text(getattr(message, "reasoning", None)),
-            self._coerce_message_text(getattr(message, "reasoning_content", None)),
-        ]
-
-        for candidate in candidates:
-            if not candidate:
-                continue
-            cleaned = re.sub(r"<think>.*?</think>", "", candidate, flags=re.DOTALL).strip()
-            if cleaned:
-                return cleaned
-
-        return ""
-    
     async def _call_llm(self, prompt: str) -> str:
-        """
-        调用 LLM 获取标签
-        
-        Args:
-            prompt: 提示词
-            
-        Returns:
-            JSON 格式的响应字符串
-        """
-        try:
-            import litellm
-            from core.config import get_settings
-            from core.agents.base.schemas import SemanticLabelOutput
-            from core.agents.base.model_config import (
-                get_compatible_reasoning_kwargs,
-                get_compatible_sampling_kwargs,
-                get_provider_kwargs,
-                get_provider_config_for,
+        """调用模型获取标签文本；截断或空响应不会被记录为成功断点。"""
+        from core.runtime import ExecutionStage, execution_stage
+
+        gateway = LLMGateway.from_settings()
+        async with execution_stage(ExecutionStage.LABELER):
+            reply = await gateway.acomplete(
+                "labeler:semantic_classification",
+                [{"role": "user", "content": prompt}],
+                max_tokens=gateway.output_limit(2500),
             )
-            
-            settings = get_settings()
-            provider_cfg = get_provider_config_for(settings.llm.provider)
-            prefix = provider_cfg["prefix"]
-            model_name = f"{prefix}/{settings.llm.model_name}"
-            
-            # 构建 kwargs：显式传入 api_key / api_base 以及 provider 专属参数
-            kwargs = get_provider_kwargs()
-            if settings.llm.api_key:
-                kwargs["api_key"] = settings.llm.api_key
-            if provider_cfg.get("need_base_url"):
-                effective_url = settings.llm.base_url or provider_cfg.get("default_base_url", "")
-                if effective_url:
-                    kwargs["base_url"] = effective_url
-            
-            # 使用 litellm 的异步接口，配合 response_format 强制 JSON 输出
-            response = await litellm.acompletion(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2500,
-                response_format={"type": "json_object"},  # 使用 json_object 避免 SGLang xgrammar 兼容性问题
-                timeout=settings.llm.timeout,
-                **get_compatible_reasoning_kwargs(model_name),
-                **get_compatible_sampling_kwargs(
-                    model_name,
-                    temperature=0,
-                    top_p=0.1,
-                    seed=42,
-                ),
-                **kwargs,
-            )
-            
-            # 提取文本响应
-            result = self._extract_response_text(response)
-            if not result:
-                logger.warning("LLM 返回空文本响应，回退为 Irrelevant")
-                return '{"thinking": "LLM返回空文本响应", "tag": "Irrelevant"}'
-            logger.debug(f"LLM 原始返回: {result}")
-            return result
-        
-        except Exception as e:
-            logger.error(f"LLM 调用失败: {str(e)}", exc_info=True)
-            return '{"thinking": "LLM调用失败", "tag": "Irrelevant"}'
-    
-    async def label_chunks(self, chunks: List[TitleContentBlock], max_concurrency: int = 0, total_pages: int = 0) -> List[SemanticChunk]:
+        text = reply.checked_text()
+        if not text:
+            raise InvalidModelJSON("语义分类模型返回空响应")
+        return text
+
+    async def _classify(self, prompt: str) -> tuple:
+        return self._parse_json_response(await self._call_llm(prompt))
+
+    async def label_chunks(
+        self, chunks: List[TitleContentBlock], max_concurrency: int = 0,
+        total_pages: int = 0, checkpoint: LabelCheckpoint | None = None,
+    ) -> List[SemanticChunk]:
         """
         为所有内容块打标签（并发执行）
         
@@ -213,90 +111,117 @@ class SemanticLabeler:
         if max_concurrency <= 0:
             max_concurrency = get_settings().app.labeler_max_concurrency
             
-        semaphore = asyncio.Semaphore(max_concurrency)
-        tasks = []
-        
         logger.info(f"开始标签分类，共 {len(chunks)} 个块，并发数 {max_concurrency}，文档总页数 {total_pages}")
-        
-        for idx, chunk in enumerate(chunks):
-            task = self._process_single_chunk(idx, chunk, len(chunks), semaphore, total_pages)
-            tasks.append(task)
-        
-        # 并发执行并保持顺序
-        semantic_chunks = await asyncio.gather(*tasks)
-        return [c for c in semantic_chunks if c is not None]
 
-    async def _process_single_chunk(self, idx: int, chunk: TitleContentBlock, total: int, semaphore: any, total_pages: int = 1) -> SemanticChunk:
-        """处理单个块的标签分类"""
-        async with semaphore:
-            # 如果是附件块，直接标记为 APPENDIX，跳过 LLM 分类
-            if getattr(chunk, 'is_appendix', False):
-                logger.info(f"[{idx+1}/{total}] {chunk.title[:20]}... -> Appendix (附件，跳过分类)")
-                return SemanticChunk(
-                    chunk_id=f"chunk_{idx+1:03d}",
-                    title=chunk.title,
-                    content=chunk.raw_text,
-                    label=SemanticLabel.APPENDIX,
-                    start_page=chunk.title_page_idx,
-                    end_page=chunk.title_page_idx,
-                    reasoning="附件内容，自动标记为 Appendix",
-                    block_ids=chunk.block_ids or [],
-                    section=chunk.section
+        queue: asyncio.Queue[tuple[int, TitleContentBlock]] = asyncio.Queue()
+        for indexed_chunk in enumerate(chunks):
+            queue.put_nowait(indexed_chunk)
+        semantic_chunks: list[SemanticChunk | None] = [None] * len(chunks)
+
+        async def worker() -> None:
+            while True:
+                try:
+                    idx, chunk = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+                cached = checkpoint.get(idx, chunk) if checkpoint is not None else None
+                result = await self._process_single_chunk(
+                    idx,
+                    chunk,
+                    len(chunks),
+                    total_pages,
+                    cached=cached,
                 )
-            
-            # 获取当前页码（用于位置感知）
-            current_page = chunk.title_page_idx + 1  # 转为 1-indexed
-            
-            # 渲染 Prompt（包含页码信息）
-            prompt = self._render_prompt(
-                chunk.title, 
-                chunk.raw_text, 
-                chunk.section,
-                page=current_page,
-                total_pages=total_pages
-            )
-            
-            # 日志输出：显示开始状态
-            # 仅对第一个块显示完整 Prompt，避免刷屏；其他块只显示标题
-            if idx == 0:
-                logger.info(f"=== 标签分配开始 [{idx+1}/{total}] ===")
-                logger.info(f"标题: {chunk.title[:50]}...")
-                logger.info(f"Section: {chunk.section if chunk.section else '(无父级)'}")
-                logger.info(f"--- 提示词预览 ---\n{self._preview_text(prompt)}\n--- 预览结束 ---")
-                logger.debug(f"--- 完整提示词示例 ---\n{prompt}\n--- 示例结束 ---")
-            
-            # 调用 LLM
-            response_str = await self._call_llm(prompt)
-            
-            # 解析 JSON 响应（包含 tag 和 thinking）
-            label, reasoning = self._parse_json_response(response_str)
-            
-            # 计算页码范围
-            start_page = chunk.title_page_idx
-            end_page = start_page
-            if chunk.contents:
-                # 找出内容块中最大的页码
-                for content in chunk.contents:
-                    page = content.get("page_idx", start_page)
-                    if page > end_page:
-                        end_page = page
-            
-            # 创建语义块
-            semantic_chunk = SemanticChunk(
+                semantic_chunks[idx] = result
+                if checkpoint is not None and cached is None and not chunk.is_appendix:
+                    checkpoint.record(idx, chunk, result)
+
+        workers = [
+            asyncio.create_task(worker())
+            for _ in range(min(max_concurrency, len(chunks)))
+        ]
+        if workers:
+            try:
+                await asyncio.gather(*workers)
+            except Exception:
+                for task in workers:
+                    task.cancel()
+                await asyncio.gather(*workers, return_exceptions=True)
+                raise
+        if any(chunk is None for chunk in semantic_chunks):
+            raise RuntimeError("语义分类未覆盖全部内容块")
+        return [chunk for chunk in semantic_chunks if chunk is not None]
+
+    async def _process_single_chunk(
+        self,
+        idx: int,
+        chunk: TitleContentBlock,
+        total: int,
+        total_pages: int = 1,
+        cached: tuple[SemanticLabel, str] | None = None,
+    ) -> SemanticChunk:
+        """处理单个块的标签分类"""
+        # 附件块默认标记为 APPENDIX 并跳过 LLM 分类；标题整体为参考文献/修订历史/索引的
+        # 附件标为 IRRELEVANT，避免进入证据池（按整题匹配，避免误伤 preferences 等正文）。
+        if getattr(chunk, 'is_appendix', False):
+            if is_non_evidence_title(chunk.title):
+                label = SemanticLabel.IRRELEVANT
+                reasoning = "附件中的参考文献/修订历史/索引，标记为 Irrelevant"
+            else:
+                label = SemanticLabel.APPENDIX
+                reasoning = "附件内容，自动标记为 Appendix"
+            logger.info(f"[{idx+1}/{total}] {chunk.title[:20]}... -> {label.value} (附件，跳过分类)")
+            return SemanticChunk(
                 chunk_id=f"chunk_{idx+1:03d}",
                 title=chunk.title,
                 content=chunk.raw_text,
                 label=label,
-                start_page=start_page,
-                end_page=end_page,
+                start_page=chunk.title_page_idx,
+                end_page=chunk.title_page_idx,
                 reasoning=reasoning,
                 block_ids=chunk.block_ids or [],
-                section=chunk.section  # 传递 section
+                section=chunk.section
             )
-            
-            # 完成日志
-            logger.info(f"[{idx+1}/{total}] {chunk.title[:20]}... -> {label.value}")
-            return semantic_chunk
+
+        # 获取当前页码（用于位置感知）
+        current_page = chunk.title_page_idx + 1  # 转为 1-indexed
+
+        if cached is not None:
+            label, reasoning = cached
+            logger.info("复用语义分类断点: chunk=%s", idx + 1)
+        else:
+            prompt = self._render_prompt(
+                chunk.title, chunk.raw_text, chunk.section,
+                page=current_page, total_pages=total_pages,
+            )
+            logger.info("语义标签分类: chunk=%s/%s title=%s", idx + 1, total, chunk.title[:50])
+            logger.debug("语义标签提示词长度: %s", len(prompt))
+
+            # 每个内容块允许一次重试，传输故障和无效输出共用额度。
+            label, reasoning = await RecoveryBudget(1).arun(lambda: self._classify(prompt))
+
+        start_page = chunk.title_page_idx
+        end_page = start_page
+        if chunk.contents:
+            for content in chunk.contents:
+                page = content.get("page_idx", start_page)
+                if page > end_page:
+                    end_page = page
+
+        semantic_chunk = SemanticChunk(
+            chunk_id=f"chunk_{idx+1:03d}",
+            title=chunk.title,
+            content=chunk.raw_text,
+            label=label,
+            start_page=start_page,
+            end_page=end_page,
+            reasoning=reasoning,
+            block_ids=chunk.block_ids or [],
+            section=chunk.section
+        )
+
+        logger.info(f"[{idx+1}/{total}] {chunk.title[:20]}... -> {label.value}")
+        return semantic_chunk
     
     def _parse_json_response(self, response_str: str) -> tuple:
         """
@@ -308,13 +233,11 @@ class SemanticLabeler:
         Returns:
             (SemanticLabel 枚举值, reasoning 字符串)
         """
-        import json
-        
         # 过滤 Qwen3 thinking 模型的 <think>...</think> 标签
         response_str = re.sub(r'<think>.*?</think>', '', response_str, flags=re.DOTALL)
         response_str = response_str.strip()
         
-        logger.debug(f"解析 JSON 响应，过滤后内容: {response_str[:200]}...")
+        logger.debug("解析语义标签 JSON，响应长度=%s", len(response_str))
         
         # 尝试提取 JSON 块
         json_match = re.search(r'```json\s*(.*?)\s*```', response_str, re.DOTALL)
@@ -324,28 +247,13 @@ class SemanticLabeler:
             # 尝试直接解析为 JSON
             json_str = response_str
         
-        # 解析 JSON
-        try:
-            data = json.loads(json_str)
-            reasoning = self._extract_reasoning_from_json(data)
-            label = self._extract_label_from_json(data)
-            
-            logger.info(f"LLM 理由: {reasoning}")
-            logger.info(f"LLM 标签: {label.value if label else 'N/A'}")
-
-            if label is not None:
-                return label, reasoning
-
-            logger.warning(
-                f"无法从 JSON 响应中解析标签，keys={list(data.keys())}，默认为 Irrelevant"
-            )
-            return SemanticLabel.IRRELEVANT, reasoning
-            
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON 解析失败: {e}，尝试文本解析")
-            # 回退到文本解析
-            label = self._parse_label_fallback(response_str)
-            return label, ""
+        data = parse_json_object(json_str)
+        reasoning = self._extract_reasoning_from_json(data)
+        label = self._extract_label_from_json(data)
+        if label is None:
+            raise InvalidModelJSON("语义标签结果不包含有效标签")
+        logger.info("LLM 标签: %s", label.value)
+        return label, reasoning
 
     def _extract_reasoning_from_json(self, data: dict) -> str:
         """从 JSON 响应中提取分类理由。"""
@@ -395,12 +303,6 @@ class SemanticLabeler:
                 if label is not None:
                     return label
 
-        for value in data.values():
-            if isinstance(value, str):
-                label = self._extract_label_from_text(value)
-                if label is not None:
-                    return label
-
         return None
 
     def _extract_label_from_text(self, text: str) -> Optional[SemanticLabel]:
@@ -425,33 +327,4 @@ class SemanticLabeler:
             if normalized_lower.startswith(value_lower):
                 return label
 
-            pattern = r"(?<![a-z])" + re.escape(value_lower) + r"(?![a-z])"
-            if re.search(pattern, normalized_lower):
-                return label
-
         return None
-    
-    def _parse_label_fallback(self, label_str: str) -> SemanticLabel:
-        """回退的标签解析方法（文本匹配）"""
-        import re
-        label_str = re.sub(r'<think>.*?</think>', '', label_str, flags=re.DOTALL)
-        label_str = label_str.strip()
-        
-        # 尝试精确匹配
-        for label in SemanticLabel:
-            if label.value.upper() == label_str.upper():
-                return label
-        
-        # 模糊匹配
-        for label in SemanticLabel:
-            if label_str.lower().startswith(label.value.lower()):
-                return label
-        
-        # 回退
-        priority_order = [SemanticLabel.IRRELEVANT, SemanticLabel.OTHERS, 
-                         SemanticLabel.METHOD, SemanticLabel.RECOMMENDATION, SemanticLabel.OVERVIEW]
-        for label in priority_order:
-            if label.value.lower() in label_str.lower():
-                return label
-        
-        return SemanticLabel.IRRELEVANT

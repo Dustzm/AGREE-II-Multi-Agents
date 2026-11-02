@@ -1,3 +1,6 @@
+import { formatDate } from '@/i18n/format'
+import { MessageView } from '@/components/MessageView'
+import { asMessage, renderMessage, uploadMessage, type UiMessage } from '@/i18n/messages'
 /**
  * Batch - 批量任务运行页面
  */
@@ -26,7 +29,7 @@ type JobStatusType = BatchStatus['status']
 interface ToastMessage {
     id: number
     type: ToastType
-    message: string
+    message: UiMessage
 }
 
 const statusConfig: Record<TaskStatusType, { icon: typeof Clock; color: string; bg: string; labelKey: string }> = {
@@ -36,22 +39,6 @@ const statusConfig: Record<TaskStatusType, { icon: typeof Clock; color: string; 
     error: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', labelKey: 'batch.taskStatus.error' },
     cancelled: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', labelKey: 'batch.taskStatus.cancelled' },
     stopped: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-50', labelKey: 'batch.taskStatus.stopped' },
-}
-
-const legacyStatusMessageKeys: Record<string, string> = {
-    '正在初始化...': 'batch.statusMsg.initializing',
-    初始化中: 'batch.statusMsg.initializing',
-    '解析 PDF 中': 'batch.statusMsg.parsingPdf',
-    构建证据池中: 'batch.statusMsg.buildingEvidence',
-    条目评价中: 'batch.statusMsg.appraisingItems',
-    生成报告中: 'batch.statusMsg.generatingReport',
-    重试中: 'batch.statusMsg.retryingStep',
-    失败: 'batch.statusMsg.failedGeneric',
-    等待继续: 'batch.statusMsg.waitingContinue',
-    '服务停止，等待继续': 'batch.statusMsg.serviceStopWaiting',
-    'Worker 中断，等待继续': 'batch.statusMsg.workerInterrupted',
-    已停止: 'batch.statusMsg.stopped',
-    已完成: 'batch.statusMsg.completed',
 }
 
 function isJobActive(status: JobStatusType | null | undefined): boolean {
@@ -89,7 +76,9 @@ function getJobSummary(status: BatchStatus | null, t: ReturnType<typeof useTrans
         return t('batch.status.stopped')
     }
     if (status.status === 'failed') {
-        return t('batch.status.failed')
+        return status.tasks.some((task) => task.report_status === 'partial')
+            ? t('batch.status.partial')
+            : t('batch.status.failed')
     }
     if (status.total > 0) {
         return t('batch.status.completed')
@@ -98,7 +87,7 @@ function getJobSummary(status: BatchStatus | null, t: ReturnType<typeof useTrans
 }
 
 export function Batch() {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const [directoryTree, setDirectoryTree] = useState<BatchDirectoryNode | null>(null)
     const [loadingFolders, setLoadingFolders] = useState(true)
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
@@ -127,50 +116,20 @@ export function Batch() {
     const resumableIncompleteCount = resumeCandidate?.remaining_tasks ?? 0
     const directoryInputProps: Record<string, string> = { webkitdirectory: '', directory: '' }
 
-    const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const showToast = useCallback((message: string | UiMessage | Error, type: ToastType = 'info') => {
         const id = toastIdRef.current++
-        setToasts((prev) => [...prev, { id, type, message }])
+        setToasts((prev) => [...prev, { id, type, message: asMessage(message) }])
     }, [])
 
     const formatSize = useCallback((bytes: number) => {
-        if (bytes < 1024) return `${bytes} B`
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-    }, [])
+        if (bytes < 1024) return `${bytes.toLocaleString(i18n.language)} B`
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString(i18n.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`
+        return `${(bytes / (1024 * 1024)).toLocaleString(i18n.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`
+    }, [i18n.language])
 
-    const getStatusMessage = useCallback((step: string | null) => {
-        if (!step) return null
-        if (!step.startsWith('i18n:')) {
-            const legacyKey = legacyStatusMessageKeys[step]
-            if (legacyKey) return t(legacyKey)
-            const progressMatch = step.match(/(?:评价进度|Progress):\s*(\d+)\/(\d+)/)
-            if (progressMatch) {
-                return t('batch.statusMsg.itemProgress', {
-                    completed: progressMatch[1],
-                    total: progressMatch[2],
-                })
-            }
-            return step
-        }
-        try {
-            const parts = step.split(':')
-            const key = parts[1]
-            const args = parts.slice(2)
-            const fieldName = key.split('.')[1]
-            const transKey = `batch.statusMsg.${fieldName}`
-            if (key === 'batch.retrying') {
-                return t(transKey, { current: args[0], max: args[1] })
-            }
-            if (key === 'batch.itemProgress') {
-                return t(transKey, { completed: args[0], total: args[1] })
-            }
-            if (key === 'batch.failed') {
-                return t(transKey, { error: args.join(':') })
-            }
-            return t(transKey)
-        } catch {
-            return step
-        }
+    const getStatusMessage = useCallback((task: BatchTask) => {
+        if (!task.current_step && !task.step_i18n) return null
+        return renderMessage(task.step_i18n ? { i18n: task.step_i18n } : asMessage(task.current_step, 'batch.status.waiting'), t, 'batch.status.waiting')
     }, [t])
 
     const loadFolders = useCallback(async () => {
@@ -286,21 +245,21 @@ export function Batch() {
         try {
             const result = await api.uploadFolder(Array.from(files))
             if (result.failed_count > 0) {
-                alert(t('batch.upload.result', { success: result.success_count, failed: result.failed_count }))
+                showToast(uploadMessage('batch.upload.result', result), 'error')
             } else {
-                alert(t('batch.upload.success', { count: result.success_count }))
+                showToast({ key: 'batch.upload.success', params: { count: result.success_count } }, 'success')
             }
             await loadFolders()
         } catch (error) {
             console.error('文件夹上传失败:', error)
-            alert(error instanceof Error ? error.message : t('batch.error.folderUploadFailed'))
+            showToast(asMessage(error, 'batch.error.folderUploadFailed'), 'error')
         } finally {
             setIsUploadingFolder(false)
             if (folderInputRef.current) {
                 folderInputRef.current.value = ''
             }
         }
-    }, [loadFolders])
+    }, [loadFolders, showToast])
 
     const handleStart = useCallback(async () => {
         if (selectedPdfs.size === 0) return
@@ -313,9 +272,9 @@ export function Batch() {
                 establishWebSocket(status.job_id)
             }
         } catch (error) {
-            alert(error instanceof Error ? error.message : t('batch.error.startFailed'))
+            showToast(asMessage(error, 'batch.error.startFailed'), 'error')
         }
-    }, [selectedPdfs, concurrency, experimentRounds, establishWebSocket, t])
+    }, [selectedPdfs, concurrency, experimentRounds, establishWebSocket, showToast])
 
     const handleResumeLatest = useCallback(async () => {
         setIsResuming(true)
@@ -327,28 +286,28 @@ export function Batch() {
             if (status.job_id) {
                 establishWebSocket(status.job_id)
             }
-            showToast(t('batch.resume.success'), 'success')
+            showToast({ key: 'batch.resume.success' }, 'success')
         } catch (error) {
-            showToast(error instanceof Error ? error.message : t('batch.resume.failed'), 'error')
+            showToast(asMessage(error, 'batch.resume.failed'), 'error')
         } finally {
             setIsResuming(false)
             await loadResumeCandidate(false)
         }
-    }, [establishWebSocket, loadResumeCandidate, resumeConcurrency, showToast, t])
+    }, [establishWebSocket, loadResumeCandidate, resumeConcurrency, showToast])
 
     const handleStop = useCallback(async () => {
         if (!batchStatus?.job_id || !isJobActive(batchStatus.status)) {
-            showToast(t('batch.error.noTask'), 'warning')
+            showToast({ key: 'batch.error.noTask' }, 'warning')
             return
         }
         try {
             const status = await batchApi.stop(batchStatus.job_id)
             setBatchStatus(status)
-            showToast(t('batch.success.stopped'), 'success')
+            showToast({ key: 'batch.success.stopped' }, 'success')
         } catch (error) {
-            showToast(error instanceof Error ? error.message : t('batch.error.stopFailed'), 'error')
+            showToast(asMessage(error, 'batch.error.stopFailed'), 'error')
         }
-    }, [batchStatus, showToast, t])
+    }, [batchStatus, showToast])
 
     const toggleFolder = useCallback((folderPath: string) => {
         setExpandedFolders((prev) => {
@@ -702,6 +661,13 @@ export function Batch() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
+                    {batchStatus?.last_error && (
+                        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-red-700">
+                            <MessageView message={batchStatus.error_i18n
+                                ? { i18n: batchStatus.error_i18n, diagnostic: batchStatus.diagnostic }
+                                : asMessage(batchStatus.last_error, 'batch.status.failed')} />
+                        </div>
+                    )}
                     {!isBusy && resumableStatus && (
                         <div className="mb-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
                             <div className="flex items-start justify-between gap-4">
@@ -721,7 +687,7 @@ export function Batch() {
                                         <span>{t('batch.resume.done', { count: resumableStatus.done })}</span>
                                         <span>{t('batch.resume.remaining', { count: resumableIncompleteCount })}</span>
                                         {resumeCandidate?.last_updated && (
-                                            <span>{t('batch.resume.updated', { time: resumeCandidate.last_updated.replace('T', ' ').slice(0, 16) })}</span>
+                                            <span>{t('batch.resume.updated', { time: formatDate(resumeCandidate.last_updated, i18n.language) })}</span>
                                         )}
                                     </div>
                                 </div>
@@ -766,7 +732,10 @@ export function Batch() {
                     ) : (
                         <div className="grid gap-3">
                             {batchStatus.tasks.map((task) => {
-                                const config = statusConfig[task.status] || statusConfig.stopped
+                                const partialReport = task.status === 'error' && task.report_status === 'partial'
+                                const config = partialReport
+                                    ? { icon: AlertCircle, color: 'text-amber-700', bg: 'bg-amber-50', labelKey: 'batch.taskStatus.partial' }
+                                    : statusConfig[task.status] || statusConfig.stopped
                                 const StatusIcon = config.icon
                                 return (
                                     <div
@@ -783,13 +752,13 @@ export function Batch() {
                                         <div className="min-w-0 flex-1">
                                             <h4 className="truncate text-sm font-medium text-gray-800">{task.id}</h4>
                                             <p className={cn('mt-0.5 truncate text-xs', config.color)}>
-                                                {getStatusMessage(task.current_step) || t(config.labelKey)}
+                                                {partialReport ? t(config.labelKey) : getStatusMessage(task) || t(config.labelKey)}
                                                 {task.retry_count > 0 && ` (${t('batch.status.retry', { count: task.retry_count })})`}
                                             </p>
                                         </div>
                                         {task.status === 'error' && task.error && (
-                                            <div className="max-w-48 truncate text-xs text-red-500" title={task.error}>
-                                                {getStatusMessage(task.error)}
+                                            <div className="max-w-sm text-xs text-red-500">
+                                                <MessageView message={task.error_i18n ? { i18n: task.error_i18n, diagnostic: task.diagnostic } : asMessage(task.error)} />
                                             </div>
                                         )}
                                     </div>
@@ -805,6 +774,7 @@ export function Batch() {
                     key={toast.id}
                     type={toast.type}
                     message={toast.message}
+                    duration={toast.type === 'error' ? 8000 : 3000}
                     onClose={() => {
                         setToasts((prev) => prev.filter((entry) => entry.id !== toast.id))
                     }}

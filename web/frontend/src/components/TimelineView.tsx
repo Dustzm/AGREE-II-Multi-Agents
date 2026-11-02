@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/utils/cn'
 import { FileText, Bot, Sparkles, CheckCircle2, AlertCircle, Circle, Info, Database } from 'lucide-react'
 import { PromptModal } from './PromptModal'
+import { MessageView } from './MessageView'
+import type { UiMessage } from '@/i18n/messages'
 
 // 时序图事件类型
 export interface TimelineEvent {
@@ -18,6 +20,7 @@ export interface TimelineEvent {
     type: 'parsing' | 'preprocessing' | 'orchestrator' | 'initiator' | 'appraiser' | 'reporter' | 'error' | 'complete' | 'cancelled'
     status: 'pending' | 'running' | 'done' | 'error'
     message: string
+    ui_message?: UiMessage
     detail?: string  // 例如 Appraiser 的 item_id
     timestamp: Date
     prompt?: string  // Appraiser 的提示词内容
@@ -77,7 +80,7 @@ interface TimelineViewProps {
 }
 
 export function TimelineView({ events, taskId, batchSummary }: TimelineViewProps) {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
 
     // 提示词弹窗状态
     const [promptModal, setPromptModal] = useState<{ isOpen: boolean; skillId?: string; prompt?: string }>({
@@ -179,13 +182,13 @@ export function TimelineView({ events, taskId, batchSummary }: TimelineViewProps
                                 {/* 内容 */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className={cn(
+                                        <div className={cn(
                                             "text-sm font-medium",
                                             event.status === 'done' && "text-muted-foreground",
                                             event.status === 'error' && "text-red-600"
                                         )}>
-                                            {event.message}
-                                        </span>
+                                            <MessageView message={event.ui_message || event.message} fallback="chat.status.processing" />
+                                        </div>
                                     </div>
                                     {event.detail && (
                                         <p className="text-xs text-muted-foreground/70 mt-0.5">
@@ -203,7 +206,7 @@ export function TimelineView({ events, taskId, batchSummary }: TimelineViewProps
                                             prompt: event.prompt
                                         })}
                                         className="flex items-center justify-center w-6 h-6 rounded-md hover:bg-muted transition-colors shrink-0 text-gray-300 hover:text-gray-500"
-                                        title="查看提示词"
+                                        title={t('timeline.viewPrompt')}
                                     >
                                         <Info className="h-4 w-4" />
                                     </button>
@@ -213,7 +216,7 @@ export function TimelineView({ events, taskId, batchSummary }: TimelineViewProps
                                 <span className="text-[10px] text-muted-foreground/40 shrink-0">
                                     {event.duration
                                         ? `${event.duration.toFixed(1)}s`
-                                        : event.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                        : event.timestamp.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                                     }
                                 </span>
                             </div>

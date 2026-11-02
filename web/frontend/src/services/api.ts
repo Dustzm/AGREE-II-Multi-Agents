@@ -1,5 +1,6 @@
+import type { UiMessage } from '@/i18n/messages'
 import { API_URL } from '@/config'
-import { apiFetch } from '@/services/http'
+import { apiFetch, readJson } from '@/services/http'
 
 const API_BASE = API_URL
 
@@ -61,7 +62,7 @@ export interface UploadFolderResponse {
     success_count: number
     failed_count: number
     uploaded_files: UploadedFile[]
-    failed_files: Array<{ filename: string; error: string }>
+    failed_files: Array<UiMessage & { filename: string; error: string }>
 }
 
 export interface ReportSummary {
@@ -70,6 +71,8 @@ export interface ReportSummary {
     date: string
     quality_score: number | null  // 总体质量评分 (1-7)
     recommendation: string | null
+    status: 'complete' | 'partial'
+    missing_items: string[]
 }
 
 export interface BatchFolderInfo {
@@ -129,6 +132,7 @@ export interface ItemEvaluation {
     evaluated_at: string | null
     scoring_principle: ScoringPrincipleItem[] | null  // 评分准则
     evidence_sources: string[] | null  // chunk_id 列表，用于原文定位
+    rule_engine?: Record<string, unknown> | null  // 规则引擎输出详情
 }
 
 export interface ReportDetail {
@@ -140,11 +144,14 @@ export interface ReportDetail {
     overall_assessment: {
         strengths: string[]
         weaknesses: string[]
-        recommendation: string
+        recommendation: string | null
     }
     item_evaluations: ItemEvaluation[]
-    total_raw_score?: number  // 总分（所有条目原始分数总和）
-    overall_quality_score?: number  // 总体质量评分 (1-7)
+    total_raw_score?: number | null  // 总分（所有条目原始分数总和）
+    overall_quality_score?: number | null  // 总体质量评分 (1-7)
+    status: 'complete' | 'partial'
+    missing_items: string[]
+    assessment_limitations?: string[]
 }
 
 // 证据定位相关类型
@@ -171,10 +178,8 @@ export const api = {
     // 列出 input 目录下的 PDF 文件
     async listPdfFiles(): Promise<PdfListResponse> {
         const response = await apiFetch(`${API_BASE}/files/list`)
-        if (!response.ok) {
-            throw new Error('获取文件列表失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 启动评价任务
@@ -184,10 +189,8 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pdf_path: pdfPath }),
         })
-        if (!response.ok) {
-            throw new Error('启动任务失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 上传 PDF 文件（保留兼容）
@@ -200,11 +203,7 @@ export const api = {
             body: formData,
         })
 
-        if (!response.ok) {
-            throw new Error('上传失败')
-        }
-
-        return response.json()
+        return readJson(response)
     },
 
     // 上传 PDF 文件到 input 目录
@@ -217,12 +216,7 @@ export const api = {
             body: formData,
         })
 
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: '上传失败' }))
-            throw new Error(error.detail || '上传失败')
-        }
-
-        return response.json()
+        return readJson(response)
     },
 
     // 上传文件夹中的 PDF 文件
@@ -244,32 +238,23 @@ export const api = {
             body: formData,
         })
 
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: '上传失败' }))
-            throw new Error(error.detail || '上传失败')
-        }
-
-        return response.json()
+        return readJson(response)
     },
 
     // 获取报告列表
     async listReports(folder?: string): Promise<ReportListResponse> {
         const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
         const response = await apiFetch(`${API_BASE}/reports${params}`)
-        if (!response.ok) {
-            throw new Error('获取报告列表失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 获取报告详情
     async getReport(taskId: string, folder?: string): Promise<ReportDetail> {
         const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
         const response = await apiFetch(`${API_BASE}/reports/${taskId}${params}`)
-        if (!response.ok) {
-            throw new Error('获取报告详情失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 获取系统健康状态（包含启动时间）
@@ -278,19 +263,15 @@ export const api = {
         // API_BASE 是 /ama/api，所以需要替换
         const url = API_BASE.replace('/api', '/health')
         const response = await apiFetch(url)
-        if (!response.ok) {
-            throw new Error('健康检查失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 获取使用手册
     async getManual(lang: 'zh-CN' | 'en-US'): Promise<ManualResponse> {
         const response = await apiFetch(`${API_BASE}/manual?lang=${encodeURIComponent(lang)}`)
-        if (!response.ok) {
-            throw new Error('获取使用手册失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 获取使用手册资源 URL
@@ -319,10 +300,8 @@ export const api = {
                 chunk_ids: options.chunkIds
             }),
         })
-        if (!response.ok) {
-            throw new Error('获取证据位置失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // ===== Benchmark API =====
@@ -330,10 +309,8 @@ export const api = {
     // 列出已上传的人类评分文件
     async listHumanFiles(): Promise<{ files: HumanFileInfo[] }> {
         const response = await apiFetch(`${API_BASE}/benchmark/human-files`)
-        if (!response.ok) {
-            throw new Error('获取人类评分文件列表失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 上传人类评分文件
@@ -344,11 +321,8 @@ export const api = {
             method: 'POST',
             body: formData,
         })
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: '上传失败' }))
-            throw new Error(error.detail || '上传失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 删除人类评分文件
@@ -356,19 +330,15 @@ export const api = {
         const response = await apiFetch(`${API_BASE}/benchmark/human-files/${encodeURIComponent(filename)}`, {
             method: 'DELETE',
         })
-        if (!response.ok) {
-            throw new Error('删除文件失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 列出可用的 batch 目录
     async listBatches(): Promise<{ batches: BatchInfo[] }> {
         const response = await apiFetch(`${API_BASE}/benchmark/batches`)
-        if (!response.ok) {
-            throw new Error('获取 batch 列表失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 执行 Benchmark
@@ -382,19 +352,15 @@ export const api = {
                 threshold: threshold,
             }),
         })
-        if (!response.ok) {
-            throw new Error('执行 Benchmark 失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 列出 Benchmark 结果
     async listBenchmarkResults(): Promise<{ results: BenchmarkResultInfo[] }> {
         const response = await apiFetch(`${API_BASE}/benchmark/results`)
-        if (!response.ok) {
-            throw new Error('获取结果列表失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 删除 Benchmark 结果
@@ -402,11 +368,8 @@ export const api = {
         const response = await apiFetch(`${API_BASE}/benchmark/results/${encodeURIComponent(filename)}`, {
             method: 'DELETE',
         })
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: '删除实验结果失败' }))
-            throw new Error(error.detail || '删除实验结果失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 获取 Benchmark 结果下载 URL
@@ -417,10 +380,8 @@ export const api = {
     // 获取 Benchmark 结果详情
     async getBenchmarkDetail(filename: string): Promise<BenchmarkDetailResponse> {
         const response = await apiFetch(`${API_BASE}/benchmark/detail/${encodeURIComponent(filename)}`)
-        if (!response.ok) {
-            throw new Error('获取结果详情失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 保存 Benchmark 修改
@@ -433,10 +394,8 @@ export const api = {
                 updates
             }),
         })
-        if (!response.ok) {
-            throw new Error('保存修改失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 添加评论
@@ -450,10 +409,8 @@ export const api = {
                 content
             }),
         })
-        if (!response.ok) {
-            throw new Error('添加评论失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 更新评论
@@ -468,10 +425,8 @@ export const api = {
                 content
             }),
         })
-        if (!response.ok) {
-            throw new Error('更新评论失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 删除评论
@@ -485,10 +440,8 @@ export const api = {
                 comment_id: commentId
             }),
         })
-        if (!response.ok) {
-            throw new Error('删除评论失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // ===== 配置管理 API =====
@@ -496,10 +449,15 @@ export const api = {
     // 获取 LLM 配置
     async getLLMConfig(): Promise<LLMConfigResponse> {
         const response = await apiFetch(`${API_BASE}/config/llm`)
-        if (!response.ok) {
-            throw new Error('获取 LLM 配置失败')
-        }
-        return response.json()
+
+        return readJson(response)
+    },
+
+    async getModelLimits(provider: string, modelId: string): Promise<ModelLimitsSuggestion> {
+        const query = new URLSearchParams({ provider, model_id: modelId })
+        const response = await apiFetch(`${API_BASE}/config/llm/model-limits?${query}`)
+
+        return readJson(response)
     },
 
     // 更新 LLM 配置
@@ -509,46 +467,52 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
         })
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: '更新失败' }))
-            throw new Error(error.detail || '更新 LLM 配置失败')
-        }
-        return response.json()
+
+        return readJson(response)
+    },
+
+    // 清除管理台保存的运行时配置，恢复 .env 配置
+    async resetLLMConfig(): Promise<LLMConfigResponse> {
+        const response = await apiFetch(`${API_BASE}/config/llm`, {
+            method: 'DELETE',
+        })
+
+        return readJson(response)
     },
 
     // 测试 LLM 连接
     async testLLMConnection(config?: LLMConfigUpdate): Promise<ConnectionTestResult> {
         const response = await apiFetch(`${API_BASE}/config/llm/test`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept-Language': document.documentElement.lang || 'en-US',
+            },
             body: JSON.stringify(config ?? {}),
         })
-        if (!response.ok) {
-            throw new Error('测试连接失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // LLM 健康验证
     async checkLLMHealth(config?: LLMConfigUpdate): Promise<HealthCheckResult> {
         const response = await apiFetch(`${API_BASE}/config/llm/health`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept-Language': document.documentElement.lang || 'en-US',
+            },
             body: JSON.stringify(config ?? {}),
         })
-        if (!response.ok) {
-            throw new Error('健康验证失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 
     // 获取提供商预设列表
     async getProviders(): Promise<Record<string, ProviderInfo>> {
         const response = await apiFetch(`${API_BASE}/config/providers`)
-        if (!response.ok) {
-            throw new Error('获取提供商列表失败')
-        }
-        return response.json()
+
+        return readJson(response)
     },
 }
 
@@ -612,7 +576,7 @@ export interface BenchmarkResultInfo {
     batch_ids?: string[]
 }
 
-export interface BenchmarkRunResponse {
+export interface BenchmarkRunResponse extends UiMessage {
     status: string
     message: string
     xlsx_file?: string
@@ -665,16 +629,30 @@ export interface BenchmarkDetailResponse {
 
 // ===== 配置管理 类型定义 =====
 
+export interface ModelLimitsSuggestion {
+    status: 'matched' | 'ambiguous' | 'unknown'
+    context_window: number | null
+    source: string
+    snapshot_at: string
+}
+
 export interface LLMConfigResponse {
     provider: string
     base_url: string
     api_key_masked: string
+    context_window: number | null
     model_name: string
     timeout: number
     is_vision_model: boolean
+    // 管理台覆盖层来源：为空表示当前值直接来自 .env
+    runtime_updated_at?: string | null
+    runtime_updated_by?: string | null
+    // 真正覆盖 .env 的字段；为空表示当前值都来自 .env
+    runtime_source_fields?: string[] | null
 }
 
 export interface LLMConfigUpdate {
+    context_window?: number | null
     provider?: string
     base_url?: string
     api_key?: string
@@ -698,14 +676,14 @@ export interface ProviderInfo {
     models: ProviderModelInfo[]
 }
 
-export interface ConnectionTestResult {
+export interface ConnectionTestResult extends UiMessage {
     success: boolean
     message: string
     latency_ms?: number
     models?: string[]
 }
 
-export interface HealthCheckResult {
+export interface HealthCheckResult extends UiMessage {
     success: boolean
     message: string
     latency_ms?: number

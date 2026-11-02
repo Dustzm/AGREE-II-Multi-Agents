@@ -1,3 +1,6 @@
+import { notifyError, notifySuccess } from '@/i18n/notify'
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -25,7 +28,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import toast from 'react-hot-toast'
 
 export function Users() {
     const { t } = useTranslation()
@@ -33,7 +35,7 @@ export function Users() {
 
     const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<UiMessage | null>(null)
 
     // 创建对话框
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -68,7 +70,7 @@ export function Users() {
             setUsers(data)
             setError(null)
         } catch (err) {
-            setError(t('users.error.loadFailed'))
+            setError(asMessage(err, 'users.error.loadFailed'))
             console.error(err)
         } finally {
             setLoading(false)
@@ -77,19 +79,19 @@ export function Users() {
 
     const handleCreate = async () => {
         if (!createForm.username.trim() || !createForm.password) {
-            toast.error(t('users.error.usernameRequired'))
+            notifyError({ key: 'users.error.usernameRequired' })
             return
         }
         setCreating(true)
         try {
             await usersService.create(createForm)
-            toast.success(t('users.toast.created', { username: createForm.username }))
+            notifySuccess('users.toast.created', { username: createForm.username })
             setIsCreateOpen(false)
             setCreateForm({ username: '', password: '', display_name: '', role: 'user' })
             setShowCreatePassword(false)
             await loadUsers()
         } catch (err: unknown) {
-            toast.error(err instanceof Error ? err.message : t('users.toast.createFailed'))
+            notifyError(err, 'users.toast.createFailed')
         } finally {
             setCreating(false)
         }
@@ -116,11 +118,11 @@ export function Users() {
                 payload.password = editPassword
             }
             await usersService.update(editingUser.username, payload)
-            toast.success(t('users.toast.updated', { username: editingUser.username }))
+            notifySuccess('users.toast.updated', { username: editingUser.username })
             setIsEditOpen(false)
             await loadUsers()
         } catch (err: unknown) {
-            toast.error(err instanceof Error ? err.message : t('users.toast.updateFailed'))
+            notifyError(err, 'users.toast.updateFailed')
         } finally {
             setUpdating(false)
         }
@@ -129,11 +131,11 @@ export function Users() {
     const handleDelete = async (username: string) => {
         try {
             await usersService.delete(username)
-            toast.success(t('users.toast.deleted', { username }))
+            notifySuccess('users.toast.deleted', { username })
             setDeletingUsername(null)
             await loadUsers()
         } catch (err: unknown) {
-            toast.error(err instanceof Error ? err.message : t('users.toast.deleteFailed'))
+            notifyError(err, 'users.toast.deleteFailed')
         }
     }
 
@@ -146,7 +148,7 @@ export function Users() {
     if (error) return (
         <div className="flex h-full items-center justify-center text-red-500 gap-2 p-8">
             <AlertCircle className="h-5 w-5" />
-            <span>{error}</span>
+            <MessageView message={error} />
         </div>
     )
 

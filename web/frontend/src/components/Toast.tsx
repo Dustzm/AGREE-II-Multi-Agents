@@ -2,15 +2,18 @@
  * Toast 提示组件
  * 固定在页面顶部，自动消失的轻量级提示
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, XCircle, AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { useTranslation } from 'react-i18next'
+import { MessageView } from './MessageView'
+import type { UiMessage } from '@/i18n/messages'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 interface ToastProps {
     type: ToastType
-    message: string
+    message: UiMessage | Error | string
     duration?: number  // 显示时长（毫秒），默认 3000
     onClose?: () => void
 }
@@ -43,11 +46,25 @@ const toastConfig = {
 }
 
 export function Toast({ type, message, duration = 3000, onClose }: ToastProps) {
+    const { t } = useTranslation()
     const [isVisible, setIsVisible] = useState(true)
     const [isExiting, setIsExiting] = useState(false)
+    const closeCallback = useRef(onClose)
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const config = toastConfig[type]
     const Icon = config.icon
+
+    useEffect(() => { closeCallback.current = onClose }, [onClose])
+
+    const handleClose = useCallback(() => {
+        if (closeTimer.current) return
+        setIsExiting(true)
+        closeTimer.current = setTimeout(() => {
+            setIsVisible(false)
+            closeCallback.current?.()
+        }, 300)
+    }, [])
 
     useEffect(() => {
         // 自动消失
@@ -55,16 +72,11 @@ export function Toast({ type, message, duration = 3000, onClose }: ToastProps) {
             handleClose()
         }, duration)
 
-        return () => clearTimeout(timer)
-    }, [duration])
-
-    const handleClose = () => {
-        setIsExiting(true)
-        setTimeout(() => {
-            setIsVisible(false)
-            onClose?.()
-        }, 300)  // 等待动画完成
-    }
+        return () => {
+            clearTimeout(timer)
+            if (closeTimer.current) clearTimeout(closeTimer.current)
+        }
+    }, [duration, handleClose])
 
     if (!isVisible) return null
 
@@ -87,13 +99,14 @@ export function Toast({ type, message, duration = 3000, onClose }: ToastProps) {
 
             {/* 消息内容 */}
             <div className="flex-1 min-w-0">
-                <p className={cn("text-sm font-medium", config.color)}>
-                    {message}
-                </p>
+                <div className={cn("text-sm font-medium", config.color)}>
+                    <MessageView message={message} />
+                </div>
             </div>
 
             {/* 关闭按钮 */}
             <button
+                aria-label={t('ui.close')}
                 onClick={handleClose}
                 className={cn(
                     "flex-shrink-0 p-1 rounded-md transition-colors",

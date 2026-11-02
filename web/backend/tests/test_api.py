@@ -109,7 +109,7 @@ def test_protected_api_requires_login(client: TestClient):
     """未登录访问受保护 API 返回 401。"""
     response = client.get("/ama/api/files/list")
     assert response.status_code == 401
-    assert response.json()["detail"] == "未登录或登录已失效"
+    assert response.json()["detail"] == "Sign in again to continue."
 
 
 def test_docs_redirect_to_login_when_unauthorized(client: TestClient):
@@ -124,6 +124,35 @@ def test_auth_me_returns_anonymous_state_when_not_logged_in(client: TestClient):
     response = client.get("/ama/api/auth/me")
     assert response.status_code == 200
     assert response.json() == {"authenticated": False, "user": None}
+
+
+def test_auth_disabled_allows_anonymous_admin_access(monkeypatch: pytest.MonkeyPatch):
+    """关闭认证时应免登录进入系统，并允许访问管理员接口。"""
+    monkeypatch.setenv("AMA_AUTH_ENABLED", "false")
+    monkeypatch.setenv("LLM_BASE_URL", "")
+    monkeypatch.setenv("LLM_API_KEY", "")
+    refresh_settings()
+
+    with TestClient(app) as test_client:
+        me_response = test_client.get("/ama/api/auth/me")
+        assert me_response.status_code == 200
+        assert me_response.json() == {
+            "authenticated": True,
+            "user": {
+                "username": "local",
+                "display_name": "免登录用户",
+                "role": "admin",
+            },
+        }
+
+        config_response = test_client.put("/ama/api/config/llm", json={"base_url": ""})
+        assert config_response.status_code == 200
+
+        logout_response = test_client.post("/ama/api/auth/logout")
+        assert logout_response.status_code == 200
+        assert logout_response.json()["authenticated"] is True
+
+    refresh_settings()
 
 
 def test_login_success_sets_cookie_and_allows_access(client: TestClient):
@@ -150,7 +179,7 @@ def test_login_rejects_invalid_password(client: TestClient):
         json={"username": "admin", "password": "wrong-password"},
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "用户名或密码错误"
+    assert response.json()["detail"] == "Incorrect username or password."
 
 
 def test_login_rejects_disabled_account(client: TestClient):
@@ -160,7 +189,7 @@ def test_login_rejects_disabled_account(client: TestClient):
         json={"username": "disabled", "password": "disabled123"},
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "用户名或密码错误"
+    assert response.json()["detail"] == "Incorrect username or password."
 
 
 def test_logout_clears_cookie_and_revokes_access(client: TestClient):
@@ -190,6 +219,7 @@ def test_second_login_revokes_previous_session_and_kicks_websocket(client: TestC
     assert old_token
 
     with client.websocket_connect("/ama/api/chat/test-session") as websocket:
+        assert websocket.receive_json() == {"type": "session_state", "task_id": None, "state": "idle"}
         with TestClient(app) as second_client:
             second_login = second_client.post(
                 "/ama/api/auth/login",
@@ -228,6 +258,7 @@ def test_disabling_user_revokes_existing_session(client: TestClient):
         assert old_token
 
         with reviewer_client.websocket_connect("/ama/api/chat/reviewer-session") as websocket:
+            assert websocket.receive_json()["type"] == "session_state"
             disable_response = client.put(
                 "/ama/api/users/reviewer",
                 json={"enabled": False},
@@ -263,7 +294,7 @@ def test_change_my_password_replaces_session_and_invalidates_old_cookie(client: 
         json={"old_password": "reviewer123", "new_password": "reviewer456"},
     )
     assert change_response.status_code == 200
-    assert change_response.json()["detail"] == "密码已修改"
+    assert change_response.json()["detail"] == "Password changed."
 
     new_token = client.cookies.get(AUTH_COOKIE_NAME)
     assert new_token
@@ -484,6 +515,7 @@ def test_llm_health_check_uses_unsaved_draft_values(client: TestClient, monkeypa
 
     response = client.post(
         "/ama/api/config/llm/health",
+        headers={"Accept-Language": "en-US"},
         json={
             "provider": "openai_compatible",
             "base_url": "https://draft.example.com/v1",
@@ -495,6 +527,7 @@ def test_llm_health_check_uses_unsaved_draft_values(client: TestClient, monkeypa
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
+    assert payload["message"] == "LLM service is healthy and inference is available"
     assert payload["reply"] == "hello from draft"
     assert captured["model"] == "openai/draft-model"
     assert captured["base_url"] == "https://draft.example.com/v1"

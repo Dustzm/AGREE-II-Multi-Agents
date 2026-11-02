@@ -2,9 +2,11 @@
     "common": {
         "loading": "加载中...",
         "loadingData": "加载数据中...",
+        "checkingAuth": "正在检查登录状态...",
         "error": {
             "unknown": "未知错误"
-        }
+        },
+        "diagnosticDetails": "诊断详情"
     },
     "nav": {
         "chat": "评价",
@@ -18,6 +20,7 @@
     },
     "sidebar": {
         "subtitle": "评价系统",
+        "logout": "退出登录",
         "status": {
             "online": "在线",
             "offline": "离线"
@@ -60,6 +63,7 @@
             "title": "评价进度",
             "processing": "处理中",
             "completed": "已完成",
+            "partial": "部分完成 · 可继续评价",
             "ready": "就绪",
             "idle": "未开始",
             "readyToStart": "等待开始",
@@ -69,15 +73,17 @@
             "error": "出错"
         },
         "status": {
-            "parsing": "正在解析 PDF...",
+            "parsing": "文件解析中...",
             "orchestrating": "协调评价任务...",
             "complete": "评价完成",
+            "partial": "部分报告已生成：完成 {{completed}}/23 项",
             "cancelled": "任务已终止",
             "processing": "{{agent}} 正在处理...",
             "done": "{{text}} 已完成"
         },
         "actions": {
             "start": "开始",
+            "resume": "继续未完成评价",
             "starting": "启动中...",
             "stop": "终止",
             "stopping": "终止中...",
@@ -94,6 +100,11 @@
             "loadFailed": "加载文件列表失败",
             "startFailed": "启动失败: {{error}}",
             "occurred": "发生错误",
+            "disconnected": "连接断开",
+            "taskLost": "任务已在后台结束，但连接中断期间未收到结果，可继续评价或重新开始"
+        },
+        "connection": {
+            "reconnecting": "重连中 ({{current}}/{{max}})",
             "disconnected": "连接断开"
         }
     },
@@ -144,6 +155,7 @@
             "stopped": "已停止",
             "interrupted": "已中断，可继续",
             "failed": "执行失败",
+            "partial": "部分完成，可继续评价",
             "completed": "已完成",
             "waiting": "等待启动",
             "hint": "勾选 PDF 并点击开始",
@@ -154,6 +166,7 @@
             "pending": "等待中",
             "running": "运行中",
             "done": "已完成",
+            "partial": "部分完成，可继续评价",
             "error": "失败",
             "cancelled": "已取消",
             "stopped": "已停止"
@@ -162,6 +175,7 @@
             "service_restart": "服务重启，任务中断",
             "service_restart_step": "服务重启，任务已中断",
             "initializing": "正在初始化...",
+            "reusingMineruCache": "复用解析结果",
             "parsingPdf": "正在解析 PDF",
             "buildingEvidence": "正在构建证据池",
             "appraisingItems": "正在评价条目",
@@ -194,6 +208,7 @@
     },
     "reports": {
         "title": "评价报告",
+        "partial": "部分报告 · {{completed}}/23 项 · 缺失 {{missing}}",
         "description": "查看和管理所有的指南评价结果归档。",
         "refresh": "刷新",
         "backToList": "返回列表",
@@ -219,12 +234,15 @@
         "detail": {
             "date": "评价日期:",
             "notEvaluated": "未评估",
+            "pendingDomain": "待补齐 {{completed}}/{{total}}",
             "qualityScore": "整体评价",
             "totalScore": "总分",
             "domainScores": "领域评分",
             "items": "项",
             "strengths": "优势",
             "weaknesses": "不足",
+            "partialStrengths": "已完成条目的优势观察",
+            "partialWeaknesses": "已完成条目的不足观察",
             "itemDetails": "条目评价详情",
             "evidenceLocation": "文中位置",
             "quotedEvidence": "支撑文本",
@@ -277,18 +295,18 @@
             "saveFailed": "保存失败"
         },
         "form": {
-            "titleEn": "Title (English)",
+            "titleEn": "标题（英文）",
             "titleZh": "标题 (中文)",
-            "descEn": "Description (English)",
+            "descEn": "描述（英文）",
             "descZh": "描述 (中文)",
-            "locatingEn": "Locating Info (English)",
+            "locatingEn": "定位信息（英文）",
             "locatingZh": "定位信息提示 (中文)",
             "criteria": "举例/example",
             "scoringPrinciple": "评分细则 / Scoring Principle",
             "addRule": "+ 添加规则",
-            "range": "Range",
-            "conditionEn": "Condition (English)",
-            "conditionZh": "Condition (Chinese)",
+            "range": "评分范围",
+            "conditionEn": "条件（英文）",
+            "conditionZh": "条件（中文）",
             "actions": "操作",
             "noRules": "暂无评分规则，点击上方\"添加规则\"按钮添加",
             "deleteRow": "删除此行"
@@ -333,13 +351,13 @@
             "save": "保存",
             "editContent": "编辑内容",
             "variableSyntax": "支持 {variable} 注入语法",
-            "variables": "Variables",
-            "noVariables": "No variables detected",
+            "variables": "变量",
+            "noVariables": "未检测到变量",
             "detectedVar": "检测到的变量:"
         },
         "card": {
             "editPrompt": "编辑提示词",
-            "agent": "Agent",
+            "agent": "智能体",
             "languages": "EN / 中文"
         },
         "error": {
@@ -374,7 +392,7 @@
         },
         "pagination": "{{current}} / {{total}}",
         "detail": {
-            "chunkId": "Chunk ID",
+            "chunkId": "片段 ID",
             "semanticLabel": "语义标签",
             "section": "所属章节",
             "contentType": "内容类型",
@@ -402,15 +420,21 @@
         },
         "batches": {
             "title": "选择 Batches",
-            "selectHint": "请选择两个 batch 进行对比",
-            "empty": "暂无 Batch 结果"
+            "selectHint": "已选择 {{count}}/2 个 batch",
+            "empty": "暂无 Batch 结果",
+            "tasks": "任务"
         },
         "run": {
             "title": "执行对比",
             "start": "开始实验",
             "running": "正在对比...",
+            "success": "实验执行成功",
             "download": "下载报告",
             "history": "历史记录"
+        },
+        "summary": {
+            "guides": "指南",
+            "consistency": "一致性"
         },
         "visualization": {
             "overall": "总体概览",
@@ -425,6 +449,7 @@
             "exportSuccess": "柱状图已导出",
             "exportError": "导出柱状图失败",
             "noData": "无数据",
+            "guide": "指南",
             "legend": {
                 "high": "高 (≥80%)",
                 "med": "中 (≥60%)",
@@ -453,7 +478,8 @@
             "humanRater1": "评分者1",
             "humanRater2": "评分者2",
             "batch1": "批次1模型",
-            "batch2": "批次2模型"
+            "batch2": "批次2模型",
+            "loadFailed": "加载实验详情失败"
         },
         "results": {
             "title": "历史记录",
@@ -527,12 +553,41 @@
             "refreshError": "刷新失败",
             "download": "下载Excel",
             "delete": "删除",
+            "deleted": "实验记录已删除",
+            "deleteFailed": "删除实验记录失败",
             "confirmDelete": "确认删除此实验记录？"
         },
         "tabs": {
             "consistency": "一致性分析",
             "guide": "指南",
-            "current": "当前指南"
+            "current": "当前指南",
+            "selectGuide": "选择指南...",
+            "searchGuide": "搜索指南名称、ID 或序号...",
+            "noGuideMatch": "未找到匹配的指南",
+            "guideCount": "共 {{count}} 个指南",
+            "clearFilter": "清除筛选",
+            "previousGuide": "上一指南 (Alt+←)",
+            "nextGuide": "下一指南 (Alt+→)"
+        },
+        "edit": {
+            "originalValue": "原始值：{{value}}",
+            "clickToEdit": "点击修改",
+            "noChanges": "没有需要保存的修改",
+            "saveCurrent": "保存当前指南的修改",
+            "saveFailed": "保存修改失败"
+        },
+        "comments": {
+            "title": "备注",
+            "empty": "暂无备注",
+            "placeholder": "添加备注...",
+            "cancel": "取消",
+            "save": "保存",
+            "added": "备注已添加",
+            "addFailed": "添加备注失败",
+            "deleted": "备注已删除",
+            "deleteFailed": "删除备注失败",
+            "updated": "备注已更新",
+            "updateFailed": "更新备注失败"
         }
     },
     "config": {
@@ -540,6 +595,14 @@
         "loading": "加载配置中...",
         "subtitle": "配置 LLM 服务提供商、模型及能力参数",
         "llm": {
+            "contextWindow": "上下文窗口（tokens）",
+            "contextHint": "填写服务实际支持的总上下文长度。留空时需配置后才能开始新评价。",
+            "contextSuggested": "已按模型 ID 自动填写（models.dev，{{date}}），可按实际部署修改。",
+            "contextAmbiguous": "该模型有多个上下文长度，请按实际部署填写。",
+            "contextUnknown": "未找到精确匹配，请手动填写。",
+            "contextLookupFailed": "模型目录查询失败，请手动填写。",
+            "contextInvalid": "请输入大于 0 的整数。",
+            "contextLoading": "正在查询模型上下文长度…",
             "title": "LLM 服务配置",
             "provider": "服务提供商",
             "providers": {
@@ -548,7 +611,9 @@
                 "openai": "OpenAI 官方",
                 "anthropic": "Anthropic (Claude)",
                 "deepseek": "DeepSeek",
-                "gemini": "Google Gemini"
+                "gemini": "Google Gemini",
+                "dashscope": "DashScope",
+                "zhipu": "Z.ai"
             },
             "baseUrl": "Base URL",
             "apiKey": "API Key",
@@ -559,7 +624,11 @@
             "visionModelHint": "开启后条目17将使用图像辅助评估，关闭则纯文本模式",
             "visionModelLocked": "当前预设模型的视觉能力已被自动识别并锁定",
             "modelNamePlaceholder": "qwen2.5",
-            "timeout": "超时时间（秒）"
+            "timeout": "超时时间（秒）",
+            "runtimeSource": "当前配置来自管理台保存（{{time}}，操作人 {{by}}），重启后仍然生效",
+            "envSource": "当前配置来自服务器 .env 文件",
+            "resetToEnv": "恢复 .env 配置",
+            "resetConfirm": "确定要清除管理台保存的模型配置、恢复为 .env 中的配置吗？"
         },
         "button": {
             "save": "保存配置",
@@ -570,7 +639,9 @@
         "toast": {
             "saved": "配置已保存",
             "loadFailed": "加载配置失败",
-            "saveFailed": "保存失败"
+            "saveFailed": "保存失败",
+            "resetDone": "已恢复为 .env 配置",
+            "resetFailed": "恢复 .env 配置失败"
         },
         "test": {
             "latency": "响应延迟:",
@@ -585,7 +656,7 @@
     },
     "users": {
         "title": "用户管理",
-        "subtitle": "Access control",
+        "subtitle": "访问控制",
         "description": "管理系统用户账户、分配角色和控制访问权限",
         "addUser": "新建用户",
         "table": {
@@ -647,8 +718,254 @@
             "cancel": "取消"
         },
         "sidebar": {
-            "adminLabel": "Admin",
-            "adminSection": "Admin"
+            "adminLabel": "管理员",
+            "adminSection": "管理"
         }
+    },
+    "server": {
+        "error": {
+            "pdf_not_found": "PDF 文件不存在: {{path}}",
+            "init_failed": "初始化失败，请查看诊断详情。",
+            "parse_failed": "PDF 解析失败，请查看诊断详情。",
+            "mineru_not_configured": "MinerU 服务未配置 (MINERU_SERVER_URL)",
+            "mineru_unavailable": "MinerU 服务不可用",
+            "appraise_not_called": "评价流程异常：Orchestrator 未执行条目评价",
+            "missing_task_id": "缺少 task_id",
+            "task_already_running": "当前会话已有任务在运行，请先终止或等待完成",
+            "no_active_task": "当前没有可终止的任务",
+            "unexpected": "操作失败，请查看诊断详情。",
+            "invalid_request": "请求无效。",
+            "not_found": "请求的资源不存在。",
+            "unauthorized": "登录已失效，请重新登录。",
+            "forbidden": "无权执行此操作。",
+            "admin_required": "此操作需要管理员权限。",
+            "credentials_required": "用户名和密码不能为空。",
+            "invalid_credentials": "用户名或密码错误。",
+            "filename_required": "文件名不能为空。",
+            "pdf_only": "只支持 PDF 文件。",
+            "xlsx_only": "只支持 .xlsx 文件。",
+            "file_not_found": "文件不存在：{{path}}",
+            "invalid_path": "路径无效：{{path}}",
+            "folder_not_found": "文件夹不存在：{{path}}",
+            "not_folder": "该路径不是文件夹：{{path}}",
+            "no_pdfs": "文件夹中没有 PDF 文件：{{path}}",
+            "save_failed": "保存修改失败。",
+            "upload_failed": "上传文件失败。",
+            "delete_failed": "删除资源失败。",
+            "read_failed": "读取资源失败。",
+            "comment_failed": "保存评论失败。",
+            "config_empty": "没有提供需要更新的配置项。",
+            "config_secret_missing": "未配置 LLM_CONFIG_SECRET，无法安全保存 API Key。",
+            "config_save_failed": "保存配置失败。",
+            "two_batches_required": "请选择恰好两个 batch 目录。",
+            "result_not_found": "结果不存在：{{filename}}",
+            "guide_not_found": "指南不存在：{{id}}",
+            "comment_not_found": "评论不存在：{{id}}",
+            "skill_not_found": "条目配置不存在：{{id}}",
+            "user_not_found": "用户不存在。",
+            "user_exists": "用户名已存在：{{username}}",
+            "self_role": "不能修改自己的角色。",
+            "self_disable": "不能禁用自己的账户。",
+            "self_delete": "不能删除自己的账户。",
+            "old_password": "原密码错误。",
+            "database_unavailable": "数据库尚未就绪。",
+            "batch_not_found": "批量任务不存在：{{id}}",
+            "no_resumable_batch": "没有可继续的批量任务。",
+            "no_running_batch": "没有正在运行的批量任务。",
+            "session_not_found": "会话不存在：{{id}}",
+            "prompt_not_found": "提示词不存在：{{agent}}（{{lang}}）。",
+            "report_not_found": "报告不存在：{{id}}",
+            "report_parse_failed": "解析报告失败。",
+            "evidence_not_found": "可视化证据不存在：{{id}}",
+            "reporter_timeout": "报告生成超时（{{seconds}} 秒）。",
+            "mineru_timeout": "PDF 解析超时（{{seconds}} 秒）。",
+            "llm_timeout": "模型请求超时。",
+            "appraisal_failed": "评价失败，请查看诊断详情。",
+            "invalid_response": "服务返回了无效响应。",
+            "network": "无法连接到服务。",
+            "validation": "请检查请求中的字段。"
+        },
+        "status": {
+            "init_task_dir": "📁 初始化任务目录...",
+            "task_id": "任务ID: {{task_id}}",
+            "reusing_task": "复用已有任务: {{task_id}}",
+            "doc_found_skip": "📄 发现已解析的文档，跳过解析步骤",
+            "reusing_mineru_cache": "📄 复用文件解析结果 ({{pages}} 页)",
+            "parsing_mineru": "📄 文件解析中...",
+            "parse_done_mineru": "✓ 文件解析完成 ({{pages}} 页)",
+            "parsing_pypdf": "📄 文件解析中...",
+            "parse_done_pypdf": "✓ 文件解析完成 ({{pages}} 页)",
+            "parse_retry": "⚠️ 解析失败，{{delay}}秒后重试 ({{attempt}}/{{max_retries}})...",
+            "building_evidence": "正在构建语义来源池...",
+            "evidence_done": "语义来源池构建完成",
+            "evidence_failed": "语义来源池构建失败，将使用默认模式",
+            "reusing_evidence": "复用已有证据池，跳过预处理",
+            "preprocess_error": "预处理异常，继续执行",
+            "starting_agents": "🤖 启动智能体团队...",
+            "entering_report_phase": "批量评价完成，进入报告阶段...",
+            "report_retry": "⚠️ 报告生成连接异常，正在重试 ({{attempt}}/{{max_retries}})...",
+            "retry_appraise": "⚠️ 检测到评价流程异常，正在重试 ({{attempt}}/{{max_retries}})...",
+            "task_cancelled": "任务已取消",
+            "task_cancelling": "正在终止任务，等待当前步骤结束...",
+            "starting_appraisal": "开始评价: {{filename}}",
+            "appraisal_complete": "评价完成",
+            "password_changed": "密码已修改。",
+            "partial": "部分报告已生成：完成 {{completed}}/{{total}} 项，可继续未完成评价。",
+            "saved": "已保存 {{count}} 条修改。",
+            "uploaded": "文件 {{filename}} 上传成功。",
+            "deleted": "已删除 {{filename}}。",
+            "batch_stopped": "批量任务已停止。",
+            "session_loaded": "会话状态已加载。",
+            "comparison_complete": "对比完成：{{count}}/{{total}} 个指南成功。"
+        },
+        "agent": {
+            "orchestrator_start": "开始协调评价任务",
+            "initiator_working": "正在生成评价计划...",
+            "appraiser_working": "正在评价项目...",
+            "reporter_working": "正在生成报告...",
+            "appraising_item": "正在评价 {{skill_id}}...",
+            "processing": "{{agent}} 正在处理...",
+            "report_done": "报告生成完成",
+            "initiator_done": "评价计划已生成",
+            "batch_appraise_start": "开始并发评价所有条目...",
+            "batch_appraise_done": "所有条目评价完成",
+            "item_completed": "{{skill_id}} 评价完成 ({{duration}}s)",
+            "item_failed": "{{skill_id}} 评价失败",
+            "batch_progress": "评价进度: {{completed}}/{{total}}",
+            "reporter_done": "报告生成完成"
+        },
+        "chat": {
+            "default_response": "我是 AMA 评价助手，有什么可以帮你的吗？",
+            "fallback_response": "我是 AMA，一个 AGREE-II 指南质量评价系统。你可以上传 PDF 文件开始评价，或者继续和我聊天。"
+        },
+        "batch": {
+            "task_pending": "等待中",
+            "task_running": "运行中",
+            "task_done": "已完成",
+            "task_error": "失败",
+            "task_cancelled": "已取消",
+            "mcp_running": "PDF 解析任务正在运行，请等待完成。",
+            "invalid_concurrency": "并发数必须在 {{min}} 到 {{max}} 之间。",
+            "invalid_rounds": "实验轮数必须在 {{min}} 到 {{max}} 之间。",
+            "already_running": "已有批量任务正在运行。",
+            "not_resumable": "此批量任务当前无法继续。",
+            "empty": "请至少选择一个 PDF 文件。",
+            "service_restart": "服务重启，任务中断",
+            "service_restart_step": "服务重启，任务已中断",
+            "initializing": "正在初始化...",
+            "reusingMineruCache": "复用解析结果",
+            "parsingPdf": "正在解析 PDF",
+            "buildingEvidence": "正在构建证据池",
+            "appraisingItems": "正在评价条目",
+            "itemProgress": "条目进度 {{completed}}/{{total}}",
+            "generatingReport": "正在生成报告",
+            "retryingStep": "重试中",
+            "failedGeneric": "失败",
+            "waitingContinue": "等待继续",
+            "serviceStopWaiting": "服务停止，等待继续",
+            "workerInterrupted": "Worker 中断，等待继续",
+            "stopped": "已停止",
+            "cancelled": "已取消",
+            "retrying": "正在重试 ({{current}}/{{max}})...",
+            "completed": "已完成"
+        },
+        "config": {
+            "connection": {
+                "official_provider": "已选择官方提供商 ({{provider}})，请运行健康验证测试实际可用性",
+                "base_url_missing": "未配置 LLM Base URL",
+                "success": "连接成功",
+                "auth_failed": "认证失败 (401)，请检查 API Key",
+                "forbidden": "访问被拒绝 (403)",
+                "models_unsupported": "服务连通（但提供商不支持获取模型列表），请运行健康验证确认推理",
+                "http_error": "服务返回异常状态码: {{status}}",
+                "connect_failed": "无法连接到 {{url}}，请检查 URL 是否正确",
+                "timeout": "连接超时，服务可能不可用",
+                "error": "连接测试失败，请查看诊断详情。"
+            },
+            "health": {
+                "base_url_missing": "提供商 '{{provider}}' 要求配置 LLM Base URL",
+                "reasoning": "[思考模式] {{reasoning}}",
+                "empty_reply": "（模型已响应，但未返回文本内容）",
+                "success": "LLM 服务正常，推理可用",
+                "error": "健康验证失败，请查看诊断详情。"
+            }
+        },
+        "validation": {
+            "required": "此字段为必填项。",
+            "invalid": "此字段的值无效。",
+            "short": "至少需要 {{limit}} 个字符或条目。",
+            "long": "最多允许 {{limit}} 个字符或条目。",
+            "greater": "值必须大于 {{limit}}。",
+            "greater_equal": "值必须大于或等于 {{limit}}。",
+            "less": "值必须小于 {{limit}}。",
+            "less_equal": "值必须小于或等于 {{limit}}。"
+        },
+        "report": {
+            "untitled": "未命名指南"
+        },
+        "benchmark": {
+            "item": "条目 {{number}}"
+        }
+    },
+    "ui": {
+        "account": "账户",
+        "unknownUser": "未知用户",
+        "score": "评分",
+        "evaluationSummary": "评价总结",
+        "verify": "核验",
+        "citations": "{{count}} 条引用",
+        "rationaleDetail": "理由详情",
+        "promptControl": "提示词管理",
+        "modelOperations": "模型管理",
+        "reportingSurface": "评价报告",
+        "configurationSurface": "配置管理",
+        "toggleSetting": "切换设置",
+        "close": "关闭",
+        "conditionPlaceholder": "请输入英文条件",
+        "domain": "维度",
+        "guideShort": "指南 {{number}}",
+        "noRecommend": "不推荐",
+        "modifications": "修改后推荐",
+        "recommend": "推荐",
+        "pdfLoading": "正在加载 PDF…",
+        "pageLoading": "正在加载页面…",
+        "pdfError": "PDF 加载失败。",
+        "pageError": "页面加载失败。",
+        "noPdf": "未指定 PDF 文件。",
+        "noPage": "未指定页面。",
+        "noExportData": "没有可导出的条目一致性数据。",
+        "canvasError": "无法初始化导出画布。",
+        "docsName": "AMA 使用文档",
+        "apiDocs": "API 文档",
+        "notAvailable": "暂无",
+        "connectionTestFailed": "连接测试失败。",
+        "healthTestFailed": "健康验证失败。",
+        "points": "分",
+        "chunkId": "片段 ID"
+    },
+    "standardItems": {
+        "item_1": "明确描述指南的总目的。",
+        "item_10": "清楚描述形成推荐意见的方法。",
+        "item_11": "形成推荐意见时考虑了对健康的益处、副作用以及危险。",
+        "item_12": "推荐意见与支持证据之间有明确联系。",
+        "item_13": "指南在发布前经过外部专家评审。",
+        "item_14": "提供指南更新的步骤。",
+        "item_15": "推荐意见明确，不含糊。",
+        "item_16": "明确列出不同的选择或卫生问题。",
+        "item_17": "容易识别重要的推荐意见。",
+        "item_18": "指南描述了应用时的促进和阻碍因素。",
+        "item_19": "指南提供应用推荐意见的工具和资源。",
+        "item_2": "明确描述指南涵盖的卫生问题。",
+        "item_20": "指南考虑了推荐意见应用时潜在的相关资源。",
+        "item_21": "指南提供了监督和/或审计标准。",
+        "item_22": "赞助单位的观点不影响指南的内容。",
+        "item_23": "指南开发小组成员的利益冲突要记载并公布。",
+        "item_3": "明确描述指南适用的人群（患者，公众，等）。",
+        "item_4": "指南开发小组包括了所有相关专业的人员。",
+        "item_5": "收集目标人群（患者，公众等）的观点和选择意愿。",
+        "item_6": "明确规定指南的使用者。",
+        "item_7": "应用系统方法检索证据。",
+        "item_8": "清楚描述选择证据的标准。",
+        "item_9": "清楚描述证据的强度和局限性。"
     }
 }

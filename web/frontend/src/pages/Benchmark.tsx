@@ -1,8 +1,10 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, LocalizedError, responseMessage, type UiMessage } from '@/i18n/messages'
+import { notifyError, notifySuccess } from '@/i18n/notify'
 import { useEffect, useCallback, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { api, HumanFileInfo, BatchInfo, BenchmarkResultInfo, BenchmarkSummary } from '@/services/api'
-import { toast } from 'react-hot-toast'
 import { Sidebar } from '@/components/benchmark/Sidebar'
 import { Workspace } from '@/components/benchmark/Workspace'
 
@@ -16,7 +18,7 @@ interface BenchmarkState {
 
   // UI 状态
   loading: boolean
-  error: string | null
+  error: UiMessage | null
   isRunning: boolean
   loadingDetail: boolean
 
@@ -32,7 +34,7 @@ interface BenchmarkState {
 
 type BenchmarkAction =
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_ERROR'; payload: UiMessage | null }
   | { type: 'SET_HUMAN_FILES'; payload: HumanFileInfo[] }
   | { type: 'SET_BATCHES'; payload: BatchInfo[] }
   | { type: 'SET_RESULTS'; payload: BenchmarkResultInfo[] }
@@ -122,6 +124,9 @@ export function Benchmark() {
         api.listBenchmarkResults()
       ])
 
+      const failed = [humanFilesRes, batchesRes, resultsRes].find(result => result.status === 'rejected')
+      if (failed?.status === 'rejected') dispatch({ type: 'SET_ERROR', payload: asMessage(failed.reason) })
+
       if (humanFilesRes.status === 'fulfilled') {
         dispatch({ type: 'SET_HUMAN_FILES', payload: humanFilesRes.value.files })
       }
@@ -172,7 +177,8 @@ export function Benchmark() {
         }
       })
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : '加载详情失败' })
+      console.error(error)
+      dispatch({ type: 'SET_ERROR', payload: asMessage(error, 'benchmark.details.loadFailed') })
     } finally {
       // 无论成功还是失败，都清空 loadingDetail 状态
       dispatch({ type: 'SET_LOADING_DETAIL', payload: false })
@@ -197,7 +203,8 @@ export function Benchmark() {
         }
       })
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : t('benchmark.header.refreshError') })
+      console.error(error)
+      dispatch({ type: 'SET_ERROR', payload: asMessage(error, 'benchmark.header.refreshError') })
     } finally {
       dispatch({ type: 'SET_LOADING_DETAIL', payload: false })
     }
@@ -207,7 +214,7 @@ export function Benchmark() {
   const handleDeleteResult = useCallback(async (filename: string) => {
     try {
       await api.deleteBenchmarkResult(filename)
-      toast.success('删除成功')
+      notifySuccess('benchmark.header.deleted')
 
       // 如果删除的是当前选中的，清空视图
       if (state.selectedResult === filename) {
@@ -216,7 +223,8 @@ export function Benchmark() {
 
       await loadData()
     } catch (error) {
-      toast.error('删除失败')
+      console.error(error)
+      notifyError(error, 'benchmark.header.deleteFailed')
     }
   }, [state.selectedResult, loadData])
 
@@ -246,12 +254,13 @@ export function Benchmark() {
           }
         })
 
-        toast.success('实验执行成功')
+        notifySuccess('benchmark.run.success')
       } else {
-        throw new Error(response.error || response.message)
+        throw new LocalizedError(responseMessage({ ...response }))
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '执行失败')
+      console.error(error)
+      notifyError(error, 'benchmark.form.error.run')
     } finally {
       dispatch({ type: 'SET_RUNNING', payload: false })
     }
@@ -326,8 +335,9 @@ export function Benchmark() {
         <div className="fixed top-4 right-4 z-50 max-w-md">
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 shadow-lg">
             <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <span className="text-red-700 flex-1">{state.error}</span>
+            <div className="text-red-700 flex-1"><MessageView message={state.error} /></div>
             <button
+              aria-label={t('ui.close')}
               onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
               className="text-red-500 hover:text-red-700"
             >

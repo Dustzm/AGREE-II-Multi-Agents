@@ -5,9 +5,12 @@
 """
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from ...i18n.messages import LocalizedHTTPException
+from ...i18n import request_language
 
 router = APIRouter()
 
@@ -42,9 +45,10 @@ def _extract_title(content: str, fallback: str) -> str:
 
 @router.get("/manual", response_model=ManualResponse)
 async def get_manual(
-    lang: str = Query("zh-CN", pattern="^(zh-CN|en-US)$")
+    lang: str | None = Query(None, pattern="^(zh-CN|en-US)$")
 ):
     """获取指定语言的使用手册正文"""
+    lang = lang or ("zh-CN" if request_language.get() == "zh" else "en-US")
     manual_path = _resolve_manual_path(lang)
 
     if not manual_path.exists():
@@ -68,15 +72,15 @@ async def get_manual(
 async def get_manual_asset(asset_path: str):
     """读取 docs 目录中的静态资源，禁止目录穿越"""
     if not asset_path:
-        raise HTTPException(status_code=404, detail="资源不存在")
+        raise LocalizedHTTPException(404, "error.not_found")
 
     target = (DOCS_ROOT / asset_path).resolve()
     docs_root = DOCS_ROOT.resolve()
 
     if docs_root not in target.parents and target != docs_root:
-        raise HTTPException(status_code=403, detail="无权访问该资源")
+        raise LocalizedHTTPException(403, "error.forbidden")
 
     if not target.is_file():
-        raise HTTPException(status_code=404, detail="资源不存在")
+        raise LocalizedHTTPException(404, "error.not_found")
 
     return FileResponse(target)

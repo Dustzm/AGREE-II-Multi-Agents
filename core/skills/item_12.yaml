@@ -12,36 +12,43 @@ description_zh: "指南中推荐意见和支持证据之间应当有明确的联
 locating_info: Check Recommendations section.
 locating_info_zh: 查看推荐意见章节。
 criteria: []
-special_rules_en: |-
-  Core principle: item 12 requires a recognizable link between a recommendation and the specific evidence supporting that recommendation.
+special_rules_en: 'Core principle: item 12 requires a recognizable link between a
+  recommendation and the specific evidence supporting that recommendation. Decision
+  order: 1. Identify one concrete recommendation. 2. Find the evidence description,
+  table, figure, citation set, or evidence summary clearly tied to that recommendation.
+  3. Ask whether a reader can tell which evidence supports which recommendation. Score
+  ceiling rules: - If the text only explains in general how evidence was used, or
+  only provides citations/tables/reference lists without clear recommendation-level
+  mapping, the score must NOT exceed 3. - If some recommendations can be linked to
+  specific evidence but the mapping is only partial, the score must NOT exceed 5.
+  Do NOT treat general methods descriptions, nearby citations, standalone evidence
+  tables, or broad evidence discussion as an explicit link unless the text clearly
+  connects them to specific recommendation(s). Score 7 is allowed ONLY when the guideline
+  clearly lets the reader map each recommendation to one or more specific supporting
+  evidences.'
+special_rules_zh: '核心原则：item 12 要求“推荐意见”和“支持该推荐的具体证据”之间存在可识别的明确对应关系。
 
-  Decision order:
-  1. Identify one concrete recommendation.
-  2. Find the evidence description, table, figure, citation set, or evidence summary clearly tied to that recommendation.
-  3. Ask whether a reader can tell which evidence supports which recommendation.
-
-  Score ceiling rules:
-  - If the text only explains in general how evidence was used, or only provides citations/tables/reference lists without clear recommendation-level mapping, the score must NOT exceed 3.
-  - If some recommendations can be linked to specific evidence but the mapping is only partial, the score must NOT exceed 5.
-
-  Do NOT treat general methods descriptions, nearby citations, standalone evidence tables, or broad evidence discussion as an explicit link unless the text clearly connects them to specific recommendation(s).
-
-  Score 7 is allowed ONLY when the guideline clearly lets the reader map each recommendation to one or more specific supporting evidences.
-special_rules_zh: |-
-  核心原则：item 12 要求“推荐意见”和“支持该推荐的具体证据”之间存在可识别的明确对应关系。
 
   评分顺序：
+
   1. 先锁定一条具体推荐；
+
   2. 找与这条推荐明确对应的证据描述、证据表/图、引用组或证据摘要；
+
   3. 再判断读者是否能看清“哪条证据支撑哪条推荐”。
 
+
   分数上限规则：
+
   - 如果原文只是泛泛说明如何使用证据，或只是给出参考文献、证据表、引用而没有清楚做到“推荐级映射”，分数不得高于 3。
+
   - 如果只有部分推荐能明确连到具体证据，但映射不完整，分数不得高于 5。
+
 
   不要把一般方法说明、邻近出现的引用、单独的证据表，或大段泛泛的证据讨论，直接当成“明确链接”；只有原文明确把它们连到具体推荐时，才算。
 
-  只有当指南能让读者清楚地把每条推荐对应到一条或多条具体支撑证据时，才能给 7 分。
+
+  只有当指南能让读者清楚地把每条推荐对应到一条或多条具体支撑证据时，才能给 7 分。'
 scoring_principle:
 - range: '1'
   condition: Not mentioned
@@ -55,14 +62,18 @@ scoring_principle:
     evidence tables/figures, or citation groups, but the mapping is only partial
   condition_zh: 部分推荐意见能明确连到对应的证据描述、证据图表或引用组，但这种映射并不完整
 - range: 6-7
-  condition: Each recommendation is clearly linked to its corresponding evidence
-    description, evidence tables/figures, or citation groups so that a reader can
-    identify which evidence supports which recommendation
+  condition: Each recommendation is clearly linked to its corresponding evidence description,
+    evidence tables/figures, or citation groups so that a reader can identify which
+    evidence supports which recommendation
   condition_zh: 每条推荐意见都能明确连到其对应的证据描述、证据图表或引用组，使读者能够看清哪条证据支撑哪条推荐
 - range: 3-5
   condition: If evidence is lacking or recommendations are consensus-based, clear
     statements or descriptions may be scored based on detail level
   condition_zh: 如果缺乏证据或推荐意见是基于共识得出的，可根据详细程度给予明确陈述或描述相应的分数
 - range: '7'
-  condition: Use score 7 only when the guideline clearly supports recommendation-by-recommendation mapping to specific evidence; do not use 7 for general methods descriptions, broad evidence summaries, reference lists, or evidence tables that are not clearly tied to individual recommendations.
-  condition_zh: 只有当指南能够清楚做到“逐条推荐对应具体证据”时，才能给 7 分；如果只是一般方法说明、泛泛的证据总结、参考文献目录，或没有明确连到单条推荐的证据表，都不得给 7 分。
+  condition: Use score 7 only when the guideline clearly supports recommendation-by-recommendation
+    mapping to specific evidence; do not use 7 for general methods descriptions, broad
+    evidence summaries, reference lists, or evidence tables that are not clearly tied
+    to individual recommendations.
+  condition_zh: 只有当指南能够清楚做到“逐条推荐对应具体证据”时，才能给 7 分；如果只是一般方法说明、泛泛的证据总结、参考文献目录，或没有明确连到单条推荐的证据表，都不得给
+    7 分。

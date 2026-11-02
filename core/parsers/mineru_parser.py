@@ -6,6 +6,7 @@ MinerU VLM 解析器
 import json
 import logging
 import asyncio
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +22,37 @@ from mineru.backend.vlm.vlm_middle_json_mkcontent import union_make as vlm_union
 from mineru.utils.enum_class import MakeMode
 
 logger = logging.getLogger(__name__)
+
+_HEALTH_CACHE_TTL_SECONDS = 30.0
+_health_check_lock = asyncio.Lock()
+_health_check_cache: dict[tuple[str, str], tuple[float, bool]] = {}
+_health_check_inflight: dict[tuple[str, str], asyncio.Task[bool]] = {}
+
+
+def _get_cached_health_result(cache_key: tuple[str, str]) -> Optional[bool]:
+    """读取未过期的 MinerU 健康检查结果。"""
+    cached = _health_check_cache.get(cache_key)
+    if cached is None:
+        return None
+    expires_at, result = cached
+    if time.monotonic() >= expires_at:
+        _health_check_cache.pop(cache_key, None)
+        return None
+    return result
+
+
+def _set_cached_health_result(cache_key: tuple[str, str], result: bool) -> None:
+    """缓存 MinerU 健康检查结果，合并批量并发探测。"""
+    _health_check_cache[cache_key] = (
+        time.monotonic() + _HEALTH_CACHE_TTL_SECONDS,
+        result,
+    )
+
+
+def _sync_health_probe(health_url: str, headers: Optional[dict[str, str]]) -> httpx.Response:
+    """使用同步客户端探测 MinerU 服务，避免异步连接池在高并发下异常。"""
+    with httpx.Client(timeout=10) as client:
+        return client.get(health_url, headers=headers)
 
 
 class MinerUParser:
@@ -100,6 +132,7 @@ class MinerUParser:
         
         try:
             # 读取 PDF 文件
+            logger.info("MinerU parse_pdf_to_file 开始读取 PDF: %s", pdf_path)
             pdf_bytes = read_fn(str(pdf_file))
             pdf_name = pdf_file.stem
             
@@ -270,29 +303,69 @@ class MinerUParser:
             bool: 服务是否可用
         """
         health_url = f"{self.server_url.rstrip('/')}/v1/models"
+        cache_key = (health_url, self.server_headers.get("Authorization", "") if self.server_headers else "")
+        cached = _get_cached_health_result(cache_key)
+        if cached is not None:
+            logger.debug("MinerU 健康检查缓存命中: url=%s result=%s", health_url, cached)
+            return cached
+
+        async with _health_check_lock:
+            cached = _get_cached_health_result(cache_key)
+            if cached is not None:
+                logger.debug("MinerU 健康检查缓存命中: url=%s result=%s", health_url, cached)
+                return cached
+
+            probe_task = _health_check_inflight.get(cache_key)
+            if probe_task is None:
+                probe_task = asyncio.create_task(
+                    self._probe_and_cache_health(cache_key, health_url)
+                )
+                _health_check_inflight[cache_key] = probe_task
+        return await asyncio.shield(probe_task)
+
+    async def _probe_and_cache_health(
+        self,
+        cache_key: tuple[str, str],
+        health_url: str,
+    ) -> bool:
+        """执行一次共享探测并清理 single-flight 状态。"""
+        try:
+            result = await self._probe_health_with_retries(health_url)
+            _set_cached_health_result(cache_key, result)
+            return result
+        finally:
+            async with _health_check_lock:
+                if _health_check_inflight.get(cache_key) is asyncio.current_task():
+                    _health_check_inflight.pop(cache_key, None)
+
+    async def _probe_health_with_retries(self, health_url: str) -> bool:
+        """同步 HTTP 探测包在线程中执行，避开 httpcore async connection pool 问题。"""
         max_attempts = 3
         retry_delay_seconds = 1.0
 
         for attempt in range(1, max_attempts + 1):
             try:
-                async with httpx.AsyncClient(timeout=10) as client:
-                    response = await client.get(
-                        health_url,
-                        headers=self.server_headers,
-                    )
-                    if response.status_code == 200:
-                        return True
-                    logger.error(
-                        "MinerU 健康检查失败: url=%s attempt=%s/%s status=%s response=%s",
-                        health_url,
-                        attempt,
-                        max_attempts,
-                        response.status_code,
-                        response.text[:1000],
-                    )
+                from core.runtime import ExecutionStage, run_blocking
+
+                response = await run_blocking(
+                    ExecutionStage.BLOCKING,
+                    _sync_health_probe,
+                    health_url,
+                    self.server_headers,
+                )
+                if response.status_code == 200:
+                    return True
+                logger.error(
+                    "MinerU 健康检查失败: url=%s attempt=%s/%s status=%s response=%s",
+                    health_url,
+                    attempt,
+                    max_attempts,
+                    response.status_code,
+                    response.text[:1000],
+                )
             except Exception as e:
                 logger.exception(
-                    "MinerU 健康检查异常: url=%s attempt=%s/%s error=%s",
+                    "MinerU 健康检查同步探测异常: url=%s attempt=%s/%s error=%s",
                     health_url,
                     attempt,
                     max_attempts,
@@ -306,6 +379,30 @@ class MinerUParser:
         return False
     
     async def parse_pdf_to_file(
+        self,
+        pdf_path: str,
+        source_path: str,
+        prep_dir: Optional[str] = None,
+        start_page_id: int = 0,
+        end_page_id: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> dict:
+        """在统一的文档解析并发闸门内解析 PDF。"""
+        from core.runtime import ExecutionStage, execution_stage
+
+        async with execution_stage(ExecutionStage.MINERU):
+            operation = self._parse_pdf_to_file(
+                pdf_path,
+                source_path,
+                prep_dir=prep_dir,
+                start_page_id=start_page_id,
+                end_page_id=end_page_id,
+            )
+            if timeout is None:
+                return await operation
+            return await asyncio.wait_for(operation, timeout=timeout)
+
+    async def _parse_pdf_to_file(
         self,
         pdf_path: str,
         source_path: str,
@@ -375,6 +472,14 @@ class MinerUParser:
             image_writer = FileBasedDataWriter(str(images_dir))
             
             # 调用 VLM 解析
+            logger.info(
+                "MinerU parse_pdf_to_file 开始解析: pdf=%s server=%s model=%s max_concurrency=%s timeout=%s",
+                pdf_path,
+                self.server_url,
+                self.model_name or "<auto>",
+                self.max_concurrency,
+                self.http_timeout,
+            )
             middle_json, infer_result = await aio_doc_analyze(
                 pdf_bytes,
                 image_writer=image_writer,
@@ -386,11 +491,13 @@ class MinerUParser:
                 max_concurrency=self.max_concurrency,
                 max_retries=self.max_retries
             )
+            logger.info("MinerU parse_pdf_to_file 解析返回: pdf=%s", pdf_path)
             
             pdf_info = middle_json["pdf_info"]
             pages_count = len(pdf_info)
             
             # 生成 Markdown 内容
+            logger.info("MinerU parse_pdf_to_file 开始写入解析产物: pdf=%s pages=%s", pdf_path, pages_count)
             image_dir_name = images_dir.name
             md_content = vlm_union_make(pdf_info, MakeMode.MM_MD, image_dir_name)
             

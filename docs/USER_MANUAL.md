@@ -35,7 +35,7 @@
 
 如果页面显示连接异常，请先处理连接问题，再开始评价任务。
 
-![image-20260315140930495](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315140930495.png)
+![image-20260315140930495](images/image-20260315140930495.png)
 
 ### 3.2 第二步：选择指南文件
 
@@ -50,7 +50,7 @@
 - 主指南文件尽量使用清晰、规范的文件名
 - 如果存在附件材料，尽量与主文件放在同一目录下，文件名保持关联，例如主文件名为`xxx.pdf`，那么附件建议命名为`xxx_附件1.pdf`等
 
-![image-20260315140222545](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/appraisal.png)
+![image-20260315140222545](images/appraisal.png)
 
 ### 3.3 第三步：启动评价
 
@@ -92,11 +92,11 @@
 - 推理说明
 - 证据引用位置
 
-![image-20260315140745289](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315140745289.png)
+![image-20260315140745289](images/image-20260315140745289.png)
 
-![image-20260315140821390](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315140821390.png)
+![image-20260315140821390](images/image-20260315140821390.png)
 
-![image-20260315141130821](/Users/slience/postgraduate/AGREE-II-Multi-Agents/docs/images/image-20260315141130821.png)
+![image-20260315141130821](images/image-20260315141130821.png)
 
 ## 4. 各页面怎么用
 
@@ -169,11 +169,11 @@
 
 - 在开始任务前做一次可用性确认
 
-## 5. 结果怎么看
+## 5. 查看结果
 
 查看一份报告时，通常可以按下面顺序理解结果：
 
-### 5.1 先看整体
+### 5.1 总体评分
 
 优先关注：
 
@@ -184,7 +184,7 @@
 
 这部分适合快速判断这份指南整体质量如何。
 
-### 5.2 再看 Domain 分数
+### 5.2 Domain 分数
 
 系统会按 AGREE-II 的 Domain 展示分数。
 
@@ -193,9 +193,9 @@
 - 哪些方面做得较好
 - 哪些方面相对薄弱
 
-### 5.3 最后看条目详情
+### 5.3 条目详情
 
-如果需要更细的分析，就查看单个条目。
+如果需要更细的分析，可查看单个条目。
 
 每个条目通常可以看到：
 

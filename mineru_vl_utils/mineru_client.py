@@ -437,8 +437,11 @@ class MinerUClient:
         self.use_tqdm = use_tqdm
         self.debug = debug
 
-        if backend in ("http-client", "vllm-async-engine", "lmdeploy-engine"):
+        if backend in ("vllm-async-engine", "lmdeploy-engine"):
             self.batching_mode = "concurrent"
+        elif backend == "http-client":
+            # Remote HTTP inference benefits from staged batching under multi-document load.
+            self.batching_mode = "stepping"
         else:  # backend in ("transformers", "vllm-engine")
             self.batching_mode = "stepping"
 

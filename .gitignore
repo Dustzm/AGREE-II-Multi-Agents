@@ -74,3 +74,16 @@ GEMINI.md
 .pids/
 input/
 output/
+doc_data/
+
+# paper
+paper-bibm/
+paper-digital-medicine/
+.codex-tmp/
+bench_human_json/
+experiments
+router_algrithm
+tmp/
+
+# 本地原型/临时产物（不参与版本管理）
+outputs/

@@ -8,6 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from .i18n.messages import ui_message
 from .auth import get_authenticated_user_from_request, is_auth_enabled
 
 PUBLIC_PATHS = {
@@ -64,6 +65,6 @@ def _build_unauthorized_response(path: str) -> Response:
     if path.startswith("/ama/api/") or path == "/ama/openapi.json":
         return JSONResponse(
             status_code=401,
-            content={"detail": "未登录或登录已失效"},
+            content=ui_message("error.unauthorized", field="detail"),
         )
     return RedirectResponse(url="/ama/login", status_code=302)

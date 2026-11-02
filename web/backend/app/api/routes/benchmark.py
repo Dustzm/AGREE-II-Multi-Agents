@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -23,6 +23,9 @@ sys.path.insert(0, str(project_root))
 from benchmark.benchmark import Benchmark
 from benchmark.metrics.consistency import ConsistencyMetric
 from benchmark.reporter import ExcelReporter
+
+from ...i18n.messages import ui_message, sanitize_diagnostic, LocalizedHTTPException
+from ...i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +175,8 @@ class RunBenchmarkResponse(BaseModel):
     """执行 Benchmark 响应"""
     status: str
     message: str
+    i18n: dict | None = None
+    diagnostic: str | None = None
     xlsx_file: Optional[str] = None
     download_url: Optional[str] = None
     summary: Optional[BenchmarkSummary] = None
@@ -213,7 +218,7 @@ async def save_benchmark_changes(request: SaveBenchmarkRequest):
     json_path = output_dir / Path(request.filename).with_suffix('.json').name
 
     if not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"结果不存在: {request.filename}")
+        raise LocalizedHTTPException(404, "error.result_not_found", filename=request.filename)
 
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -269,7 +274,7 @@ async def save_benchmark_changes(request: SaveBenchmarkRequest):
 
                     item_details_list.append(GuideItemDetail(
                         item_id=item_id,
-                        item_name=f"条目{i}",
+                        item_name=t("benchmark.item", number=i),
                         human_score1=item_data.get('human_score1'),
                         human_score2=item_data.get('human_score2'),
                         batch1_model_score=batch1_score,
@@ -316,11 +321,11 @@ async def save_benchmark_changes(request: SaveBenchmarkRequest):
             
         logger.info(f"保存 Benchmark 修改: {updated_count} 条更新已写入 {json_path}")
         
-        return {"status": "success", "message": f"成功保存 {updated_count} 条修改", "updated_count": updated_count}
+        return {"status": "success", **ui_message("status.saved", count=updated_count), "updated_count": updated_count}
 
     except Exception as e:
         logger.exception(f"保存失败: {e}")
-        raise HTTPException(status_code=500, detail=f"保存失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.save_failed", diagnostic=e)
 
 
 @router.get("/benchmark/human-files")
@@ -352,7 +357,7 @@ async def upload_human_file(file: UploadFile = File(...)):
     上传人类评分 xlsx 文件
     """
     if not file.filename.endswith('.xlsx'):
-        raise HTTPException(status_code=400, detail="只支持 .xlsx 文件")
+        raise LocalizedHTTPException(400, "error.xlsx_only")
     
     uploads_dir = get_uploads_dir()
     file_path = uploads_dir / file.filename
@@ -367,7 +372,7 @@ async def upload_human_file(file: UploadFile = File(...)):
         
         return {
             "status": "success",
-            "message": f"文件 {file.filename} 上传成功",
+            **ui_message("status.uploaded", filename=file.filename),
             "file": {
                 "name": file.filename,
                 "path": str(file_path),
@@ -376,7 +381,7 @@ async def upload_human_file(file: UploadFile = File(...)):
         }
     except Exception as e:
         logger.error(f"上传文件失败: {e}")
-        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.upload_failed", diagnostic=e)
 
 
 @router.get("/benchmark/batches")
@@ -391,8 +396,9 @@ async def list_batches():
         return {"batches": []}
     
     for batch_path in sorted(output_dir.iterdir(), reverse=True):
-        # 仅排除状态目录，保留所有可用 batch_* 实验目录
-        if batch_path.is_dir() and batch_path.name.startswith('batch_') and batch_path.name != 'batch_state':
+        # 仅排除状态目录，保留可用的 batch_* 与 CoT baseline 实验目录
+        is_model_batch = batch_path.name.startswith('batch_') or batch_path.name.startswith('cot_')
+        if batch_path.is_dir() and is_model_batch and batch_path.name != 'batch_state':
             # 按报告页相同口径统计已完成任务数量
             task_count = count_completed_batch_reports(batch_path)
             
@@ -421,20 +427,20 @@ async def run_benchmark(request: RunBenchmarkRequest):
     """
     # 验证参数
     if len(request.batch_ids) != 2:
-        raise HTTPException(status_code=400, detail="必须选择恰好两个 batch 目录")
+        raise LocalizedHTTPException(400, "error.two_batches_required")
     
     # 验证人类评分文件
     uploads_dir = get_uploads_dir()
     human_file_path = uploads_dir / request.human_file
     if not human_file_path.exists():
-        raise HTTPException(status_code=404, detail=f"人类评分文件不存在: {request.human_file}")
+        raise LocalizedHTTPException(404, "error.file_not_found", path=request.human_file)
     
     # 验证 batch 目录
     output_dir = get_model_output_dir()
     for batch_id in request.batch_ids:
         batch_path = output_dir / batch_id
         if not batch_path.exists():
-            raise HTTPException(status_code=404, detail=f"Batch 目录不存在: {batch_id}")
+            raise LocalizedHTTPException(404, "error.folder_not_found", path=batch_id)
     
     try:
         # 创建 Benchmark 实例（传入指定的 batch_dirs）
@@ -505,7 +511,7 @@ async def run_benchmark(request: RunBenchmarkRequest):
             total = stats['total']
             item_consistencies.append(ItemConsistency(
                 item_id=item_id,
-                item_name=f"条目{i}",
+                item_name=t("benchmark.item", number=i),
                 consistent_count=stats['consistent'],
                 total_matches=total,
                 consistency=stats['consistent'] / total if total > 0 else 0,
@@ -548,7 +554,7 @@ async def run_benchmark(request: RunBenchmarkRequest):
 
                 item_details_list.append(GuideItemDetail(
                     item_id=item_id,
-                    item_name=f"条目{i}",
+                    item_name=t("benchmark.item", number=i),
                     human_score1=item_data.get('human_score1'),
                     human_score2=item_data.get('human_score2'),
                     batch1_model_score=batch1_score,
@@ -589,7 +595,7 @@ async def run_benchmark(request: RunBenchmarkRequest):
         
         return RunBenchmarkResponse(
             status="success",
-            message=f"对比完成，共 {success_count}/{len(results)} 个指南成功",
+            **ui_message("status.comparison_complete", count=success_count, total=len(results)),
             xlsx_file=xlsx_filename,
             download_url=f"/api/benchmark/download/{xlsx_filename}",
             summary=summary,
@@ -599,8 +605,8 @@ async def run_benchmark(request: RunBenchmarkRequest):
         logger.exception(f"Benchmark 执行失败: {e}")
         return RunBenchmarkResponse(
             status="error",
-            message="执行失败",
-            error=str(e),
+            **ui_message("error.unexpected", diagnostic=e),
+            error=sanitize_diagnostic(e),
         )
 
 
@@ -650,7 +656,7 @@ async def delete_benchmark_result(filename: str):
     json_path = output_dir / Path(filename).with_suffix('.json').name
 
     if not xlsx_path.exists() and not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"结果不存在: {filename}")
+        raise LocalizedHTTPException(404, "error.result_not_found", filename=filename)
 
     deleted_files = []
 
@@ -666,12 +672,12 @@ async def delete_benchmark_result(filename: str):
         logger.info(f"删除 Benchmark 结果: {filename}, files={deleted_files}")
         return {
             "status": "success",
-            "message": f"已删除 {filename}",
+            **ui_message("status.deleted", filename=filename),
             "deleted_files": deleted_files,
         }
     except Exception as e:
         logger.exception(f"删除 Benchmark 结果失败: {filename}, error={e}")
-        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.delete_failed", diagnostic=e)
 
 
 @router.get("/benchmark/download/{filename}")
@@ -683,7 +689,7 @@ async def download_benchmark_result(filename: str):
     file_path = output_dir / filename
     
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
+        raise LocalizedHTTPException(404, "error.file_not_found", path=filename)
     
     return FileResponse(
         path=str(file_path),
@@ -705,7 +711,7 @@ async def get_benchmark_detail(filename: str):
     json_path = output_dir / Path(filename).with_suffix('.json').name
 
     if not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"结果不存在: {filename}")
+        raise LocalizedHTTPException(404, "error.result_not_found", filename=filename)
 
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -762,7 +768,7 @@ async def get_benchmark_detail(filename: str):
 
                     item_details_list.append(GuideItemDetail(
                         item_id=item_id,
-                        item_name=f"条目{i}",
+                        item_name=t("benchmark.item", number=i),
                         human_score1=item_data.get('human_score1'),
                         human_score2=item_data.get('human_score2'),
                         batch1_model_score=batch1_score,
@@ -795,7 +801,7 @@ async def get_benchmark_detail(filename: str):
 
     except Exception as e:
         logger.exception(f"获取详情失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取详情失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.read_failed", diagnostic=e)
 
 
 @router.post("/benchmark/comments")
@@ -807,7 +813,7 @@ async def add_comment(request: dict):
     json_path = output_dir / Path(request['filename']).with_suffix('.json').name
 
     if not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"结果不存在: {request['filename']}")
+        raise LocalizedHTTPException(404, "error.result_not_found", filename=request['filename'])
 
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -819,7 +825,7 @@ async def add_comment(request: dict):
         # 找到对应的指南
         guide = next((g for g in guide_details if g['guide_id'] == request['guide_id']), None)
         if not guide:
-            raise HTTPException(status_code=404, detail=f"指南不存在: {request['guide_id']}")
+            raise LocalizedHTTPException(404, "error.guide_not_found", id=request['guide_id'])
 
         # 确保 comments 字段存在
         if 'comments' not in guide:
@@ -844,7 +850,7 @@ async def add_comment(request: dict):
 
     except Exception as e:
         logger.exception(f"添加评论失败: {e}")
-        raise HTTPException(status_code=500, detail=f"添加评论失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.comment_failed", diagnostic=e)
 
 
 @router.put("/benchmark/comments")
@@ -856,7 +862,7 @@ async def update_comment(request: dict):
     json_path = output_dir / Path(request['filename']).with_suffix('.json').name
 
     if not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"结果不存在: {request['filename']}")
+        raise LocalizedHTTPException(404, "error.result_not_found", filename=request['filename'])
 
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -868,13 +874,13 @@ async def update_comment(request: dict):
         # 找到对应的指南
         guide = next((g for g in guide_details if g['guide_id'] == request['guide_id']), None)
         if not guide:
-            raise HTTPException(status_code=404, detail=f"指南不存在: {request['guide_id']}")
+            raise LocalizedHTTPException(404, "error.guide_not_found", id=request['guide_id'])
 
         # 找到并更新评论
         comments = guide.get('comments', [])
         comment = next((c for c in comments if c['id'] == request['comment_id']), None)
         if not comment:
-            raise HTTPException(status_code=404, detail=f"评论不存在: {request['comment_id']}")
+            raise LocalizedHTTPException(404, "error.comment_not_found", id=request['comment_id'])
 
         comment['content'] = request['content']
         comment['updated_at'] = datetime.now().isoformat()
@@ -889,7 +895,7 @@ async def update_comment(request: dict):
 
     except Exception as e:
         logger.exception(f"更新评论失败: {e}")
-        raise HTTPException(status_code=500, detail=f"更新评论失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.comment_failed", diagnostic=e)
 
 
 @router.delete("/benchmark/comments")
@@ -901,7 +907,7 @@ async def delete_comment(request: dict):
     json_path = output_dir / Path(request['filename']).with_suffix('.json').name
 
     if not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"结果不存在: {request['filename']}")
+        raise LocalizedHTTPException(404, "error.result_not_found", filename=request['filename'])
 
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -913,7 +919,7 @@ async def delete_comment(request: dict):
         # 找到对应的指南
         guide = next((g for g in guide_details if g['guide_id'] == request['guide_id']), None)
         if not guide:
-            raise HTTPException(status_code=404, detail=f"指南不存在: {request['guide_id']}")
+            raise LocalizedHTTPException(404, "error.guide_not_found", id=request['guide_id'])
 
         # 删除评论
         comments = guide.get('comments', [])
@@ -930,7 +936,7 @@ async def delete_comment(request: dict):
 
     except Exception as e:
         logger.exception(f"删除评论失败: {e}")
-        raise HTTPException(status_code=500, detail=f"删除评论失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.delete_failed", diagnostic=e)
 
 
 @router.delete("/benchmark/human-files/{filename}")
@@ -942,11 +948,11 @@ async def delete_human_file(filename: str):
     file_path = uploads_dir / filename
     
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
+        raise LocalizedHTTPException(404, "error.file_not_found", path=filename)
     
     try:
         file_path.unlink()
         logger.info(f"删除人类评分文件: {filename}")
-        return {"status": "success", "message": f"文件 {filename} 已删除"}
+        return {"status": "success", **ui_message("status.deleted", filename=filename)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+        raise LocalizedHTTPException(500, "error.delete_failed", diagnostic=e)

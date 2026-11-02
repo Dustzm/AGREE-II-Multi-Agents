@@ -1,3 +1,4 @@
+import { LocalizedError } from '@/i18n/messages'
 import { ItemConsistency } from '@/services/api'
 
 const CANVAS_WIDTH = 1400
@@ -69,7 +70,7 @@ export async function exportItemConsistencyChart({
     itemLabelPrefix
 }: ExportItemConsistencyChartOptions): Promise<void> {
     if (!items.length) {
-        throw new Error('没有可导出的条目一致性数据')
+        throw new LocalizedError({ key: 'ui.noExportData' })
     }
 
     if ('fonts' in document) {
@@ -87,7 +88,7 @@ export async function exportItemConsistencyChart({
 
     const ctx = canvas.getContext('2d')
     if (!ctx) {
-        throw new Error('无法初始化导出画布')
+        throw new LocalizedError({ key: 'ui.canvasError' })
     }
 
     ctx.scale(2, 2)

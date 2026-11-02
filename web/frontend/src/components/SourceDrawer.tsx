@@ -1,3 +1,5 @@
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
 /**
  * SourceDrawer - 右侧抽屉式原文查看面板
  * 
@@ -5,11 +7,12 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Document, Page, pdfjs } from 'react-pdf'
+import { Document, Page, pdfjs, type PageProps } from 'react-pdf'
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api, type EvidenceMatch } from '@/services/api'
 import { cn } from '@/utils/cn'
+import { PDF_DOCUMENT_OPTIONS } from '@/utils/pdf'
 
 // 配置 PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
@@ -43,6 +46,8 @@ export function SourceDrawer({
     const [matches, setMatches] = useState<EvidenceMatch[]>([])
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
     const [loading, setLoading] = useState(false)
+    const [pdfError, setPdfError] = useState<UiMessage | null>(null)
+    const [locationError, setLocationError] = useState<UiMessage | null>(null)
     const [numPages, setNumPages] = useState(0)
     const [scale, setScale] = useState(0.8)
     const [pageSize, setPageSize] = useState<{ width: number; height: number } | null>(null)
@@ -57,6 +62,7 @@ export function SourceDrawer({
 
         async function loadLocations() {
             setLoading(true)
+            setLocationError(null)
             try {
                 const result = await api.getEvidenceLocation(
                     taskId,
@@ -70,6 +76,7 @@ export function SourceDrawer({
                 setCurrentMatchIndex(0)
             } catch (error) {
                 console.error('加载证据位置失败:', error)
+                setLocationError(asMessage(error))
                 setMatches([])
             } finally {
                 setLoading(false)
@@ -80,6 +87,7 @@ export function SourceDrawer({
 
     // PDF 加载完成
     const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
+        setPdfError(null)
         setNumPages(numPages)
     }, [])
 
@@ -115,7 +123,7 @@ export function SourceDrawer({
     }
 
     // 页面加载成功：计算自适应宽度
-    const onPageLoadSuccess = useCallback((page: any) => {
+    const onPageLoadSuccess = useCallback<NonNullable<PageProps['onLoadSuccess']>>((page) => {
         if (!isUserScaled.current && page.originalWidth) {
             const containerWidth = 480 - 32; // Drawer width (480px) - Padding (32px)
             // 减去 4px 缓冲区以防止舍入误差导致的滚动条
@@ -142,7 +150,7 @@ export function SourceDrawer({
             }, 100)
             return () => clearTimeout(timer)
         }
-    }, [currentMatchIndex, currentMatch?.page_idx, scale]) // scale 变化也需要更新 pageSize
+    }, [currentMatchIndex, currentMatch, scale]) // scale 变化也需要更新 pageSize
 
     if (!isOpen) return null
 
@@ -173,7 +181,7 @@ export function SourceDrawer({
                             </span>
                         )}
                     </div>
-                    <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0">
+                    <Button variant="ghost" size="sm" aria-label={t('ui.close')} onClick={onClose} className="h-7 w-7 p-0">
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
@@ -186,7 +194,7 @@ export function SourceDrawer({
                                 <div className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                             </div>
                             <div>
-                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Rationale Detail</h4>
+                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{t('ui.rationaleDetail')}</h4>
                                 <p className="text-xs text-slate-700 leading-relaxed text-justify">
                                     {reasonExplanation}
                                 </p>
@@ -196,6 +204,7 @@ export function SourceDrawer({
                 )}
 
                 {/* 工具栏 - 移至 Detail 下方 */}
+                {locationError && <div className="p-4 text-red-600"><MessageView message={locationError} /></div>}
                 {matches.length > 0 && (
                     <div className="flex items-center justify-between px-4 py-2 border-b text-sm bg-white shrink-0 shadow-sm z-10">
                         {/* 匹配位置切换 */}
@@ -253,7 +262,12 @@ export function SourceDrawer({
                     ) : (
                         <div ref={pageContainerRef} className="relative inline-block mx-auto">
                             <Document
+                            error={<MessageView message={pdfError || { key: 'ui.pdfError' }} />}
+                            onLoadError={error => setPdfError(asMessage(error, 'ui.pdfError'))}
+                            onSourceError={error => setPdfError(asMessage(error, 'ui.pdfError'))}
+                            noData={t('ui.noPdf')}
                                 file={`/ama/api/reports/${taskId}/pdf`}
+                                options={PDF_DOCUMENT_OPTIONS}
                                 onLoadSuccess={onDocumentLoadSuccess}
                                 loading={
                                     <div className="flex items-center justify-center h-64">
@@ -262,6 +276,10 @@ export function SourceDrawer({
                                 }
                             >
                                 <Page
+                                loading={t('ui.pageLoading')}
+                                error={<MessageView message={pdfError || { key: 'ui.pageError' }} />}
+                                onLoadError={error => setPdfError(asMessage(error, 'ui.pageError'))}
+                                noData={t('ui.noPage')}
                                     pageNumber={(currentMatch?.page_idx ?? 0) + 1}
                                     scale={scale}
                                     renderTextLayer={false}

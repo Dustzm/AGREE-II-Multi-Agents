@@ -35,6 +35,13 @@ class AuthenticatedUser:
     session_id: str | None = None
 
 
+AUTH_DISABLED_USER = AuthenticatedUser(
+    username="local",
+    display_name="免登录用户",
+    role="admin",
+)
+
+
 def _optional_text(value: Any) -> str | None:
     """将可选文本字段规范化。"""
     if value is None:
@@ -219,6 +226,11 @@ def get_authenticated_user_from_websocket(websocket: WebSocket) -> Authenticated
     if not token:
         return None
     return get_authenticated_user_from_token(token, settings)
+
+
+def get_auth_disabled_user() -> AuthenticatedUser:
+    """返回认证关闭时使用的内置用户。"""
+    return AUTH_DISABLED_USER
 
 
 def get_session_id_from_request(request: Request) -> str | None:

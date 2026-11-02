@@ -1,3 +1,6 @@
+import { notifyError } from '@/i18n/notify'
+import { MessageView } from '@/components/MessageView'
+import { asMessage, type UiMessage } from '@/i18n/messages'
 import { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { skillsService, Skill, SkillUpdateDetails } from '../services/skills'
@@ -18,7 +21,7 @@ export function Skills() {
     const { isAdmin } = useAuth()
     const [skills, setSkills] = useState<Skill[]>([])
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<UiMessage | null>(null)
     const [batchUpdating, setBatchUpdating] = useState(false)
 
     // Edit State
@@ -81,7 +84,7 @@ export function Skills() {
             const data = await skillsService.getAll()
             setSkills(data)
         } catch (err) {
-            setError('加载配置失败')
+            setError(asMessage(err, 'skills.error.loadFailed'))
             console.error(err)
         } finally {
             setLoading(false)
@@ -94,6 +97,7 @@ export function Skills() {
             setSkills(prev => prev.map(s => s.item_id === id ? updatedSkill : s))
         } catch (err) {
             console.error('Update failed', err)
+            notifyError(err)
         }
     }
 
@@ -105,6 +109,7 @@ export function Skills() {
             setSkills(updatedSkills)
         } catch (err) {
             console.error('Batch update failed', err)
+            notifyError(err)
         } finally {
             setBatchUpdating(false)
         }
@@ -149,6 +154,7 @@ export function Skills() {
             setSaveStatus('saved')
         } catch (err) {
             console.error('Auto-save failed', err)
+            notifyError(err)
             setSaveStatus('error')
         }
     }
@@ -170,7 +176,7 @@ export function Skills() {
     if (error) return (
         <div className="flex h-full items-center justify-center text-red-500 gap-2 p-8">
             <AlertCircle className="h-5 w-5" />
-            <span>{error}</span>
+            <MessageView message={error} />
         </div>
     )
 
@@ -180,7 +186,7 @@ export function Skills() {
                 <div className="flex items-start justify-between">
                     <div>
                         <div className="mb-3 text-[0.72rem] font-medium uppercase tracking-[0.22em] text-black/36">
-                            Configuration surface
+                            {t('ui.configurationSurface')}
                         </div>
                         <h2 className="mb-2 text-4xl font-semibold tracking-[-0.045em] text-[#1d1d1f]">
                             {t('skills.title')}
@@ -218,7 +224,7 @@ export function Skills() {
 
             {domains.map(domain => {
                 const domainSkills = skills.filter(s => s.domain === domain)
-                const domainName = domainSkills[0]?.domain_name || `Domain ${domain}`
+                const domainName = domainSkills[0]?.domain_name || `${t('ui.domain')} ${domain}`
 
                 return (
                     <section key={domain} className="space-y-6">
@@ -413,7 +419,7 @@ export function Skills() {
                                                         className="w-full bg-transparent border-none p-1 focus:ring-0 text-sm placeholder:text-gray-300"
                                                         value={item.condition || ''}
                                                         onChange={(e) => handleScoringChange(index, 'condition', e.target.value)}
-                                                        placeholder="English condition"
+                                                        placeholder={t('ui.conditionPlaceholder')}
                                                     />
                                                 </td>
                                                 <td className="p-2">
@@ -421,7 +427,7 @@ export function Skills() {
                                                         className="w-full bg-transparent border-none p-1 focus:ring-0 text-sm placeholder:text-gray-300"
                                                         value={item.condition_zh || ''}
                                                         onChange={(e) => handleScoringChange(index, 'condition_zh', e.target.value)}
-                                                        placeholder="中文条件"
+                                                        placeholder={t('skills.form.conditionZh')}
                                                     />
                                                 </td>
                                                 <td className="p-2 text-center">
@@ -514,7 +520,7 @@ function SkillCard({ skill, onToggle, onEdit, isAdmin }: { skill: Skill, onToggl
                             size="icon"
                             onClick={onEdit}
                             className="hidden group-hover:flex h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-                            title="编辑条目"
+                            title={t('skills.card.edit')}
                         >
                             <Pencil className="h-4 w-4" />
                         </Button>
@@ -529,7 +535,7 @@ function SkillCard({ skill, onToggle, onEdit, isAdmin }: { skill: Skill, onToggl
                             )}
                             title={skill.enabled ? t('skills.card.clickToDisable') : t('skills.card.clickToEnable')}
                         >
-                            <span className="sr-only">Toggle setting</span>
+                            <span className="sr-only">{t('ui.toggleSetting')}</span>
                             <span
                                 aria-hidden="true"
                                 className={cn(

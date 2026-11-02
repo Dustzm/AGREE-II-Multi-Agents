@@ -7,13 +7,24 @@ import logging
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 获取项目根目录的 .env 文件路径
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _ENV_FILE = _PROJECT_ROOT / ".env"
 logger = logging.getLogger(__name__)
+
+
+_LOG_LEVEL_ALIASES = {"WARN": "WARNING", "FATAL": "CRITICAL", "TRACE": "DEBUG"}
+LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+
+
+def normalize_log_level(value: object, default: str = "INFO") -> str:
+    """把常见别名（WARN/FATAL/TRACE）归一化；无法识别的值回退默认级别，避免启动即崩。"""
+    raw = str(value or default).strip().upper()
+    normalized = _LOG_LEVEL_ALIASES.get(raw, raw)
+    return normalized if normalized in LOG_LEVELS else default
 
 
 class LLMSettings(BaseSettings):
@@ -29,7 +40,7 @@ class LLMSettings(BaseSettings):
     # 提供商标识
     provider: str = Field(
         default="vllm",
-        description="LLM 提供商: vllm / openai_compatible / openai / zhipu / anthropic / deepseek / gemini"
+        description="LLM 提供商: vllm / openai_compatible / openai / zhipu / dashscope / anthropic / deepseek / gemini"
     )
     
     # API 基础地址
@@ -50,6 +61,8 @@ class LLMSettings(BaseSettings):
         description="默认使用的模型名称"
     )
     
+    context_window: int | None = Field(default=None, gt=0, description="模型上下文窗口（tokens）")
+
     # 请求超时时间
     timeout: int = Field(
         default=120,
@@ -60,6 +73,12 @@ class LLMSettings(BaseSettings):
     is_vision_model: bool = Field(
         default=True,
         description="当前模型是否具备视觉能力（VLM），用于控制条目17是否注入图片"
+    )
+
+    # 结构化输出模式（.env 中的 LLM_STRUCTURED_OUTPUT）
+    structured_output: str | None = Field(
+        default=None,
+        description="强制结构化输出模式: auto/json_schema/guided_json/json_object"
     )
 
 
@@ -256,12 +275,17 @@ class AppSettings(BaseSettings):
         description="运行环境"
     )
     
-    # 日志级别
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
+    # 日志级别（接受 LOG_LEVEL 与历史变量 AMA_LOG_LEVEL）
+    log_level: str = Field(
         default="INFO",
-        alias="LOG_LEVEL",
-        description="日志级别"
+        validation_alias=AliasChoices("LOG_LEVEL", "AMA_LOG_LEVEL"),
+        description="日志级别（WARN/FATAL/TRACE 等常见别名会归一化）"
     )
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, value: object) -> str:
+        return normalize_log_level(value)
     
     # 输入目录 (PDF 文件输入)
     dir_input: str = Field(
@@ -294,8 +318,16 @@ class AppSettings(BaseSettings):
         le=100
     )
 
+    llm_global_max_concurrency: int = Field(
+        default=60,
+        alias="LLM_GLOBAL_MAX_CONCURRENCY",
+        description="进程内所有 LLM 调用共享的最大并发数",
+        ge=1,
+        le=500,
+    )
+
     batch_reporter_timeout: int = Field(
-        default=900,
+        default=1500,
         alias="BATCH_REPORTER_TIMEOUT",
         description="批量任务 Reporter 单次尝试超时时间（秒）",
         ge=30,
@@ -318,12 +350,36 @@ class AppSettings(BaseSettings):
         le=7200,
     )
 
+    batch_mineru_max_concurrency: int = Field(
+        default=2,
+        alias="BATCH_MINERU_MAX_CONCURRENCY",
+        description="进程内并行解析的 PDF 文档数",
+        ge=1,
+        le=20,
+    )
+
+    batch_reporter_max_concurrency: int = Field(
+        default=2,
+        alias="BATCH_REPORTER_MAX_CONCURRENCY",
+        description="进程内并行生成报告的任务数",
+        ge=1,
+        le=20,
+    )
+
+    batch_blocking_max_concurrency: int = Field(
+        default=4,
+        alias="BATCH_BLOCKING_MAX_CONCURRENCY",
+        description="文件复制、缓存恢复和文档预处理的共享线程数",
+        ge=1,
+        le=32,
+    )
+
     batch_item_llm_timeout: int = Field(
-        default=360,
+        default=3600,
         alias="BATCH_ITEM_LLM_TIMEOUT",
         description="批量任务单个条目评价硬超时时间（秒）",
         ge=30,
-        le=3600,
+        le=16000,
     )
 
     batch_worker_lease_seconds: int = Field(
@@ -348,6 +404,117 @@ class AppSettings(BaseSettings):
         description="批量 Worker 租约过期后的回收宽限期（秒）",
         ge=0,
         le=3600,
+    )
+
+    analysis_engine: Literal["llm", "rule", "hybrid"] = Field(
+        default="hybrid",
+        alias="ANALYSIS_ENGINE",
+        description="评价引擎：llm / rule / hybrid",
+    )
+
+    rule_engine_fallback_on_error: bool = Field(
+        default=True,
+        alias="RULE_ENGINE_FALLBACK_ON_ERROR",
+        description="规则引擎评价失败时是否回退到原 appraiser 流程",
+    )
+
+    rule_engine_batch_size: int = Field(
+        default=5,
+        alias="RULE_ENGINE_BATCH_SIZE",
+        description="规则引擎抽取阶段 batch chunk 数量",
+        ge=1,
+        le=50,
+    )
+
+    rule_strict_items: str = Field(
+        default="item_11,item_12,item_18,item_19,item_21",
+        alias="RULE_STRICT_ITEMS",
+        description="规则引擎严格条目（逗号分隔），仅 legacy 回退策略下禁止回退",
+    )
+
+    rule_fallback_policy: Literal["legacy", "degraded"] = Field(
+        default="degraded",
+        alias="RULE_FALLBACK_POLICY",
+        description="规则引擎失败处理策略：legacy=严格条目直接失败；degraded=允许回退并标记 degraded",
+    )
+
+    rule_routing_excluded_labels: str = Field(
+        default="Irrelevant",
+        alias="RULE_ROUTING_EXCLUDED_LABELS",
+        description="默认从规则引擎路由中排除的语义标签（逗号分隔）；附录不默认排除，由领域标签映射决定是否参与证据",
+    )
+
+    rule_appendix_score_factor: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        alias="RULE_APPENDIX_SCORE_FACTOR",
+        description="附录 chunk 在加权路由中的得分折扣（1=不折扣），避免附录摘要挤占正文证据",
+    )
+
+    rule_appendix_max_chunks: int = Field(
+        default=0,
+        ge=0,
+        alias="RULE_APPENDIX_MAX_CHUNKS",
+        description="单条目最多入选的附录 chunk 数；0=自动（min(3, max(2, max_chunks//4))）",
+    )
+
+    rule_report_failures: bool = Field(
+        default=True,
+        alias="RULE_REPORT_FAILURES",
+        description="条目评价结束后写出 failure_report.json",
+    )
+
+    llm_retry_quota_transport: int = Field(
+        default=3,
+        alias="LLM_RETRY_QUOTA_TRANSPORT",
+        description="单条目传输层重试配额",
+        ge=0,
+    )
+
+    llm_retry_quota_truncation: int = Field(
+        default=3,
+        alias="LLM_RETRY_QUOTA_TRUNCATION",
+        description="单条目截断拆分配额",
+        ge=0,
+    )
+
+    llm_retry_quota_repair: int = Field(
+        default=6,
+        alias="LLM_RETRY_QUOTA_REPAIR",
+        description="单条目校验修复总配额",
+        ge=0,
+    )
+
+    llm_retry_quota_repair_stage: int = Field(
+        default=2,
+        alias="LLM_RETRY_QUOTA_REPAIR_STAGE",
+        description="单条目单个修复阶段（抽取/校验/解释）的修复配额，避免抽取修复耗尽后续阶段",
+        ge=0,
+    )
+
+    llm_retry_quota_total: int = Field(
+        default=8,
+        alias="LLM_RETRY_QUOTA_TOTAL",
+        description="单条目恢复总配额",
+        ge=0,
+    )
+
+    rule_extraction_policy: Literal["strict", "keep_valid", "quarantine"] = Field(
+        default="keep_valid",
+        alias="RULE_EXTRACTION_POLICY",
+        description=(
+            "单批抽取对象校验失败策略：strict=整批失败, "
+            "keep_valid=保留通过对象并丢弃非法对象, quarantine=丢弃并记录非法对象"
+        ),
+    )
+
+    rule_extraction_repair_attempts: int = Field(
+        default=1,
+        alias="RULE_EXTRACTION_REPAIR_ATTEMPTS",
+        description="抽取对象校验失败后允许的修复请求次数（0 表示只丢弃不修复）",
+        ge=0,
+        le=5,
     )
     
     # 标签分类并发配置
@@ -406,7 +573,7 @@ class AuthSettings(BaseSettings):
         default=12,
         description="登录会话有效期（小时）",
         ge=1,
-        le=168
+        le=1200
     )
 
     users_file: str = Field(
@@ -458,6 +625,11 @@ def refresh_settings() -> Settings:
     return get_settings()
 
 
+def env_llm_context_window() -> int | None:
+    """`LLM_CONTEXT_WINDOW` 的 .env 基线值，忽略管理台覆盖层。"""
+    return LLMSettings().context_window
+
+
 def _apply_runtime_llm_overrides(settings: Settings) -> None:
     """将 SQLite 中的运行时 LLM 配置覆盖到当前 settings。"""
     from .runtime_store import get_runtime_llm_config
@@ -466,9 +638,12 @@ def _apply_runtime_llm_overrides(settings: Settings) -> None:
     if not runtime_config:
         return
 
-    for key in ("provider", "base_url", "api_key", "model_name", "timeout", "is_vision_model"):
+    for key in ("provider", "base_url", "api_key", "model_name", "timeout", "is_vision_model", "context_window"):
         value = runtime_config.get(key)
-        if value is not None:
+        # 文本项的空字符串代表“管理台没有填写”，不应覆盖 .env 里的有效配置。
+        if key in ("provider", "base_url", "api_key", "model_name") and isinstance(value, str) and not value.strip():
+            continue
+        if value is not None or (key == "context_window" and key in runtime_config):
             setattr(settings.llm, key, value)
 
 

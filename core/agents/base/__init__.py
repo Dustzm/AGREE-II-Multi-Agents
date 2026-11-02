@@ -18,8 +18,6 @@ from .task_context import (
 )
 
 from .schemas import (
-    InitiatorInput,
-    AppraiserInput,
     ReporterInput,
     EvaluationOutput,
 )
@@ -33,8 +31,6 @@ __all__ = [
     "create_task_context",
     "get_task_context",
     # 数据模型
-    "InitiatorInput",
-    "AppraiserInput",
     "ReporterInput",
     "EvaluationOutput",
 ]
