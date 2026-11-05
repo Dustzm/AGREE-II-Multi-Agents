@@ -203,6 +203,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         setIsConnected(false)
     }, [stopReconnect, stopHeartbeat])
 
+    // 组件卸载时必须断开：否则孤儿连接仍被后端视为在线，离开期间的消息既不会进离线队列，也无人处理
+    useEffect(() => disconnect, [disconnect])
+
     const send = useCallback((data: object) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify(data))
