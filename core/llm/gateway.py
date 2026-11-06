@@ -1,6 +1,9 @@
 """任务内唯一的模型请求入口：参数拼装、预算检查、并发闸门、用量统计与输出提取。
 
 每次调用只发送一个请求；重试由调用方通过 RecoveryBudget 决定。
+
+请求一律以流式发送、读完后还原为完整响应：超时只约束相邻两段数据的间隔，长输出只要模型持续产出
+就不会因整体耗时被打断，真正卡住的连接仍按 timeout 及时失败。
 """
 from __future__ import annotations
 
@@ -30,6 +33,10 @@ logger = logging.getLogger(__name__)
 JSON_OBJECT = {"type": "json_object"}
 _PREVIEW_LIMIT = 1200
 _THINK = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+
+# LiteLLM 默认的 aiohttp 异步传输把读超时同时设为总超时，会让异步流式请求退回按整体耗时超时；
+# 改用 httpx 传输，使同步与异步请求的超时语义一致（均为两次读取之间的间隔）。
+litellm.disable_aiohttp_transport = True
 
 
 def preview_text(text: str, limit: int = _PREVIEW_LIMIT) -> str:
@@ -71,6 +78,26 @@ def _merge_request_extra(request: dict[str, Any], extra: dict[str, Any] | None) 
             request["extra_body"] = merged
         else:
             request[key] = value
+
+
+def _assemble(chunks: list, messages: list):
+    response = litellm.stream_chunk_builder(chunks, messages=messages)
+    if response is None:
+        raise InvalidModelJSON("Model returned an empty stream")
+    return response
+
+
+def _collect(stream, messages: list):
+    """读完流式响应并还原为完整响应；已是完整响应（如测试替身）时原样返回。"""
+    if hasattr(stream, "choices"):
+        return stream
+    return _assemble(list(stream), messages)
+
+
+async def _acollect(stream, messages: list):
+    if hasattr(stream, "choices"):
+        return stream
+    return _assemble([chunk async for chunk in stream], messages)
 
 
 @dataclass(frozen=True)
@@ -148,6 +175,8 @@ class LLMGateway:
             api_key=self.api_key,
             max_tokens=max_tokens,
             timeout=self.timeout,
+            stream=True,
+            stream_options={"include_usage": True},
             num_retries=0,
             **get_compatible_reasoning_kwargs(self.model),
             **get_compatible_sampling_kwargs(self.model, temperature=0, top_p=0.1, seed=42),
@@ -178,7 +207,7 @@ class LLMGateway:
         with llm_sync_slot(stage):
             # 排队拿到并发槽后再检查：已超时/取消的条目不再发新请求
             raise_if_active_cancelled()
-            response = litellm.completion(**request)
+            response = _collect(litellm.completion(**request), request["messages"])
         return self._reply(stage, response)
 
     async def acomplete(self, stage: str, messages: list, *, max_tokens: int, response_format=JSON_OBJECT,
@@ -186,5 +215,5 @@ class LLMGateway:
         request = self._request(stage, messages, max_tokens, response_format, extra)
         async with llm_async_slot(stage):
             raise_if_active_cancelled()
-            response = await litellm.acompletion(**request)
+            response = await _acollect(await litellm.acompletion(**request), request["messages"])
         return self._reply(stage, response)

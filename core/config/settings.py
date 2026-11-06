@@ -63,10 +63,10 @@ class LLMSettings(BaseSettings):
     
     context_window: int | None = Field(default=None, gt=0, description="模型上下文窗口（tokens）")
 
-    # 请求超时时间
+    # 读取超时：请求以流式发送，超时约束的是两段数据之间的间隔，而不是整次请求的总耗时
     timeout: int = Field(
         default=120,
-        description="请求超时时间 (秒)"
+        description="读取超时时间 (秒)：流式响应中相邻两段数据的最长间隔"
     )
     
     # 模型是否支持视觉（多模态）能力
