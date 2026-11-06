@@ -10,8 +10,9 @@ import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, RefreshCw, LayoutGrid, List, FileBarChart, Eye, Folder, Home, ChevronRight, Info, Quote, Sparkles, Scale } from 'lucide-react'
-import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo, type StructuredReasoning, type ItemEvaluation } from '@/services/api'
+import { api, type ReportSummary, type ReportDetail, type BatchFolderInfo, type StructuredReasoning, type ItemEvaluation, type EvidenceMatch } from '@/services/api'
 import { cn } from '@/utils/cn'
+import { citationHighlights, citationPage, reasonCitations } from '@/utils/citations'
 import { EvidenceViewer } from '@/components/EvidenceViewer'
 import { SourceDrawer } from '@/components/SourceDrawer'
 // import { exportToPdf } from '@/utils/exportPdf'
@@ -24,9 +25,10 @@ import { SourceDrawer } from '@/components/SourceDrawer'
 interface ItemEvaluationCardProps {
     item: ItemEvaluation
     onReasonClick: (chunkIds: string[], point: string, explanation?: string) => void  // 直接传递 chunk_id
+    onLocate: (highlights: EvidenceMatch[], point: string, explanation?: string) => void  // 按引用原句的页码与坐标高亮
 }
 
-function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
+function ItemEvaluationCard({ item, onReasonClick, onLocate }: ItemEvaluationCardProps) {
     const { t, i18n } = useTranslation()
 
     // 判断 step3_reasoning 是结构化格式还是旧的字符串格式
@@ -53,6 +55,8 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
     }
 
     const matchedIndex = getMatchedPrincipleIndex()
+    // 逐句定位的引用；旧结果没有 citations，理由仍按 chunk_id 定位
+    const citations = item.citations ?? null
 
     return (
         <details className="group border border-border/50 rounded-lg overflow-hidden transition-all duration-300 open:shadow-md">
@@ -149,12 +153,17 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                                 const chunkIds = reason.evidence_chunks ||
                                     (reason.evidence_refs ? item.evidence_sources?.slice(0, reason.evidence_refs.length) : []) ||
                                     []
+                                // 有引用时只计、只高亮落在这些 chunk 内的原句；一句都没有时回退按 chunk 定位
+                                const linked = citations ? reasonCitations(citations, chunkIds) : []
+                                const highlights = linked.flatMap(citationHighlights)
 
                                 return (
                                     <div
                                         key={idx}
                                         onClick={() => {
-                                            if (chunkIds.length > 0) {
+                                            if (highlights.length > 0) {
+                                                onLocate(highlights, reason.point, reason.explanation)
+                                            } else if (chunkIds.length > 0) {
                                                 onReasonClick(chunkIds, reason.point, reason.explanation)
                                             }
                                         }}
@@ -190,7 +199,7 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                                                 {hasEvidence && (
                                                     <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500 border border-slate-200 group-hover/reason:bg-primary/5 group-hover/reason:text-primary group-hover/reason:border-primary/20 transition-colors">
                                                         <Quote className="h-3 w-3 rotate-180" />
-                                                        <span>{t('ui.citations', { count: chunkIds.length })}</span>
+                                                        <span>{t('ui.citations', { count: highlights.length > 0 ? linked.length : chunkIds.length })}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -218,6 +227,45 @@ function ItemEvaluationCard({ item, onReasonClick }: ItemEvaluationCardProps) {
                                     {structuredReasoning.score_justification}
                                 </p>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 引用原句 - 每句一条，按摘录顺序；点击高亮该句在原文中的全部区域 */}
+                {citations && citations.length > 0 && (
+                    <div className="bg-white/40 rounded-lg p-3 border border-border/30">
+                        <h4 className="text-[11px] font-bold text-muted-foreground/60 uppercase tracking-wider mb-2 flex items-center gap-1.5 pl-1">
+                            <Quote className="h-3 w-3 rotate-180" />
+                            {t('reports.detail.quotedEvidence')}
+                        </h4>
+                        <div className="space-y-1">
+                            {citations.map((citation, idx) => {
+                                const page = citationPage(citation)
+                                return (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        disabled={page === null}
+                                        onClick={() => onLocate(citationHighlights(citation), citation.text)}
+                                        className={cn(
+                                            "w-full flex items-start gap-3 px-3 py-2 text-left text-xs rounded-md transition-colors",
+                                            page !== null
+                                                ? "text-slate-600 hover:bg-white hover:text-slate-800 cursor-pointer"
+                                                : "text-muted-foreground/70 cursor-default"
+                                        )}
+                                    >
+                                        <span className="flex-1 leading-relaxed">{citation.text}</span>
+                                        <span className={cn(
+                                            "shrink-0 font-mono text-[10px] pt-0.5 whitespace-nowrap",
+                                            page !== null ? "text-primary/70" : "text-muted-foreground/50"
+                                        )}>
+                                            {page !== null
+                                                ? t('reports.detail.citationPage', { page })
+                                                : t('reports.detail.citationPageUnknown')}
+                                        </span>
+                                    </button>
+                                )
+                            })}
                         </div>
                     </div>
                 )}
@@ -262,6 +310,7 @@ export function Reports() {
     // 原文查看抽屉状态
     const [sourceDrawerOpen, setSourceDrawerOpen] = useState(false)
     const [sourceDrawerChunkIds, setSourceDrawerChunkIds] = useState<string[]>([])
+    const [sourceDrawerHighlights, setSourceDrawerHighlights] = useState<EvidenceMatch[] | undefined>(undefined)
     const [sourceDrawerReasonPoint, setSourceDrawerReasonPoint] = useState<string>('')
     const [sourceDrawerReasonExplanation, setSourceDrawerReasonExplanation] = useState<string>('')
 
@@ -633,6 +682,13 @@ export function Reports() {
                                                     item={item}
                                                     onReasonClick={(chunkIds, point, explanation) => {
                                                         setSourceDrawerChunkIds(chunkIds)
+                                                        setSourceDrawerHighlights(undefined)
+                                                        setSourceDrawerReasonPoint(point)
+                                                        setSourceDrawerReasonExplanation(explanation || '')
+                                                        setSourceDrawerOpen(true)
+                                                    }}
+                                                    onLocate={(highlights, point, explanation) => {
+                                                        setSourceDrawerHighlights(highlights)
                                                         setSourceDrawerReasonPoint(point)
                                                         setSourceDrawerReasonExplanation(explanation || '')
                                                         setSourceDrawerOpen(true)
@@ -650,6 +706,7 @@ export function Reports() {
                                 taskId={selectedReport.task_id}
                                 folder={currentFolder}
                                 chunkIds={sourceDrawerChunkIds}
+                                highlights={sourceDrawerHighlights}
                                 reasonPoint={sourceDrawerReasonPoint}
                                 reasonExplanation={sourceDrawerReasonExplanation}
                             />

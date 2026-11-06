@@ -246,6 +246,8 @@
             "itemDetails": "条目评价详情",
             "evidenceLocation": "文中位置",
             "quotedEvidence": "支撑文本",
+            "citationPage": "第 {{page}} 页",
+            "citationPageUnknown": "页码未知",
             "scoringReason": "评分理由",
             "evaluatedAt": "评价时间:"
         },

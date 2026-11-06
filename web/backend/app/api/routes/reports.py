@@ -3,9 +3,10 @@
 """
 import json
 import logging
+import math
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
@@ -74,6 +75,64 @@ class ScoringPrincipleItem(BaseModel):
     condition: str
 
 
+class CitationRegion(BaseModel):
+    """引用原句在原文中的一处位置"""
+    page_idx: int
+    bbox: List[float]  # [x1, y1, x2, y2] 归一化坐标 0-1
+    block_id: Optional[str] = None
+    chunk_id: Optional[str] = None
+
+
+class Citation(BaseModel):
+    """一条引用：step2_evidence 中逐字摘录的原句及其定位"""
+    text: str
+    match: Literal["exact", "span", "partial", "none"]
+    regions: List[CitationRegion] = []
+
+
+_LOCATED_MATCHES = frozenset({"exact", "span", "partial"})
+
+
+def _citation_region(raw: Any) -> Optional[CitationRegion]:
+    if not isinstance(raw, dict):
+        return None
+    page_idx, bbox = raw.get("page_idx"), raw.get("bbox")
+    if isinstance(page_idx, bool) or not isinstance(page_idx, int) or page_idx < 0:
+        return None
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        return None
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in bbox):
+        return None
+    x1, y1, x2, y2 = (float(v) for v in bbox)
+    if x2 < x1 or y2 < y1:
+        return None
+    block_id, chunk_id = raw.get("block_id"), raw.get("chunk_id")
+    return CitationRegion(
+        page_idx=page_idx,
+        bbox=[x1, y1, x2, y2],
+        block_id=block_id if isinstance(block_id, str) else None,
+        chunk_id=chunk_id if isinstance(chunk_id, str) else None,
+    )
+
+
+def parse_citations(raw: Any) -> Optional[List[Citation]]:
+    """校验条目结果中的 `citations`：旧结果没有该字段时返回 None（前端沿用按 chunk 定位）；
+    丢弃格式错误的条目与区域，没有有效区域或匹配方式未知的条目按未定位（none）处理。"""
+    if not isinstance(raw, list):
+        return None
+    citations = []
+    for entry in raw:
+        if not isinstance(entry, dict) or not isinstance(entry.get("text"), str) or not entry["text"].strip():
+            continue
+        regions = [region for region in map(_citation_region, entry.get("regions") or []) if region]
+        match = entry.get("match")
+        if not regions or match not in _LOCATED_MATCHES:
+            citations.append(Citation(text=entry["text"].strip(), match="none", regions=[]))
+        else:
+            citations.append(Citation(text=entry["text"].strip(), match=match, regions=regions))
+    return citations
+
+
 class ItemEvaluation(BaseModel):
     """条目评价详情"""
     item_id: str
@@ -86,7 +145,8 @@ class ItemEvaluation(BaseModel):
     step3_reasoning: Optional[Any] = None  # str | StructuredReasoning
     evaluated_at: Optional[str]
     scoring_principle: Optional[List[ScoringPrincipleItem]] = None  # 评分准则
-    evidence_sources: Optional[List[str]] = None  # chunk_id 列表，用于原文定位
+    evidence_sources: Optional[List[str]] = None  # 喂给模型阅读的全部 chunk_id，不是引用列表
+    citations: Optional[List[Citation]] = None  # 逐句定位的引用；旧结果为 None
     rule_engine: Optional[Dict[str, Any]] = None  # 规则引擎输出详情
 
 
@@ -340,6 +400,7 @@ async def get_report(task_id: str, folder: Optional[str] = None):
             evaluated_at=metadata.get("evaluated_at"),
             scoring_principle=scoring_principle,
             evidence_sources=eval_data.get("evidence_sources"),
+            citations=parse_citations(eval_data.get("citations")),
             rule_engine=eval_data.get("rule_engine"),
         ))
     

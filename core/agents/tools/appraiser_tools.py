@@ -16,6 +16,7 @@ from .public_tools import get_task_paths
 from core.skills import load_skill_config as _load_skill_config
 from core.utils.unicode_sanitizer import sanitize_unicode
 from core.utils.atomic_json import write_json_atomically
+from core.preprocessor.citations import citations_for
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,10 @@ def save_item_evaluation(
             evaluation["rule_engine"] = sanitize_unicode(rule_engine)
         if hybrid_router is not None:
             evaluation["hybrid_router"] = sanitize_unicode(hybrid_router)
+        # 引用定位：逐句把摘录的原句对应到原文块（页码 + 坐标）；没有解析结果或定位失败时不写
+        citations = citations_for(paths["prep_dir"], step2_evidence or [], evidence_sources or [])
+        if citations is not None:
+            evaluation["citations"] = citations
         
         if not validate_evaluation(evaluation, skill_id):
             raise ValueError(f"条目包含无效结果或未解决的技术失败: {skill_id}")

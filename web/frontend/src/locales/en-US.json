@@ -429,6 +429,8 @@
             "itemDetails": "Item Appraisal Details",
             "evidenceLocation": "Location Info",
             "quotedEvidence": "Supporting Text",
+            "citationPage": "Page {{page}}",
+            "citationPageUnknown": "Page unknown",
             "scoringReason": "Scoring Rationale",
             "evaluatedAt": "Evaluated at:"
         },

@@ -120,6 +120,20 @@ export interface ScoringPrincipleItem {
     condition: string
 }
 
+// 引用：step2_evidence 中逐字摘录的原句，逐句定位到原文块
+export interface CitationRegion {
+    page_idx: number
+    bbox: number[]  // [x1, y1, x2, y2] 归一化坐标 0-1
+    block_id: string | null
+    chunk_id: string | null
+}
+
+export interface Citation {
+    text: string
+    match: 'exact' | 'span' | 'partial' | 'none'
+    regions: CitationRegion[]  // 未定位时为空
+}
+
 export interface ItemEvaluation {
     item_id: string
     domain: number
@@ -131,7 +145,8 @@ export interface ItemEvaluation {
     step3_reasoning: string | StructuredReasoning | null
     evaluated_at: string | null
     scoring_principle: ScoringPrincipleItem[] | null  // 评分准则
-    evidence_sources: string[] | null  // chunk_id 列表，用于原文定位
+    evidence_sources: string[] | null  // 喂给模型阅读的全部 chunk_id，不是引用列表
+    citations?: Citation[] | null  // 逐句定位的引用；旧结果没有，沿用按 chunk 定位
     rule_engine?: Record<string, unknown> | null  // 规则引擎输出详情
 }
 

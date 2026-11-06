@@ -3,7 +3,8 @@ import { asMessage, type UiMessage } from '@/i18n/messages'
 /**
  * SourceDrawer - 右侧抽屉式原文查看面板
  * 
- * 点击理由卡片后，在右侧滑出展示 PDF 原文并高亮匹配文本
+ * 点击理由卡片后，在右侧滑出展示 PDF 原文并高亮匹配文本；
+ * 传入 highlights（页码 + 归一化坐标）时直接高亮这些区域，不再按 chunk_id 查询位置
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +29,7 @@ interface SourceDrawerProps {
     folder?: string | null
     chunkIds?: string[]  // 优先使用 chunk_id 精确定位
     evidenceTexts?: string[]  // 备用文本匹配
+    highlights?: EvidenceMatch[]  // 显式高亮框（如引用原句的定位），优先于 chunkIds，跳转到第一个
     reasonPoint?: string  // 当前理由要点
     reasonExplanation?: string // 理由详细解释
 }
@@ -39,6 +41,7 @@ export function SourceDrawer({
     folder,
     chunkIds,
     evidenceTexts,
+    highlights,
     reasonPoint,
     reasonExplanation
 }: SourceDrawerProps) {
@@ -54,11 +57,21 @@ export function SourceDrawer({
 
     const pageContainerRef = useRef<HTMLDivElement>(null)
 
+    // 显式高亮框：换一组时回到第一个位置（渲染期调整状态，避免 effect 内同步 setState）
+    const explicit = Boolean(highlights && highlights.length > 0)
+    const [shownHighlights, setShownHighlights] = useState(highlights)
+    if (highlights !== shownHighlights) {
+        setShownHighlights(highlights)
+        setCurrentMatchIndex(0)
+    }
+    const shownMatches = explicit && highlights ? highlights : matches
+    const busy = !explicit && loading
+
     // 加载证据位置
     useEffect(() => {
-        // 优先使用 chunkIds，否则使用 evidenceTexts
+        // 优先使用 chunkIds，否则使用 evidenceTexts；有显式高亮框时不查询
         const hasData = (chunkIds && chunkIds.length > 0) || (evidenceTexts && evidenceTexts.length > 0)
-        if (!isOpen || !hasData) return
+        if (!isOpen || explicit || !hasData) return
 
         async function loadLocations() {
             setLoading(true)
@@ -83,7 +96,7 @@ export function SourceDrawer({
             }
         }
         loadLocations()
-    }, [isOpen, taskId, folder, chunkIds, evidenceTexts])
+    }, [isOpen, taskId, folder, chunkIds, evidenceTexts, explicit])
 
     // PDF 加载完成
     const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
@@ -108,7 +121,7 @@ export function SourceDrawer({
 
     // 切换匹配位置
     const goToPrevMatch = () => setCurrentMatchIndex(i => Math.max(0, i - 1))
-    const goToNextMatch = () => setCurrentMatchIndex(i => Math.min(matches.length - 1, i + 1))
+    const goToNextMatch = () => setCurrentMatchIndex(i => Math.min(shownMatches.length - 1, i + 1))
 
     // 缩放
     const zoomIn = () => {
@@ -132,7 +145,7 @@ export function SourceDrawer({
         }
     }, [])
 
-    const currentMatch = matches[currentMatchIndex]
+    const currentMatch = shownMatches[currentMatchIndex]
 
     // 页码变化时延迟重新检测 pageSize（等待 PDF 页面渲染完成）
     useEffect(() => {
@@ -204,8 +217,8 @@ export function SourceDrawer({
                 )}
 
                 {/* 工具栏 - 移至 Detail 下方 */}
-                {locationError && <div className="p-4 text-red-600"><MessageView message={locationError} /></div>}
-                {matches.length > 0 && (
+                {!explicit && locationError && <div className="p-4 text-red-600"><MessageView message={locationError} /></div>}
+                {shownMatches.length > 0 && (
                     <div className="flex items-center justify-between px-4 py-2 border-b text-sm bg-white shrink-0 shadow-sm z-10">
                         {/* 匹配位置切换 */}
                         <div className="flex items-center gap-2">
@@ -220,13 +233,13 @@ export function SourceDrawer({
                                 <ChevronLeft className="h-3 w-3" />
                             </Button>
                             <span className="font-mono text-xs min-w-[3rem] text-center">
-                                {currentMatchIndex + 1} / {matches.length}
+                                {currentMatchIndex + 1} / {shownMatches.length}
                             </span>
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToNextMatch}
-                                disabled={currentMatchIndex >= matches.length - 1}
+                                disabled={currentMatchIndex >= shownMatches.length - 1}
                                 className="h-6 w-6 p-0"
                             >
                                 <ChevronRight className="h-3 w-3" />
@@ -248,14 +261,14 @@ export function SourceDrawer({
 
                 {/* PDF 内容区 */}
                 <div className="flex-1 overflow-auto p-4 bg-gray-100 min-h-0">
-                    {loading ? (
+                    {busy ? (
                         <div className="flex items-center justify-center h-full">
                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
                             <span className="ml-2 text-sm text-gray-500">
                                 {t('reports.source.loading')}
                             </span>
                         </div>
-                    ) : matches.length === 0 ? (
+                    ) : shownMatches.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-400">
                             <span className="text-sm">{t('reports.source.noMatch')}</span>
                         </div>
@@ -290,7 +303,7 @@ export function SourceDrawer({
                             </Document>
 
                             {/* 高亮叠加层 */}
-                            {pageSize && matches.length > 0 && (
+                            {pageSize && shownMatches.length > 0 && (
                                 <svg
                                     style={{
                                         position: 'absolute',
@@ -302,12 +315,12 @@ export function SourceDrawer({
                                     }}
                                 >
                                     {/* 渲染当前页面的所有匹配区域 */}
-                                    {matches
+                                    {shownMatches
                                         .filter(m => m.page_idx === currentMatch?.page_idx)
                                         .map((match, idx) => {
                                             const [x1, y1, x2, y2] = match.bbox
                                             // 判断是否是当前选中的匹配（通过原始匹配对象比较）
-                                            const isActive = matches[currentMatchIndex] === match
+                                            const isActive = shownMatches[currentMatchIndex] === match
 
                                             // 计算略微扩展的边界，避免压住文字
                                             const pad = 2
@@ -367,7 +380,7 @@ export function SourceDrawer({
                 </div>
 
                 {/* 底部信息 */}
-                {matches.length > 0 && currentMatch && (
+                {shownMatches.length > 0 && currentMatch && (
                     <div className="px-4 py-2 border-t bg-gray-50 text-xs text-gray-500">
                         <span>
                             {t('reports.source.page')} {(currentMatch.page_idx ?? 0) + 1} / {numPages}
