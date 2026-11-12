@@ -40,16 +40,17 @@ except ImportError:
 # =============================================================================
 # Fixed experiment configuration. Edit these values directly for each run.
 # The script intentionally does not read .env so each baseline run is explicit.
+# The endpoint and its token come from COT_API_BASE_URL and COT_API_KEY.
 # =============================================================================
 
 # Model id sent to /v1/chat/completions and recorded in output metadata.
 MODEL_ID = os.environ.get("COT_MODEL_ID", "qwen3.5-122b-a10b")
 
 # OpenAI-compatible API base URL. The script appends /chat/completions.
-API_BASE_URL = ""
+API_BASE_URL = os.environ.get("COT_API_BASE_URL", "")
 
 # Optional bearer token. Keep empty when the model gateway does not require auth.
-API_KEY = ""
+API_KEY = os.environ.get("COT_API_KEY", "")
 
 # Optional benchmark manifest containing guide ids and main PDF filenames.
 MANIFEST_PATH = Path("input/bench_min_size/bench_annotation_manifest.csv")
@@ -708,6 +709,8 @@ async def chat_completion_messages(
 ) -> tuple[str, dict[str, Any]]:
     """Call an OpenAI-compatible /v1/chat/completions endpoint with a message history."""
 
+    if not API_BASE_URL:
+        raise RuntimeError("COT_API_BASE_URL is not set")
     url = f"{API_BASE_URL.rstrip('/')}/chat/completions"
     headers = {"Content-Type": "application/json"}
     if API_KEY:

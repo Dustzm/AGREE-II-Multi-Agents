@@ -3,7 +3,7 @@
         "vllm": {
             "name": "自部署模型 (vLLM / sglang)",
             "prefix": "openai",
-            "default_base_url": "http://10.99.24.182:30001/v1",
+            "default_base_url": "",
             "need_base_url": true,
             "env_key": "OPENAI_API_KEY",
             "env_base": "OPENAI_API_BASE",
