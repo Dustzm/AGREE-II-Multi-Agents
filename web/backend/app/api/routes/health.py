@@ -20,7 +20,7 @@ async def health_check():
     """健康检查接口"""
     return {
         "status": "ok", 
-        "service": "kg-weaver",
+        "service": "ama",
         "startup_time": STARTUP_TIME
     }
 

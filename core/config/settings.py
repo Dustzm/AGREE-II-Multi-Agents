@@ -1,5 +1,5 @@
 """
-KG-Weaver 配置管理模块
+AMA 配置管理模块
 
 使用 pydantic-settings 从环境变量加载配置
 """

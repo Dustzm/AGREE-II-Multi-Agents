@@ -1,5 +1,5 @@
 """
-KG-Weaver 配置模块
+AMA 配置模块
 
 包含两部分配置：
 - settings.py: 环境配置 (.env 文件)，包含 LLM、MinerU、App 设置

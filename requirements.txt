@@ -1,4 +1,4 @@
-# KG-Weaver 依赖
+# AMA 依赖
 
 # Web框架
 fastapi>=0.115.0

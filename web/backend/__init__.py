@@ -1,5 +1,5 @@
 """
-KG-Weaver Web Backend Package
+AMA Web Backend Package
 
 FastAPI 后端服务
 """

@@ -1,5 +1,5 @@
 """
-KG-Weaver Core Package
+AMA Core Package
 
 智能体核心模块，包含：
 - agents: 智能体定义

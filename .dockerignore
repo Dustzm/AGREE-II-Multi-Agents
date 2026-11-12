@@ -35,7 +35,6 @@ benchmark/output/
 bench_annotation/
 latest_suffix_analysis/
 agree_ii_multi_agents.egg-info/
-kg_weaver.egg-info/
 
 # Local research/data artifacts; not required at runtime.
 docs/

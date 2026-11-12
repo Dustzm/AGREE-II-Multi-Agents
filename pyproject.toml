@@ -1,14 +1,14 @@
 [project]
 name = "agree-ii-multi-agents"
 version = "0.1.0"
-description = "多智能体知识图谱抽取框架"
+description = "Multi-agent appraisal of clinical practice guidelines with AGREE II"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
     {name = "zmchen", email = "zmchen1021@gmail.com"}
 ]
-keywords = ["CPG", "multi-agent", "llm", "extraction"]
+keywords = ["AGREE II", "clinical practice guideline", "appraisal", "multi-agent", "llm"]
 
 dependencies = [
     # Web 框架
