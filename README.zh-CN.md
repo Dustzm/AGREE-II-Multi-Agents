@@ -131,7 +131,28 @@ docker compose up -d
 | `get_appraisal_result` | 获取完成的报告 |
 | `cancel_appraisal` | 取消排队中或运行中的任务 |
 
-详见 [docs/AMA_MCP_Integration_Guide.pdf](docs/AMA_MCP_Integration_Guide.pdf)。
+PDF 先通过 HTTP 上传，之后各工具使用返回的 ID：
+
+1. 以 `multipart/form-data` 向 `/ama/mcp/uploads/` 发送 `POST`，只带一个名为 `file` 的字段。响应（HTTP 201）包含 `upload_id`。默认单个 PDF 不超过 10 MiB、1000 页。
+2. 用 `upload_id` 和一个 `idempotency_key` 调用 `submit_pdf_appraisal`，`analysis_engine` 可省略。保存返回的 `job_id`。
+3. 轮询 `get_appraisal_status`，直到状态为 `completed`、`failed` 或 `cancelled`。
+4. 状态为 `completed` 时调用 `get_appraisal_result`。
+
+客户端配置示例，请换成自己的地址和密钥：
+
+```json
+{
+  "mcpServers": {
+    "ama": {
+      "type": "http",
+      "url": "http://<host>:8011/ama/mcp/",
+      "headers": { "Authorization": "Bearer <AMA_MCP_API_KEY>" }
+    }
+  }
+}
+```
+
+服务端也会把这套流程作为 MCP instructions 发送给客户端。
 
 ## AGREE II 领域
 
@@ -172,7 +193,7 @@ mineru/  mineru_vl_utils/   解析 PDF 的 MinerU 客户端
 docindex/              标题层级识别
 docvlm/                独立的 VLM PDF 解析工具（命令行）
 benchmark/             与人工评分的一致性指标
-docs/                  用户手册与设计说明
+docs/                  用户手册
 service.sh             本地服务的启动、停止与状态
 docker-compose.yml     容器部署
 ```
@@ -209,14 +230,7 @@ cd web/frontend && npm test
 
 ## 文档
 
-| 文档 | 内容 |
-|---|---|
-| [docs/USER_MANUAL.md](docs/USER_MANUAL.md)、[docs/USER_MANUAL_EN.md](docs/USER_MANUAL_EN.md) | 中文与英文用户手册 |
-| [docs/AMA_MCP_Integration_Guide.pdf](docs/AMA_MCP_Integration_Guide.pdf) | MCP 接入 |
-| [docs/I18N.md](docs/I18N.md) | 界面消息与语言规则 |
-| [docs/STRUCTURED_OUTPUT.md](docs/STRUCTURED_OUTPUT.md) | 模型结构化输出 |
-| [docs/RULE_ENGINE_RELIABILITY_PLAN.md](docs/RULE_ENGINE_RELIABILITY_PLAN.md) | 规则引擎的失败处理 |
-| [docs/ARCHITECTURE_OPTIMIZATION_PLAN.md](docs/ARCHITECTURE_OPTIMIZATION_PLAN.md) | 架构与性能设计 |
+用户手册：[中文](docs/USER_MANUAL.md)、[English](docs/USER_MANUAL_EN.md)，也可以在 Web 界面内查看。
 
 ## License
 

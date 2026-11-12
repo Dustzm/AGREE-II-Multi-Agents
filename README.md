@@ -131,7 +131,28 @@ Set `AMA_MCP_ENABLED=true` and `AMA_MCP_API_KEY`. The backend then serves a Stre
 | `get_appraisal_result` | Fetch the finished report |
 | `cancel_appraisal` | Cancel a queued or running job |
 
-Details are in [docs/AMA_MCP_Integration_Guide.pdf](docs/AMA_MCP_Integration_Guide.pdf).
+A PDF is uploaded over HTTP first, and the tools then work with the returned ID:
+
+1. `POST /ama/mcp/uploads/` as `multipart/form-data` with one field named `file`. The response (HTTP 201) contains an `upload_id`. A PDF may be at most 10 MiB and 1,000 pages by default.
+2. Call `submit_pdf_appraisal` with the `upload_id` and an `idempotency_key`. `analysis_engine` is optional. Save the returned `job_id`.
+3. Poll `get_appraisal_status` until the status is `completed`, `failed`, or `cancelled`.
+4. Call `get_appraisal_result` when the status is `completed`.
+
+Client configuration, with your own host and key:
+
+```json
+{
+  "mcpServers": {
+    "ama": {
+      "type": "http",
+      "url": "http://<host>:8011/ama/mcp/",
+      "headers": { "Authorization": "Bearer <AMA_MCP_API_KEY>" }
+    }
+  }
+}
+```
+
+The server also sends this workflow to the client as MCP instructions.
 
 ## AGREE II domains
 
@@ -172,7 +193,7 @@ mineru/  mineru_vl_utils/   MinerU client for PDF parsing
 docindex/              Heading hierarchy detection
 docvlm/                Standalone VLM-based PDF parser (CLI)
 benchmark/             Agreement metrics against human scores
-docs/                  User manuals and design notes
+docs/                  User manuals
 service.sh             Start, stop, and status for local services
 docker-compose.yml     Container deployment
 ```
@@ -209,14 +230,7 @@ The tests do not call a real model.
 
 ## Documentation
 
-| Document | Content |
-|---|---|
-| [docs/USER_MANUAL_EN.md](docs/USER_MANUAL_EN.md), [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | User manual in English and Chinese |
-| [docs/AMA_MCP_Integration_Guide.pdf](docs/AMA_MCP_Integration_Guide.pdf) | MCP integration |
-| [docs/I18N.md](docs/I18N.md) | Interface messages and language rules |
-| [docs/STRUCTURED_OUTPUT.md](docs/STRUCTURED_OUTPUT.md) | Structured model output |
-| [docs/RULE_ENGINE_RELIABILITY_PLAN.md](docs/RULE_ENGINE_RELIABILITY_PLAN.md) | Rule-engine failure handling |
-| [docs/ARCHITECTURE_OPTIMIZATION_PLAN.md](docs/ARCHITECTURE_OPTIMIZATION_PLAN.md) | Architecture and performance design |
+User manual: [English](docs/USER_MANUAL_EN.md), [中文](docs/USER_MANUAL.md). It is also available inside the web UI.
 
 ## License
 

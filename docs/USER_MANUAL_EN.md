@@ -4,7 +4,7 @@
 
 If you are using the system for the first time, the recommended workflow is:
 
-1. Open `Configuration`
+1. Open `Config`
 2. Go to `Appraisal`
 3. Review the results in `Reports`
 
@@ -15,27 +15,28 @@ The left navigation panel includes the following commonly used pages:
 - `Appraisal`: Upload or select guideline files and start a single appraisal task
 - `Batch`: Select multiple guideline files and run appraisals in batch
 - `Reports`: View historical reports and detailed appraisal results
-- `Configuration`: Check the current model connection status
+- `Config`: Check the current model connection status
 
 Other pages:
 
-- `Experiments`: Compare experiment results
-- `Skills`: View and adjust item configurations
+- `Experiment`: Compare appraisal results with human scores
+- `Items`: View and adjust item configurations
+- `Users`: Manage accounts (administrators only)
 
 ## 3. Recommended Workflow
 
 ### 3.1 Step 1: Check the Configuration
 
-On the `Configuration` page, it is recommended to complete the following two checks before starting:
+On the `Config` page, it is recommended to complete the following two checks before starting:
 
 1. Click `Test Connection`
-2. Click `Health Check`
+2. Click `LLM Health Check`
 
 If both checks pass, the system is generally ready for use.
 
 If the page shows a connection error, resolve the issue before starting an appraisal task.
 
-![Configuration Page](images/image-20260315140930495.png)
+![Config Page](images/image-20260315140930495.png)
 
 ### 3.2 Step 2: Select a Guideline File
 
@@ -155,9 +156,9 @@ Typical use cases:
 - Running appraisals for a group of guidelines in one batch
 - Reviewing all outputs later from the `Reports` page
 
-### 4.4 Configuration Page
+### 4.4 Config Page
 
-The `Configuration` page is mainly used to confirm that the system is currently available.
+The `Config` page is mainly used to confirm that the system is currently available.
 
 You can check:
 
@@ -217,7 +218,7 @@ This section is useful for:
 
 Recommended sequence:
 
-1. Open `Configuration` and check system status
+1. Open `Config` and check system status
 2. Go to `Appraisal` and upload or select a PDF
 3. Wait for the task to finish
 4. Open `Reports` to review the result
